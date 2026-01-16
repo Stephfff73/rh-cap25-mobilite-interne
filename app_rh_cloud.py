@@ -1,4 +1,3 @@
-%%writefile app_rh_cloud.py
 import streamlit as st
 import pandas as pd
 
@@ -81,4 +80,5 @@ with st.expander(f"Dossier de {selected_nom}", expanded=True):
 st.divider()
 st.subheader("Analyse de l'Organigramme Cible")
 # Ici, vous pouvez remettre la logique de bar chart de tension et de libération de postes
+
 
