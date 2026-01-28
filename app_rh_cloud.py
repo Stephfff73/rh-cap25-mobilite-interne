@@ -371,7 +371,7 @@ if page == "📊 Tableau de Bord":
     # Graphiques
     col_chart1, col_chart2 = st.columns(2)
     
-:
+    with col_chart1:
         st.subheader("🔥 Top 10 des postes les plus demandés")
         
         # Concaténer tous les vœux (excluant "Positionnement manquant" et valeurs vides)
