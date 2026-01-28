@@ -17,13 +17,13 @@ st.set_page_config(
 # --- CONFIGURATION GOOGLE SHEETS ---
 @st.cache_resource
 def get_gsheet_connection():
-    """
-    Établit la connexion avec Google Sheets en utilisant les credentials du service account.
-    """
     try:
-        credentials_dict = st.secrets["gcp_service_account"]
+        # On récupère le dictionnaire des secrets
+        # .to_dict() est nécessaire si vous utilisez st.secrets directement avec Google Auth
+        creds_info = st.secrets["gcp_service_account"]
+        
         credentials = service_account.Credentials.from_service_account_info(
-            credentials_dict,
+            creds_info,
             scopes=[
                 "https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive"
@@ -33,6 +33,8 @@ def get_gsheet_connection():
         return client
     except Exception as e:
         st.error(f"Erreur de configuration des credentials : {str(e)}")
+        # Affiche les clés disponibles pour déboguer si ça échoue
+        st.write("Clés détectées dans les secrets :", list(st.secrets.keys()))
         return None
 
 @st.cache_data(ttl=60)
@@ -934,5 +936,6 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
