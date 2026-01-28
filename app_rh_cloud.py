@@ -309,7 +309,8 @@ if page == "📊 Tableau de Bord":
     # Première ligne de métriques
     col1, col2, col3, col4 = st.columns(4)
     
-    nb_collaborateurs = len(collaborateurs_df)
+    # Compter les collaborateurs avec un matricule non vide
+    nb_collaborateurs = len(collaborateurs_df[collaborateurs_df["Matricule"].notna() & (collaborateurs_df["Matricule"].str.strip() != "")])
     
     # Calcul du nombre de postes ouverts (somme de "Nombre total de postes" où "Mobilité interne" = "Oui")
     postes_ouverts_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
@@ -347,7 +348,7 @@ if page == "📊 Tableau de Bord":
     col5.metric("⭐ Priorité 1", nb_priorite_1)
     col6.metric("⭐ Priorité 2", nb_priorite_2)
     col7.metric("⭐ Priorité 3", nb_priorite_3)
-    col8.metric("⭐ Priorité 4", nb_priorite_4)
+    col8.metric("✅ Entretiens réalisés", entretiens_realises)
     
     st.divider()
     
@@ -373,7 +374,20 @@ if page == "📊 Tableau de Bord":
             top_postes = all_voeux.value_counts()
             top_10_postes = top_postes.head(10).sort_values(ascending=False)
             
-            st.bar_chart(top_10_postes, color="#FF4B4B")
+            # Créer un graphique avec axe Y en entiers
+            import plotly.express as px
+            fig = px.bar(
+                x=top_10_postes.index,
+                y=top_10_postes.values,
+                labels={'x': 'Poste', 'y': 'Nombre de vœux'},
+                color_discrete_sequence=['#FF4B4B']
+            )
+            fig.update_layout(
+                showlegend=False,
+                xaxis_tickangle=-45,
+                yaxis=dict(dtick=1)  # Forcer les entiers sur l'axe Y
+            )
+            st.plotly_chart(fig, use_container_width=True)
             
             # Afficher toutes les données dans un expander
             with st.expander("📊 Voir toutes les données"):
@@ -392,18 +406,30 @@ if page == "📊 Tableau de Bord":
         st.subheader("⚠️ Flop 10 des postes les moins demandés")
         
         if len(all_voeux) > 0:
-            # Trier par ordre croissant et prendre les 10 premiers
-            flop_postes = all_voeux.value_counts()
-            flop_10_postes = flop_postes.tail(10).sort_values(ascending=True)
+            # Trier par ordre croissant et prendre les 10 derniers
+            flop_postes = all_voeux.value_counts().sort_values(ascending=True)
+            flop_10_postes = flop_postes.head(10)
             
-            st.bar_chart(flop_10_postes, color="#FFA500")
+            # Créer un graphique avec axe Y en entiers
+            fig2 = px.bar(
+                x=flop_10_postes.index,
+                y=flop_10_postes.values,
+                labels={'x': 'Poste', 'y': 'Nombre de vœux'},
+                color_discrete_sequence=['#FFA500']
+            )
+            fig2.update_layout(
+                showlegend=False,
+                xaxis_tickangle=-45,
+                yaxis=dict(dtick=1)  # Forcer les entiers sur l'axe Y
+            )
+            st.plotly_chart(fig2, use_container_width=True)
             
             # Afficher toutes les données dans un expander
             with st.expander("📊 Voir toutes les données"):
                 st.dataframe(
                     pd.DataFrame({
-                        "Poste": flop_postes.sort_values(ascending=True).index,
-                        "Nombre de vœux": flop_postes.sort_values(ascending=True).values
+                        "Poste": flop_postes.index,
+                        "Nombre de vœux": flop_postes.values
                     }),
                     use_container_width=True,
                     hide_index=True
@@ -419,7 +445,7 @@ elif page == "👥 Gestion des Candidatures":
     st.title("👥 Gestion des Candidatures")
     
     # Filtres
-    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+    col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
     
     with col_f1:
         filtre_direction = st.multiselect(
@@ -438,13 +464,17 @@ elif page == "👥 Gestion des Candidatures":
         )
     
     with col_f3:
+        # Recherche par nom
+        search_nom = st.text_input("🔍 Rechercher un collaborateur par son nom")
+    
+    with col_f4:
         filtre_rrh = st.multiselect(
             "Filtrer par RRH",
             options=sorted(collaborateurs_df["Référente RH"].unique()),
             default=[]
         )
     
-    with col_f4:
+    with col_f5:
         filtre_date_rdv = st.date_input(
             "Filtrer par Date de rdv",
             value=None
@@ -462,6 +492,9 @@ elif page == "👥 Gestion des Candidatures":
             axis=1
         )
         df_filtered = df_filtered[collab_filter_mask]
+    
+    if search_nom:
+        df_filtered = df_filtered[df_filtered["NOM"].str.contains(search_nom, case=False, na=False)]
     
     if filtre_rrh:
         df_filtered = df_filtered[df_filtered["Référente RH"].isin(filtre_rrh)]
@@ -481,16 +514,25 @@ elif page == "👥 Gestion des Candidatures":
         # Préparer la date et heure d'entretien
         date_rdv = row.get("Date de rdv", "")
         heure_rdv = row.get("Heure de rdv", "")
-        entretien = f"{date_rdv} à {heure_rdv}" if date_rdv and heure_rdv else date_rdv
+        
+        if date_rdv and date_rdv.strip() != "":
+            entretien = f"{date_rdv} à {heure_rdv}" if heure_rdv and heure_rdv.strip() != "" else date_rdv
+        else:
+            entretien = ""
         
         # Assessment
         assessment = row.get("Assesment à planifier O/N", "Non")
         if not assessment or assessment.strip() == "":
             assessment = "Non"
         
+        # Manager actuel
+        prenom_manager = row.get("Prénom Manager", "")
+        nom_manager = row.get("Nom Manager", "")
+        manager_actuel = f"{prenom_manager} {nom_manager}".strip() if prenom_manager or nom_manager else ""
+        
         display_row = {
             "Prénom": row.get("Prénom", ""),
-            "NOM": row.get("NOM", ""),
+            "Nom": row.get("NOM", ""),
             "Poste actuel": row.get("Poste  libellé", ""),
             "CSP": row.get("CSP", ""),
             "Classification": row.get("Classification", ""),
@@ -498,9 +540,8 @@ elif page == "👥 Gestion des Candidatures":
             "Nomade": row.get("Nomade", ""),
             "Ancienneté": anciennete,
             "Direction": row.get("Direction libellé", ""),
-            "Manager actuel": f"{row.get('Prénom Manager', '')} {row.get('Nom Manager', '')}".strip(),
+            "Manager actuel": manager_actuel,
             "Rencontre RH": row.get("Rencontre RH / Positionnement", ""),
-            "Priorité": row.get("Priorité", ""),
             "Référente RH": row.get("Référente RH", ""),
             "📅 Entretien": entretien,
             "Vœu 1": row.get("Vœux 1", ""),
@@ -544,7 +585,7 @@ elif page == "👥 Gestion des Candidatures":
             selected_for_entretien = st.selectbox(
                 "Sélectionner un collaborateur pour accéder à son entretien",
                 options=["-- Sélectionner --"] + [
-                    f"{row['NOM']} {row['Prénom']}" 
+                    f"{row['Nom']} {row['Prénom']}" 
                     for _, row in display_df.iterrows()
                 ],
                 key="select_entretien_from_list"
@@ -1074,23 +1115,51 @@ elif page == "🎯 Analyse par Poste":
         poste = poste_row["Poste"]
         nb_postes_disponibles = int(poste_row.get("Nombre total de postes", 1))
         candidats = []
+        candidats_details = []  # Pour stocker les détails des candidats
         
         for _, collab in collaborateurs_df.iterrows():
+            nom_prenom = f"{collab.get('NOM', '')} {collab.get('Prénom', '')}"
+            
             if collab.get("Vœux 1") == poste:
-                candidats.append(f"{collab.get('NOM', '')} {collab.get('Prénom', '')} (V1)")
+                candidats.append(f"{nom_prenom} (V1)")
+                candidats_details.append({
+                    "nom": nom_prenom,
+                    "matricule": collab.get("Matricule", ""),
+                    "voeu": "V1"
+                })
             elif collab.get("Vœux 2") == poste:
-                candidats.append(f"{collab.get('NOM', '')} {collab.get('Prénom', '')} (V2)")
+                candidats.append(f"{nom_prenom} (V2)")
+                candidats_details.append({
+                    "nom": nom_prenom,
+                    "matricule": collab.get("Matricule", ""),
+                    "voeu": "V2"
+                })
             elif collab.get("Voeux 3") == poste:
-                candidats.append(f"{collab.get('NOM', '')} {collab.get('Prénom', '')} (V3)")
+                candidats.append(f"{nom_prenom} (V3)")
+                candidats_details.append({
+                    "nom": nom_prenom,
+                    "matricule": collab.get("Matricule", ""),
+                    "voeu": "V3"
+                })
         
         nb_candidats = len(candidats)
         
+        # Déterminer le statut avec niveaux de tension
         if nb_candidats == 0:
             statut = "⚠️ Aucun candidat"
         elif nb_candidats < nb_postes_disponibles:
             statut = f"⚠️ Manque {nb_postes_disponibles - nb_candidats} candidat(s)"
+        elif nb_candidats == nb_postes_disponibles:
+            statut = "✅ Vivier équilibré"
         else:
-            statut = "✅ Vivier actif"
+            # Calcul du ratio pour déterminer le niveau de tension
+            ratio = nb_candidats / nb_postes_disponibles
+            if ratio <= 1.5:
+                statut = "🟡 Tension"
+            elif ratio <= 2.5:
+                statut = "🟠 Forte tension"
+            else:
+                statut = "🔴 Très forte tension"
         
         job_analysis.append({
             "Poste": poste,
@@ -1098,6 +1167,7 @@ elif page == "🎯 Analyse par Poste":
             "Postes disponibles": nb_postes_disponibles,
             "Nb_Candidats": nb_candidats,
             "Candidats": ", ".join(candidats) if candidats else "",
+            "Candidats_details": candidats_details,  # Stocké pour usage ultérieur
             "Statut": statut
         })
     
@@ -1127,8 +1197,9 @@ elif page == "🎯 Analyse par Poste":
     
     # Affichage
     if not df_filtered_analysis.empty:
+        # Affichage du tableau principal
         st.dataframe(
-            df_filtered_analysis,
+            df_filtered_analysis.drop(columns=["Candidats_details"]),
             use_container_width=True,
             hide_index=True,
             column_config={
@@ -1142,6 +1213,38 @@ elif page == "🎯 Analyse par Poste":
                 )
             }
         )
+        
+        st.divider()
+        
+        # Section pour accéder aux fiches détaillées
+        st.subheader("📋 Accès aux fiches candidats")
+        
+        # Sélection d'un poste
+        poste_selectionne = st.selectbox(
+            "Sélectionner un poste pour voir les candidats",
+            options=["-- Sélectionner --"] + df_filtered_analysis["Poste"].tolist(),
+            key="select_poste_for_candidats"
+        )
+        
+        if poste_selectionne != "-- Sélectionner --":
+            # Récupérer les candidats pour ce poste
+            candidats_details = df_filtered_analysis[df_filtered_analysis["Poste"] == poste_selectionne]["Candidats_details"].iloc[0]
+            
+            if candidats_details:
+                st.write(f"**Candidats pour le poste : {poste_selectionne}**")
+                
+                for candidat in candidats_details:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.write(f"• {candidat['nom']} ({candidat['voeu']})")
+                    with col2:
+                        if st.button(f"📄 Voir la fiche", key=f"voir_{candidat['matricule']}"):
+                            # Naviguer vers la page Entretien RH avec ce collaborateur
+                            st.session_state['selected_collaborateur'] = candidat['nom']
+                            st.session_state['navigate_to_entretien'] = True
+                            st.rerun()
+            else:
+                st.info("Aucun candidat pour ce poste")
     else:
         st.info("Aucun poste ne correspond aux filtres sélectionnés")
 
@@ -1193,6 +1296,7 @@ elif page == "🌳 Référentiel Postes":
 st.divider()
 st.markdown("""
 <div style='text-align: center; color: #666; font-size: 0.9em;'>
-    <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
+    <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets 🤖</p>
 </div>
 """, unsafe_allow_html=True)
+```
