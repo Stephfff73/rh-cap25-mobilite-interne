@@ -4,6 +4,7 @@ from datetime import datetime
 import time
 from google.oauth2 import service_account
 import gspread
+from streamlit_gsheets import GSheetsConnection
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -933,4 +934,5 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
