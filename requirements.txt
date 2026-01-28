@@ -1,3 +1,6 @@
 streamlit
-st-gsheets-connection
 pandas
+google-auth
+gspread
+plotly
+
