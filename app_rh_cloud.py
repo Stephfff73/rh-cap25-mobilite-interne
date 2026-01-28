@@ -371,7 +371,7 @@ if page == "📊 Tableau de Bord":
     # Graphiques
     col_chart1, col_chart2 = st.columns(2)
     
-    with col_chart1:
+:
         st.subheader("🔥 Top 10 des postes les plus demandés")
         
         # Concaténer tous les vœux (excluant "Positionnement manquant" et valeurs vides)
@@ -380,10 +380,11 @@ if page == "📊 Tableau de Bord":
             collaborateurs_df["Vœux 2"],
             collaborateurs_df["Voeux 3"]
         ])
+        # Filtrer pour ne garder que les valeurs valides (non vides, non null, non "Positionnement manquant")
         all_voeux = all_voeux[
             all_voeux.notna() & 
-            (all_voeux != "") & 
-            (all_voeux != "Positionnement manquant")
+            (all_voeux.astype(str).str.strip() != "") & 
+            (all_voeux.astype(str).str.strip() != "Positionnement manquant")
         ]
         
         if len(all_voeux) > 0:
@@ -471,6 +472,9 @@ elif page == "👥 Gestion des Candidatures":
     
     # Appliquer les filtres
     df_filtered = collaborateurs_df.copy()
+    
+    # FILTRE PRINCIPAL : Ne garder que les lignes avec un Matricule non vide
+    df_filtered = df_filtered[df_filtered["Matricule"].notna() & (df_filtered["Matricule"].astype(str).str.strip() != "")]
     
     if filtre_direction:
         df_filtered = df_filtered[df_filtered["Direction libellé"].isin(filtre_direction)]
@@ -1362,6 +1366,6 @@ elif page == "🌳 Référentiel Postes":
 st.divider()
 st.markdown("""
 <div style='text-align: center; color: #666; font-size: 0.9em;'>
-    <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets 🤖</p>
+    <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
