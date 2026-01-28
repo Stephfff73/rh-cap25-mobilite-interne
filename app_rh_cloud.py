@@ -258,10 +258,19 @@ def parse_date(date_str):
 
 def get_safe_value(value):
     """Retourne une valeur string sûre, évitant les Series pandas"""
-    if pd.isna(value):
-        return ""
+    # Vérifier d'abord si c'est une Series pandas
     if isinstance(value, pd.Series):
-        return str(value.iloc[0]) if len(value) > 0 else ""
+        if len(value) > 0:
+            val = value.iloc[0]
+            return str(val) if pd.notna(val) and val != "" else ""
+        return ""
+    # Ensuite vérifier si c'est NaN
+    try:
+        if pd.isna(value):
+            return ""
+    except (ValueError, TypeError):
+        pass
+    # Retourner la valeur convertie en string
     return str(value) if value else ""
 
 # --- URL DU GOOGLE SHEET ---
@@ -505,7 +514,7 @@ elif page == "👥 Gestion des Candidatures":
         if not assessment or assessment.strip() == "":
             assessment = "Non"
         
-        # Manager actuel
+        # Manager actuel - CORRECTION: traiter chaque champ séparément
         prenom_manager = get_safe_value(row.get('Prénom Manager', ''))
         nom_manager = get_safe_value(row.get('Nom Manager', ''))
         manager_actuel = f"{prenom_manager} {nom_manager}".strip()
@@ -1261,25 +1270,38 @@ elif page == "🎯 Analyse par Poste":
                     if collab_mask.any():
                         collab = collaborateurs_df[collab_mask].iloc[0]
                         
-                        # Afficher les infos dans un container
+                        # Afficher les infos dans un container - CORRECTION: utiliser get_safe_value sur chaque champ
                         with st.container(border=True):
                             col_info1, col_info2, col_info3 = st.columns(3)
                             
                             with col_info1:
-                                st.markdown(f"**Matricule** : {get_safe_value(collab.get('Matricule', 'N/A'))}")
-                                st.markdown(f"**Nom** : {get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}")
-                                st.markdown(f"**Mail** : {get_safe_value(collab.get('Mail', 'N/A'))}")
+                                matricule = get_safe_value(collab.get('Matricule', ''))
+                                nom = get_safe_value(collab.get('NOM', ''))
+                                prenom = get_safe_value(collab.get('Prénom', ''))
+                                mail = get_safe_value(collab.get('Mail', ''))
+                                
+                                st.markdown(f"**Matricule** : {matricule if matricule else 'N/A'}")
+                                st.markdown(f"**Nom** : {nom} {prenom}")
+                                st.markdown(f"**Mail** : {mail if mail else 'N/A'}")
                             
                             with col_info2:
-                                st.markdown(f"**Poste actuel** : {get_safe_value(collab.get('Poste  libellé', 'N/A'))}")
-                                st.markdown(f"**Direction** : {get_safe_value(collab.get('Direction libellé', 'N/A'))}")
-                                anciennete_display = calculate_anciennete(get_safe_value(collab.get("Date entrée groupe", "")))
+                                poste_actuel = get_safe_value(collab.get('Poste  libellé', ''))
+                                direction = get_safe_value(collab.get('Direction libellé', ''))
+                                date_entree = get_safe_value(collab.get("Date entrée groupe", ""))
+                                anciennete_display = calculate_anciennete(date_entree)
+                                
+                                st.markdown(f"**Poste actuel** : {poste_actuel if poste_actuel else 'N/A'}")
+                                st.markdown(f"**Direction** : {direction if direction else 'N/A'}")
                                 st.markdown(f"**Ancienneté** : {anciennete_display}")
                             
                             with col_info3:
-                                st.markdown(f"**RRH** : {get_safe_value(collab.get('Référente RH', 'N/A'))}")
-                                st.markdown(f"**Date RDV** : {get_safe_value(collab.get('Date de rdv', 'N/A'))}")
-                                st.markdown(f"**Priorité** : {get_safe_value(collab.get('Priorité', 'N/A'))}")
+                                rrh = get_safe_value(collab.get('Référente RH', ''))
+                                date_rdv = get_safe_value(collab.get('Date de rdv', ''))
+                                priorite = get_safe_value(collab.get('Priorité', ''))
+                                
+                                st.markdown(f"**RRH** : {rrh if rrh else 'N/A'}")
+                                st.markdown(f"**Date RDV** : {date_rdv if date_rdv else 'N/A'}")
+                                st.markdown(f"**Priorité** : {priorite if priorite else 'N/A'}")
                         
                         # Bouton pour accéder à l'entretien complet
                         if st.button("➡️ Accéder à l'entretien RH complet", type="secondary"):
@@ -1340,6 +1362,6 @@ elif page == "🌳 Référentiel Postes":
 st.divider()
 st.markdown("""
 <div style='text-align: center; color: #666; font-size: 0.9em;'>
-    <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
+    <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets 🤖</p>
 </div>
 """, unsafe_allow_html=True)
