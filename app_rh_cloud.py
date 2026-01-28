@@ -18,12 +18,15 @@ st.set_page_config(
 @st.cache_resource
 def get_gsheet_connection():
     try:
-        # On récupère le dictionnaire des secrets
-        # .to_dict() est nécessaire si vous utilisez st.secrets directement avec Google Auth
-        creds_info = st.secrets["gcp_service_account"]
+        # 1. On récupère les secrets sous forme de dictionnaire Python pur
+        creds_dict = st.secrets["gcp_service_account"].to_dict()
         
+        # 2. On s'assure que les \n sont bien gérés si la clé est sur une seule ligne
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
         credentials = service_account.Credentials.from_service_account_info(
-            creds_info,
+            creds_dict,
             scopes=[
                 "https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive"
@@ -33,8 +36,6 @@ def get_gsheet_connection():
         return client
     except Exception as e:
         st.error(f"Erreur de configuration des credentials : {str(e)}")
-        # Affiche les clés disponibles pour déboguer si ça échoue
-        st.write("Clés détectées dans les secrets :", list(st.secrets.keys()))
         return None
 
 @st.cache_data(ttl=60)
@@ -936,6 +937,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
