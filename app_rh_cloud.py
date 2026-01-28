@@ -1296,7 +1296,7 @@ elif page == "🌳 Référentiel Postes":
 st.divider()
 st.markdown("""
 <div style='text-align: center; color: #666; font-size: 0.9em;'>
-    <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets 🤖</p>
+    <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
 ```
