@@ -413,7 +413,7 @@ elif page == "📝 Entretien RH":
             with col_info2:
                 st.markdown(f"**Poste actuel** : {collab['Titre ou Fonction']}")
                 st.markdown(f"**Direction** : {collab['Direction libellé']}")
-                st.markdown(f"**Ancienneté** : {collab['Date d\\'ancienneté']}")
+                st.markdown(f"**Ancienneté** : {collab["Date d\\'ancienneté"]}")
             
             with col_info3:
                 st.markdown(f"**RRH** : {collab['Référente RH']}")
@@ -933,3 +933,4 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
