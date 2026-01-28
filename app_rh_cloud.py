@@ -256,6 +256,14 @@ def parse_date(date_str):
             continue
     return None
 
+def get_safe_value(value):
+    """Retourne une valeur string sûre, évitant les Series pandas"""
+    if pd.isna(value):
+        return ""
+    if isinstance(value, pd.Series):
+        return str(value.iloc[0]) if len(value) > 0 else ""
+    return str(value) if value else ""
+
 # --- URL DU GOOGLE SHEET ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1BXez24VFNhb470PrCjwNIFx6GdJFqLnVh8nFf3gGGvw/edit?usp=sharing"
 
@@ -370,21 +378,20 @@ if page == "📊 Tableau de Bord":
         ]
         
         if len(all_voeux) > 0:
-            top_postes = all_voeux.value_counts()
-            top_10_postes = top_postes.head(10).sort_values(ascending=False)
+            top_postes = all_voeux.value_counts().head(10)
             
-            st.bar_chart(top_10_postes, color="#FF4B4B")
+            # Créer le tableau avec classement
+            top_df = pd.DataFrame({
+                "Classement": range(1, len(top_postes) + 1),
+                "Poste": top_postes.index,
+                "Nombre de vœux": top_postes.values
+            })
             
-            # Afficher toutes les données dans un expander
-            with st.expander("📊 Voir toutes les données"):
-                st.dataframe(
-                    pd.DataFrame({
-                        "Poste": top_postes.index,
-                        "Nombre de vœux": top_postes.values
-                    }),
-                    use_container_width=True,
-                    hide_index=True
-                )
+            st.dataframe(
+                top_df,
+                use_container_width=True,
+                hide_index=True
+            )
         else:
             st.info("Aucun vœu enregistré pour le moment")
     
@@ -393,21 +400,20 @@ if page == "📊 Tableau de Bord":
         
         if len(all_voeux) > 0:
             # Trier par ordre croissant et prendre les 10 premiers
-            flop_postes = all_voeux.value_counts()
-            flop_10_postes = flop_postes.tail(10).sort_values(ascending=True)
+            flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
             
-            st.bar_chart(flop_10_postes, color="#FFA500")
+            # Créer le tableau avec classement
+            flop_df = pd.DataFrame({
+                "Classement": range(1, len(flop_postes) + 1),
+                "Poste": flop_postes.index,
+                "Nombre de vœux": flop_postes.values
+            })
             
-            # Afficher toutes les données dans un expander
-            with st.expander("📊 Voir toutes les données"):
-                st.dataframe(
-                    pd.DataFrame({
-                        "Poste": flop_postes.sort_values(ascending=True).index,
-                        "Nombre de vœux": flop_postes.sort_values(ascending=True).values
-                    }),
-                    use_container_width=True,
-                    hide_index=True
-                )
+            st.dataframe(
+                flop_df,
+                use_container_width=True,
+                hide_index=True
+            )
         else:
             st.info("Aucun vœu enregistré pour le moment")
 
@@ -483,11 +489,11 @@ elif page == "👥 Gestion des Candidatures":
     
     for idx, row in df_filtered.iterrows():
         # Calculer l'ancienneté
-        anciennete = calculate_anciennete(row.get("Date entrée groupe", ""))
+        anciennete = calculate_anciennete(get_safe_value(row.get("Date entrée groupe", "")))
         
         # Préparer la date et heure d'entretien
-        date_rdv = row.get("Date de rdv", "")
-        heure_rdv = row.get("Heure de rdv", "")
+        date_rdv = get_safe_value(row.get("Date de rdv", ""))
+        heure_rdv = get_safe_value(row.get("Heure de rdv", ""))
         
         if date_rdv and date_rdv.strip() != "":
             entretien = f"{date_rdv} à {heure_rdv}" if heure_rdv and heure_rdv.strip() != "" else date_rdv
@@ -495,33 +501,49 @@ elif page == "👥 Gestion des Candidatures":
             entretien = ""
         
         # Assessment
-        assessment = row.get("Assesment à planifier O/N", "Non")
+        assessment = get_safe_value(row.get("Assesment à planifier O/N", "Non"))
         if not assessment or assessment.strip() == "":
             assessment = "Non"
         
+        # Manager actuel
+        prenom_manager = get_safe_value(row.get('Prénom Manager', ''))
+        nom_manager = get_safe_value(row.get('Nom Manager', ''))
+        manager_actuel = f"{prenom_manager} {nom_manager}".strip()
+        
+        # Vœux
+        voeu_1 = get_safe_value(row.get("Vœux 1", ""))
+        voeu_2 = get_safe_value(row.get("Vœux 2", ""))
+        voeu_3 = get_safe_value(row.get("Voeux 3", ""))
+        
+        # Remplacer "Positionnement manquant" par ""
+        if voeu_2 == "Positionnement manquant":
+            voeu_2 = ""
+        if voeu_3 == "Positionnement manquant":
+            voeu_3 = ""
+        
         display_row = {
-            "Prénom": row.get("Prénom", ""),
-            "NOM": row.get("NOM", ""),
-            "Poste actuel": row.get("Poste  libellé", ""),
-            "CSP": row.get("CSP", ""),
-            "Classification": row.get("Classification", ""),
-            "Manager": row.get("Manager", ""),
-            "Nomade": row.get("Nomade", ""),
+            "Prénom": get_safe_value(row.get("Prénom", "")),
+            "NOM": get_safe_value(row.get("NOM", "")),
+            "Poste actuel": get_safe_value(row.get("Poste  libellé", "")),
+            "CSP": get_safe_value(row.get("CSP", "")),
+            "Classification": get_safe_value(row.get("Classification", "")),
+            "Manager": get_safe_value(row.get("Manager", "")),
+            "Nomade": get_safe_value(row.get("Nomade", "")),
             "Ancienneté": anciennete,
-            "Direction": row.get("Direction libellé", ""),
-            "Manager actuel": f"{row.get('Prénom Manager', '')} {row.get('Nom Manager', '')}".strip(),
-            "Rencontre RH": row.get("Rencontre RH / Positionnement", ""),
-            "Priorité": row.get("Priorité", ""),
-            "Référente RH": row.get("Référente RH", ""),
+            "Direction": get_safe_value(row.get("Direction libellé", "")),
+            "Manager actuel": manager_actuel,
+            "Rencontre RH": get_safe_value(row.get("Rencontre RH / Positionnement", "")),
+            "Priorité": get_safe_value(row.get("Priorité", "")),
+            "Référente RH": get_safe_value(row.get("Référente RH", "")),
             "📅 Entretien": entretien,
-            "Vœu 1": row.get("Vœux 1", ""),
-            "Vœu 2": row.get("Vœux 2", ""),
-            "Vœu 3": row.get("Voeux 3", ""),
+            "Vœu 1": voeu_1,
+            "Vœu 2": voeu_2,
+            "Vœu 3": voeu_3,
             "Assessment": assessment,
-            "Date Assessment": row.get("Date Assessment", ""),
-            "Vœux Retenu": row.get("Vœux Retenu", ""),
-            "Commentaires RH": row.get("Commentaires RH", ""),
-            "Matricule": row.get("Matricule", "")  # Caché mais nécessaire pour la navigation
+            "Date Assessment": get_safe_value(row.get("Date Assessment", "")),
+            "Vœux Retenu": get_safe_value(row.get("Vœux Retenu", "")),
+            "Commentaires RH": get_safe_value(row.get("Commentaires RH", "")),
+            "Matricule": get_safe_value(row.get("Matricule", ""))  # Caché mais nécessaire pour la navigation
         }
         
         display_df = pd.concat([display_df, pd.DataFrame([display_row])], ignore_index=True)
@@ -531,17 +553,7 @@ elif page == "👥 Gestion des Candidatures":
         st.dataframe(
             display_df.drop(columns=["Matricule"]),
             use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Vœu 2": st.column_config.TextColumn(
-                    "Vœu 2",
-                    help="Grisé si 'Positionnement manquant'"
-                ),
-                "Vœu 3": st.column_config.TextColumn(
-                    "Vœu 3",
-                    help="Grisé si 'Positionnement manquant'"
-                )
-            }
+            hide_index=True
         )
         
         st.divider()
@@ -566,6 +578,7 @@ elif page == "👥 Gestion des Candidatures":
                 # Stocker la sélection dans session_state et changer de page
                 st.session_state['selected_collaborateur'] = selected_for_entretien
                 st.session_state['navigate_to_entretien'] = True
+                st.session_state['page'] = '📝 Entretien RH'
                 st.rerun()
     else:
         st.info("Aucun collaborateur ne correspond aux filtres sélectionnés")
@@ -585,7 +598,7 @@ elif page == "📝 Entretien RH":
     # Sélection du collaborateur
     st.subheader("1️⃣ Sélection du collaborateur")
     
-    # Vérifier si on vient de la page "Gestion des Candidatures"
+    # Vérifier si on vient de la page "Gestion des Candidatures" ou "Analyse par Poste"
     preselected_collab = None
     if 'navigate_to_entretien' in st.session_state and st.session_state['navigate_to_entretien']:
         preselected_collab = st.session_state.get('selected_collaborateur')
@@ -633,36 +646,36 @@ elif page == "📝 Entretien RH":
             col_info1, col_info2, col_info3 = st.columns(3)
             
             with col_info1:
-                st.markdown(f"**Matricule** : {collab.get('Matricule', 'N/A')}")
-                st.markdown(f"**Nom** : {collab.get('NOM', '')} {collab.get('Prénom', '')}")
-                st.markdown(f"**Mail** : {collab.get('Mail', 'N/A')}")
+                st.markdown(f"**Matricule** : {get_safe_value(collab.get('Matricule', 'N/A'))}")
+                st.markdown(f"**Nom** : {get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}")
+                st.markdown(f"**Mail** : {get_safe_value(collab.get('Mail', 'N/A'))}")
             
             with col_info2:
-                st.markdown(f"**Poste actuel** : {collab.get('Titre ou Fonction', 'N/A')}")
-                st.markdown(f"**Direction** : {collab.get('Direction libellé', 'N/A')}")
-                anciennete_display = calculate_anciennete(collab.get("Date entrée groupe", ""))
+                st.markdown(f"**Poste actuel** : {get_safe_value(collab.get('Poste  libellé', 'N/A'))}")
+                st.markdown(f"**Direction** : {get_safe_value(collab.get('Direction libellé', 'N/A'))}")
+                anciennete_display = calculate_anciennete(get_safe_value(collab.get("Date entrée groupe", "")))
                 st.markdown(f"**Ancienneté** : {anciennete_display}")
             
             with col_info3:
-                st.markdown(f"**RRH** : {collab.get('Référente RH', 'N/A')}")
-                st.markdown(f"**Date RDV** : {collab.get('Date de rdv', 'N/A')}")
-                st.markdown(f"**Priorité** : {collab.get('Priorité', 'N/A')}")
+                st.markdown(f"**RRH** : {get_safe_value(collab.get('Référente RH', 'N/A'))}")
+                st.markdown(f"**Date RDV** : {get_safe_value(collab.get('Date de rdv', 'N/A'))}")
+                st.markdown(f"**Priorité** : {get_safe_value(collab.get('Priorité', 'N/A'))}")
         
         st.divider()
         
         # Initialiser l'entretien data
         entretien_data = {
-            "Matricule": collab.get('Matricule', ''),
-            "Nom": collab.get('NOM', ''),
-            "Prénom": collab.get('Prénom', ''),
+            "Matricule": get_safe_value(collab.get('Matricule', '')),
+            "Nom": get_safe_value(collab.get('NOM', '')),
+            "Prénom": get_safe_value(collab.get('Prénom', '')),
             "Date_Entretien": datetime.now().strftime("%d/%m/%Y"),
-            "Referente_RH": collab.get('Référente RH', '')
+            "Referente_RH": get_safe_value(collab.get('Référente RH', ''))
         }
         
         # Tabs pour les 3 vœux
-        voeu1_label = collab.get('Vœux 1', 'Non renseigné')
-        voeu2_label = collab.get('Vœux 2', 'Non renseigné') if collab.get('Vœux 2') else 'Non renseigné'
-        voeu3_label = collab.get('Voeux 3', 'Non renseigné') if collab.get('Voeux 3') else 'Non renseigné'
+        voeu1_label = get_safe_value(collab.get('Vœux 1', 'Non renseigné'))
+        voeu2_label = get_safe_value(collab.get('Vœux 2', 'Non renseigné')) if collab.get('Vœux 2') else 'Non renseigné'
+        voeu3_label = get_safe_value(collab.get('Voeux 3', 'Non renseigné')) if collab.get('Voeux 3') else 'Non renseigné'
         
         tab_voeu1, tab_voeu2, tab_voeu3, tab_avis = st.tabs([
             f"🎯 Vœu 1: {voeu1_label}", 
@@ -674,9 +687,9 @@ elif page == "📝 Entretien RH":
         # ========== VŒEU 1 ==========
         with tab_voeu1:
             if collab.get('Vœux 1') and collab.get('Vœux 1') != "Positionnement manquant":
-                st.subheader(f"Évaluation du Vœu 1 : {collab.get('Vœux 1')}")
+                st.subheader(f"Évaluation du Vœu 1 : {get_safe_value(collab.get('Vœux 1'))}")
                 
-                entretien_data["Voeu_1"] = collab.get('Vœux 1', '')
+                entretien_data["Voeu_1"] = get_safe_value(collab.get('Vœux 1', ''))
                 
                 st.markdown("#### 📋 Questions générales")
                 entretien_data["V1_Motivations"] = st.text_area(
@@ -795,9 +808,9 @@ elif page == "📝 Entretien RH":
         # ========== VŒEU 2 ==========
         with tab_voeu2:
             if collab.get('Vœux 2') and collab.get('Vœux 2') != "Positionnement manquant":
-                st.subheader(f"Évaluation du Vœu 2 : {collab.get('Vœux 2')}")
+                st.subheader(f"Évaluation du Vœu 2 : {get_safe_value(collab.get('Vœux 2'))}")
                 
-                entretien_data["Voeu_2"] = collab.get('Vœux 2', '')
+                entretien_data["Voeu_2"] = get_safe_value(collab.get('Vœux 2', ''))
                 
                 st.markdown("#### 📋 Questions générales")
                 entretien_data["V2_Motivations"] = st.text_area(
@@ -916,9 +929,9 @@ elif page == "📝 Entretien RH":
         # ========== VŒEU 3 ==========
         with tab_voeu3:
             if collab.get('Voeux 3') and collab.get('Voeux 3') != "Positionnement manquant":
-                st.subheader(f"Évaluation du Vœu 3 : {collab.get('Voeux 3')}")
+                st.subheader(f"Évaluation du Vœu 3 : {get_safe_value(collab.get('Voeux 3'))}")
                 
-                entretien_data["Voeu_3"] = collab.get('Voeux 3', '')
+                entretien_data["Voeu_3"] = get_safe_value(collab.get('Voeux 3', ''))
                 
                 st.markdown("#### 📋 Questions générales")
                 entretien_data["V3_Motivations"] = st.text_area(
@@ -1089,22 +1102,22 @@ elif page == "🎯 Analyse par Poste":
         
         for _, collab in collaborateurs_df.iterrows():
             if collab.get("Vœux 1") == poste:
-                candidats.append(f"{collab.get('NOM', '')} {collab.get('Prénom', '')} (V1)")
+                candidats.append(f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))} (V1)")
                 candidats_data.append({
-                    "nom": f"{collab.get('NOM', '')} {collab.get('Prénom', '')}",
-                    "matricule": collab.get('Matricule', '')
+                    "nom": f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}",
+                    "matricule": get_safe_value(collab.get('Matricule', ''))
                 })
             elif collab.get("Vœux 2") == poste:
-                candidats.append(f"{collab.get('NOM', '')} {collab.get('Prénom', '')} (V2)")
+                candidats.append(f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))} (V2)")
                 candidats_data.append({
-                    "nom": f"{collab.get('NOM', '')} {collab.get('Prénom', '')}",
-                    "matricule": collab.get('Matricule', '')
+                    "nom": f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}",
+                    "matricule": get_safe_value(collab.get('Matricule', ''))
                 })
             elif collab.get("Voeux 3") == poste:
-                candidats.append(f"{collab.get('NOM', '')} {collab.get('Prénom', '')} (V3)")
+                candidats.append(f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))} (V3)")
                 candidats_data.append({
-                    "nom": f"{collab.get('NOM', '')} {collab.get('Prénom', '')}",
-                    "matricule": collab.get('Matricule', '')
+                    "nom": f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}",
+                    "matricule": get_safe_value(collab.get('Matricule', ''))
                 })
         
         nb_candidats = len(candidats)
@@ -1139,7 +1152,7 @@ elif page == "🎯 Analyse par Poste":
     df_analysis = pd.DataFrame(job_analysis)
     
     # Filtres
-    col_filter1, col_filter2 = st.columns(2)
+    col_filter1, col_filter2, col_filter3 = st.columns(3)
     
     with col_filter1:
         show_zero = st.checkbox("⚠️ Afficher uniquement les postes sans candidat")
@@ -1151,6 +1164,22 @@ elif page == "🎯 Analyse par Poste":
             default=[]
         )
     
+    with col_filter3:
+        # Liste des statuts possibles
+        statuts_possibles = [
+            "⚠️ Aucun candidat",
+            "⚠️ Manque",
+            "✅ Vivier actif",
+            "🔶 Tension",
+            "🔴 Forte tension",
+            "🔴🔴 Très forte tension"
+        ]
+        filtre_statut = st.multiselect(
+            "Filtrer par Statut",
+            options=statuts_possibles,
+            default=[]
+        )
+    
     # Appliquer les filtres
     df_filtered_analysis = df_analysis.copy()
     
@@ -1159,6 +1188,19 @@ elif page == "🎯 Analyse par Poste":
     
     if filtre_direction_analyse:
         df_filtered_analysis = df_filtered_analysis[df_filtered_analysis["Direction"].isin(filtre_direction_analyse)]
+    
+    if filtre_statut:
+        # Pour le statut "Manque", on doit vérifier si le statut commence par "⚠️ Manque"
+        def match_statut(statut_row):
+            for filtre in filtre_statut:
+                if filtre == "⚠️ Manque":
+                    if statut_row.startswith("⚠️ Manque"):
+                        return True
+                elif statut_row == filtre:
+                    return True
+            return False
+        
+        df_filtered_analysis = df_filtered_analysis[df_filtered_analysis["Statut"].apply(match_statut)]
     
     # Affichage
     if not df_filtered_analysis.empty:
@@ -1183,10 +1225,11 @@ elif page == "🎯 Analyse par Poste":
         # Section pour accéder aux fiches détaillées
         st.subheader("🔍 Accès aux fiches candidats")
         
-        # Sélection du poste
+        # Sélection du poste (par ordre alphabétique)
+        postes_tries = sorted(df_filtered_analysis["Poste"].tolist())
         poste_selected = st.selectbox(
             "Sélectionner un poste pour voir ses candidats",
-            options=["-- Sélectionner --"] + df_filtered_analysis["Poste"].tolist()
+            options=["-- Sélectionner --"] + postes_tries
         )
         
         if poste_selected != "-- Sélectionner --":
@@ -1204,10 +1247,46 @@ elif page == "🎯 Analyse par Poste":
                 
                 with col_cand2:
                     if st.button("➡️ Voir la fiche", type="primary", disabled=(candidat_selected == "-- Sélectionner --")):
-                        # Naviguer vers l'entretien RH
-                        st.session_state['selected_collaborateur'] = candidat_selected
-                        st.session_state['navigate_to_entretien'] = True
-                        st.rerun()
+                        # Afficher la fiche détaillée du collaborateur
+                        st.session_state['show_fiche_detail'] = True
+                        st.session_state['fiche_candidat'] = candidat_selected
+                
+                # Afficher la fiche détaillée si demandé
+                if st.session_state.get('show_fiche_detail') and st.session_state.get('fiche_candidat') == candidat_selected:
+                    st.divider()
+                    st.subheader(f"📋 Fiche détaillée : {candidat_selected}")
+                    
+                    # Récupérer les infos du collaborateur
+                    collab_mask = (collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]) == candidat_selected
+                    if collab_mask.any():
+                        collab = collaborateurs_df[collab_mask].iloc[0]
+                        
+                        # Afficher les infos dans un container
+                        with st.container(border=True):
+                            col_info1, col_info2, col_info3 = st.columns(3)
+                            
+                            with col_info1:
+                                st.markdown(f"**Matricule** : {get_safe_value(collab.get('Matricule', 'N/A'))}")
+                                st.markdown(f"**Nom** : {get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}")
+                                st.markdown(f"**Mail** : {get_safe_value(collab.get('Mail', 'N/A'))}")
+                            
+                            with col_info2:
+                                st.markdown(f"**Poste actuel** : {get_safe_value(collab.get('Poste  libellé', 'N/A'))}")
+                                st.markdown(f"**Direction** : {get_safe_value(collab.get('Direction libellé', 'N/A'))}")
+                                anciennete_display = calculate_anciennete(get_safe_value(collab.get("Date entrée groupe", "")))
+                                st.markdown(f"**Ancienneté** : {anciennete_display}")
+                            
+                            with col_info3:
+                                st.markdown(f"**RRH** : {get_safe_value(collab.get('Référente RH', 'N/A'))}")
+                                st.markdown(f"**Date RDV** : {get_safe_value(collab.get('Date de rdv', 'N/A'))}")
+                                st.markdown(f"**Priorité** : {get_safe_value(collab.get('Priorité', 'N/A'))}")
+                        
+                        # Bouton pour accéder à l'entretien complet
+                        if st.button("➡️ Accéder à l'entretien RH complet", type="secondary"):
+                            st.session_state['selected_collaborateur'] = candidat_selected
+                            st.session_state['navigate_to_entretien'] = True
+                            st.session_state['page'] = '📝 Entretien RH'
+                            st.rerun()
             else:
                 st.info("Aucun candidat pour ce poste")
     else:
