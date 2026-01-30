@@ -426,37 +426,7 @@ def get_safe_value(value):
         pass
     return str(value) if value else ""
 
-def calculate_kpis(df):
-    """Calcule les indicateurs clés pour le dashboard"""
-    if df.empty:
-        return {
-            'nb_collaborateurs': 0, 'nb_entretiens_realises': 0,
-            'nb_a_planifier': 0, 'nb_voeux_retenus': 0
-        }
-    
-    # Sécurisation des noms de colonnes (au cas où Excel change)
-    col_statut = "Statut Entretien" if "Statut Entretien" in df.columns else df.columns[0] # Fallback
-    col_retenu = "Vœux Retenu" if "Vœux Retenu" in df.columns else ""
 
-    # Calculs
-    total = len(df)
-    # On compte ceux qui ont "Réalisé" (insensible à la casse)
-    realises = len(df[df[col_statut].astype(str).str.contains("Réalisé", case=False, na=False)])
-    a_planifier = total - realises
-    
-    # On compte ceux qui ont une mobilité validée (colonne non vide et différente de "Non" ou "-")
-    retenus = 0
-    if col_retenu in df.columns:
-        # Exclure les valeurs vides, "Non", ou "-"
-        valides = df[df[col_retenu].notna() & (~df[col_retenu].isin(["", "Non", "-", "En attente"]))]
-        retenus = len(valides)
-
-    return {
-        'nb_collaborateurs': total,
-        'nb_entretiens_realises': realises,
-        'nb_a_planifier': a_planifier,
-        'nb_voeux_retenus': retenus
-    }
 
 # --- URL DU GOOGLE SHEET ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1BXez24VFNhb470PrCjwNIFx6GdJFqLnVh8nFf3gGGvw/edit?usp=sharing"
@@ -514,50 +484,85 @@ if st.session_state.last_save_time:
 # PAGE 1 : TABLEAU DE BORD
 # ========================================
 
-elif page == " 📊 Tableau de Bord": 
+# ========================================
+# PAGE 1 : TABLEAU DE BORD
+# ========================================
+
+if page == "📊 Tableau de Bord":
+    st.title("📊 Tableau de Bord - Vue d'ensemble")
     
-
-
-    # --- CSS PERSONNALISÉ ---
-    st.markdown("""
-    <style>
-        div[data-testid="stMetric"] {
-            background-color: #ffffff;
-            border: 1px solid #e0e0e0;
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        div[data-testid="stMetric"]:hover {
-            border-color: #1967D2;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.title("📊 Pilotage de la Campagne")
-    
-    # Vérification que les données sont chargées
-    if 'collaborateurs_df' not in locals() and 'collaborateurs_df' not in globals():
-        # Si la variable n'existe pas, on la cherche dans session_state ou on affiche une erreur
-        if 'df_gsheet' in st.session_state:
-            collaborateurs_df = st.session_state.df_gsheet
-        else:
-            st.error("⚠️ Les données ne sont pas chargées. Veuillez repasser par l'accueil.")
-            st.stop()
-
-    # Calcul des KPI
-    kpis = calculate_kpis(collaborateurs_df)
-    
-    # --- LIGNE 1 : KPI ---
+    # Première ligne de métriques
     col1, col2, col3, col4 = st.columns(4)
     
-    with col1:
-        st.metric("Total Collaborateurs", kpis['nb_collaborateurs'])
-    with col2:
-        progression = round((kpis['nb_entretiens_realises'] / kpis['nb_collaborateurs']) * 100, 1) if kpis['nb_collaborateurs'] > 0 else 0
-        st.metric("Entretiens Réalisés", kpis['nb_entretiens_realises'], f"{progression}%")
-    with col3:
-        st.metric("À Planifier", kpis['nb_a_planifier'], delta="Priorité", delta_color="inverse")
+    # Collaborateurs à repositionner (avec filtre "Rencontre RH / Positionnement" = "OUI")
+    nb_collaborateurs = len(collaborateurs_df[
+        (collaborateurs_df["Matricule"].notna()) & 
+        (collaborateurs_df["Matricule"] != "") &
+        (collaborateurs_df["Rencontre RH / Positionnement"].str.upper() == "OUI")
+    ])
+    
+    # Postes ouverts
+    postes_ouverts_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
+    nb_postes_ouverts = int(postes_ouverts_df["Nombre total de postes"].sum()) if "Nombre total de postes" in postes_df.columns else len(postes_ouverts_df)
+    
+    # Postes attribués (Vœux Retenu non vide)
+    nb_postes_attribues = len(collaborateurs_df[
+        (collaborateurs_df["Vœux Retenu"].notna()) & 
+        (collaborateurs_df["Vœux Retenu"].astype(str).str.strip() != "")
+    ])
+    
+    # Pourcentage d'attribution
+    pct_attribution = (nb_postes_attribues / nb_postes_ouverts * 100) if nb_postes_ouverts > 0 else 0
+    
+    col1.metric("👥 Collaborateurs à repositionner", nb_collaborateurs)
+    col2.metric("📍 Postes ouverts", nb_postes_ouverts)
+    col3.metric("👩🏻‍💻✅ Postes attribués", nb_postes_attribues)
+    
+    # Jauge de pourcentage d'attribution
+    with col4:
+        st.metric("% d'attribution", f"{pct_attribution:.1f}%")
+        st.progress(min(pct_attribution / 100, 1.0))
+    
+    # Deuxième ligne de métriques
+    col5, col6, col7, col8 = st.columns(4)
+    
+    nb_priorite_1 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 1"])
+    nb_priorite_2 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 2"])
+    nb_priorite_3_4 = len(collaborateurs_df[
+        (collaborateurs_df["Priorité"] == "Priorité 3") | 
+        (collaborateurs_df["Priorité"] == "Priorité 4")
+    ])
+    
+    col5.metric("⭐ Priorité 1", nb_priorite_1)
+    col6.metric("⭐ Priorité 2", nb_priorite_2)
+    col7.metric("⭐ Priorité 3 et 4", nb_priorite_3_4)
+    col8.write("")
+    
+    # Troisième ligne de métriques
+    col9, col10, col11, col12 = st.columns(4)
+    
+    # Entretiens planifiés, aujourd'hui et réalisés
+    today = date.today()
+    entretiens_planifies = 0
+    entretiens_aujourd_hui = 0
+    entretiens_realises = 0
+    
+    for idx, row in collaborateurs_df.iterrows():
+        date_rdv = parse_date(row.get("Date de rdv", ""))
+        if date_rdv:
+            if date_rdv > today:
+                entretiens_planifies += 1
+            elif date_rdv == today:
+                entretiens_aujourd_hui += 1
+            elif date_rdv < today:
+                entretiens_realises += 1
+    
+    col9.metric("📅 Entretiens planifiés", entretiens_planifies)
+    col10.metric("✅ Entretiens réalisés", entretiens_realises)
+    col11.metric("⌛ Entretiens prévus aujourd'hui", entretiens_aujourd_hui)
+    col12.write("")
+    
+    st.divider()
     
     # Graphiques
     col_chart1, col_chart2 = st.columns(2)
