@@ -586,72 +586,7 @@ elif page == " 📊 Tableau de Bord":
         
         st.altair_chart(donut, use_container_width=True)
 
-    # --- LIGNE 3 : CALL TO ACTION (UX : "What's next?") ---
-    st.info("💡 **Conseil** : Il reste **{} entretiens** à planifier. Rendez-vous dans l'onglet 'Suivi des Entretiens' pour relancer les collaborateurs.".format(kpis['nb_a_planifier']))
-    
-    # Graphiques
-    col_chart1, col_chart2 = st.columns(2)
-    
-    with col_chart1:
-        st.subheader("🔥 Top 10 des postes les plus demandés")
-        
-        all_voeux = pd.concat([
-            collaborateurs_df["Vœux 1"],
-            collaborateurs_df["Vœux 2"],
-            collaborateurs_df["Voeux 3"]
-        ])
-        all_voeux = all_voeux[
-            all_voeux.notna() & 
-            (all_voeux.astype(str).str.strip() != "") & 
-            (all_voeux.astype(str).str.strip() != "Positionnement manquant")
-        ]
-        
-        if len(all_voeux) > 0:
-            top_postes = all_voeux.value_counts().head(10)
-            
-            top_df = pd.DataFrame({
-                "Classement": range(1, len(top_postes) + 1),
-                "Poste": top_postes.index,
-                "Nombre de vœux": top_postes.values
-            })
-            
-            st.dataframe(
-                top_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Classement": st.column_config.NumberColumn(width="small"),
-                    "Nombre de vœux": st.column_config.NumberColumn(width="small"),
-                    "Poste": st.column_config.TextColumn(width="large")
-                }
-            )
-        else:
-            st.info("Aucun vœu enregistré pour le moment")
-    
-    with col_chart2:
-        st.subheader("⚠️ Flop 10 des postes les moins demandés")
-        
-        if len(all_voeux) > 0:
-            flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
-            
-            flop_df = pd.DataFrame({
-                "Classement": range(1, len(flop_postes) + 1),
-                "Poste": flop_postes.index,
-                "Nombre de vœux": flop_postes.values
-            })
-            
-            st.dataframe(
-                flop_df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Classement": st.column_config.NumberColumn(width="small"),
-                    "Nombre de vœux": st.column_config.NumberColumn(width="small"),
-                    "Poste": st.column_config.TextColumn(width="large")
-                }
-            )
-        else:
-            st.info("Aucun vœu enregistré pour le moment")
+   
 
 # ========================================
 # PAGE 2 : GESTION DES CANDIDATURES
@@ -2111,6 +2046,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
