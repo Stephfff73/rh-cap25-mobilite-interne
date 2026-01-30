@@ -478,115 +478,149 @@ if st.session_state.last_save_time:
     st.sidebar.caption(f"💾 Dernière sauvegarde : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
 
 # ========================================
-# PAGE 1 : TABLEAU DE BORD (Optimisé UX 2026)
+# PAGE 1 : TABLEAU DE BORD
 # ========================================
-elif page == " 📊 Tableau de Bord":
-    
-    # --- CSS PERSONNALISÉ POUR LE DASHBOARD ---
-    st.markdown("""
-    <style>
-        /* Style des cartes KPI */
-        div[data-testid="stMetric"] {
-            background-color: #ffffff;
-            border: 1px solid #e0e0e0;
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            transition: transform 0.2s;
-        }
-        div[data-testid="stMetric"]:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            border-color: #1967D2; /* Couleur Brand */
-        }
-        /* Titres de section plus discrets */
-        h3 { font-size: 1.2rem; color: #555; font-weight: 600; margin-top: 20px;}
-    </style>
-    """, unsafe_allow_html=True)
 
-    st.title("📊 Pilotage de la Campagne")
-    st.markdown("Vue d'ensemble de l'avancement et des points d'attention.")
-
-    # Calcul des KPI (Ton code existant, un peu nettoyé)
-    kpis = calculate_kpis(collaborateurs_df)
+if page == "📊 Tableau de Bord":
+    st.title("📊 Tableau de Bord - Vue d'ensemble")
     
-    # --- LIGNE 1 : KPI MACRO (L'essentiel en un coup d'œil) ---
+    # Première ligne de métriques
     col1, col2, col3, col4 = st.columns(4)
     
-    with col1:
-        st.metric(
-            label="Total Collaborateurs", 
-            value=kpis['nb_collaborateurs'], 
-            delta="Cibles identifiées", 
-            delta_color="off"
-        )
-    with col2:
-        # Calcul dynamique d'un % d'avancement
-        progression = round((kpis['nb_entretiens_realises'] / kpis['nb_collaborateurs']) * 100, 1) if kpis['nb_collaborateurs'] > 0 else 0
-        st.metric(
-            label="Entretiens Réalisés", 
-            value=kpis['nb_entretiens_realises'], 
-            delta=f"{progression}% de l'objectif"
-        )
-    with col3:
-        # Focus sur l'urgence
-        st.metric(
-            label="À Planifier", 
-            value=kpis['nb_a_planifier'], 
-            delta="Priorité haute", 
-            delta_color="inverse" # Rouge si positif (car c'est une charge de travail)
-        )
+    # Collaborateurs à repositionner (avec filtre "Rencontre RH / Positionnement" = "OUI")
+    nb_collaborateurs = len(collaborateurs_df[
+        (collaborateurs_df["Matricule"].notna()) & 
+        (collaborateurs_df["Matricule"] != "") &
+        (collaborateurs_df["Rencontre RH / Positionnement"].str.upper() == "OUI")
+    ])
+    
+    # Postes ouverts
+    postes_ouverts_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
+    nb_postes_ouverts = int(postes_ouverts_df["Nombre total de postes"].sum()) if "Nombre total de postes" in postes_df.columns else len(postes_ouverts_df)
+    
+    # Postes attribués (Vœux Retenu non vide)
+    nb_postes_attribues = len(collaborateurs_df[
+        (collaborateurs_df["Vœux Retenu"].notna()) & 
+        (collaborateurs_df["Vœux Retenu"].astype(str).str.strip() != "")
+    ])
+    
+    # Pourcentage d'attribution
+    pct_attribution = (nb_postes_attribues / nb_postes_ouverts * 100) if nb_postes_ouverts > 0 else 0
+    
+    col1.metric("👥 Collaborateurs à repositionner", nb_collaborateurs)
+    col2.metric("📍 Postes ouverts", nb_postes_ouverts)
+    col3.metric("👩🏻‍💻✅ Postes attribués", nb_postes_attribues)
+    
+    # Jauge de pourcentage d'attribution
     with col4:
-        st.metric(
-            label="Mobilités Validées", 
-            value=kpis['nb_voeux_retenus'], 
-            delta="Succès confirmés", 
-            delta_color="normal"
-        )
-
+        st.metric("% d'attribution", f"{pct_attribution:.1f}%")
+        st.progress(min(pct_attribution / 100, 1.0))
+    
+    # Deuxième ligne de métriques
+    col5, col6, col7, col8 = st.columns(4)
+    
+    nb_priorite_1 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 1"])
+    nb_priorite_2 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 2"])
+    nb_priorite_3_4 = len(collaborateurs_df[
+        (collaborateurs_df["Priorité"] == "Priorité 3") | 
+        (collaborateurs_df["Priorité"] == "Priorité 4")
+    ])
+    
+    col5.metric("⭐ Priorité 1", nb_priorite_1)
+    col6.metric("⭐ Priorité 2", nb_priorite_2)
+    col7.metric("⭐ Priorité 3 et 4", nb_priorite_3_4)
+    col8.write("")
+    
+    # Troisième ligne de métriques
+    col9, col10, col11, col12 = st.columns(4)
+    
+    # Entretiens planifiés, aujourd'hui et réalisés
+    today = date.today()
+    entretiens_planifies = 0
+    entretiens_aujourd_hui = 0
+    entretiens_realises = 0
+    
+    for idx, row in collaborateurs_df.iterrows():
+        date_rdv = parse_date(row.get("Date de rdv", ""))
+        if date_rdv:
+            if date_rdv > today:
+                entretiens_planifies += 1
+            elif date_rdv == today:
+                entretiens_aujourd_hui += 1
+            elif date_rdv < today:
+                entretiens_realises += 1
+    
+    col9.metric("📅 Entretiens planifiés", entretiens_planifies)
+    col10.metric("✅ Entretiens réalisés", entretiens_realises)
+    col11.metric("⌛ Entretiens prévus aujourd'hui", entretiens_aujourd_hui)
+    col12.write("")
+    
     st.divider()
-
-    # --- LIGNE 2 : ANALYSE GRAPHIQUE (UX : Comparaison visuelle) ---
-    c_chart1, c_chart2 = st.columns([2, 1])
-
-    with c_chart1:
-        st.subheader("📈 Avancement par Direction")
-        # Préparation des données pour le graph
-        df_chart = collaborateurs_df.groupby("Direction libellé").apply(
-            lambda x: pd.Series({
-                "Total": len(x),
-                "Réalisés": len(x[x["Statut Entretien"] == "Réalisé"])
+    
+    # Graphiques
+    col_chart1, col_chart2 = st.columns(2)
+    
+    with col_chart1:
+        st.subheader("🔥 Top 10 des postes les plus demandés")
+        
+        all_voeux = pd.concat([
+            collaborateurs_df["Vœux 1"],
+            collaborateurs_df["Vœux 2"],
+            collaborateurs_df["Voeux 3"]
+        ])
+        all_voeux = all_voeux[
+            all_voeux.notna() & 
+            (all_voeux.astype(str).str.strip() != "") & 
+            (all_voeux.astype(str).str.strip() != "Positionnement manquant")
+        ]
+        
+        if len(all_voeux) > 0:
+            top_postes = all_voeux.value_counts().head(10)
+            
+            top_df = pd.DataFrame({
+                "Classement": range(1, len(top_postes) + 1),
+                "Poste": top_postes.index,
+                "Nombre de vœux": top_postes.values
             })
-        ).reset_index()
+            
+            st.dataframe(
+                top_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Classement": st.column_config.NumberColumn(width="small"),
+                    "Nombre de vœux": st.column_config.NumberColumn(width="small"),
+                    "Poste": st.column_config.TextColumn(width="large")
+                }
+            )
+        else:
+            st.info("Aucun vœu enregistré pour le moment")
+    
+    with col_chart2:
+        st.subheader("⚠️ Flop 10 des postes les moins demandés")
         
-        # Transformation format "Long" pour Altair (Stack bar)
-        df_long = df_chart.melt('Direction libellé', var_name='Type', value_name='Nombre')
-        
-        chart = alt.Chart(df_long).mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5).encode(
-            x=alt.X('Direction libellé', axis=alt.Axis(labelAngle=-45, title=None)),
-            y=alt.Y('Nombre', title=None),
-            color=alt.Color('Type', scale=alt.Scale(domain=['Total', 'Réalisés'], range=['#E0E0E0', '#1967D2'])),
-            tooltip=['Direction libellé', 'Type', 'Nombre']
-        ).properties(height=350).configure_axis(grid=False).configure_view(strokeWidth=0)
-        
-        st.altair_chart(chart, use_container_width=True)
+        if len(all_voeux) > 0:
+            flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
+            
+            flop_df = pd.DataFrame({
+                "Classement": range(1, len(flop_postes) + 1),
+                "Poste": flop_postes.index,
+                "Nombre de vœux": flop_postes.values
+            })
+            
+            st.dataframe(
+                flop_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Classement": st.column_config.NumberColumn(width="small"),
+                    "Nombre de vœux": st.column_config.NumberColumn(width="small"),
+                    "Poste": st.column_config.TextColumn(width="large")
+                }
+            )
+        else:
+            st.info("Aucun vœu enregistré pour le moment")
 
-    with c_chart2:
-        st.subheader("🎯 Taux de Transformation")
-        # Donut Chart pour le statut global
-        status_counts = collaborateurs_df["Statut Entretien"].value_counts().reset_index()
-        status_counts.columns = ["Statut", "Nombre"]
-        
-        donut = alt.Chart(status_counts).mark_arc(innerRadius=50).encode(
-            theta=alt.Theta("Nombre", stack=True),
-            color=alt.Color("Statut", scale=alt.Scale(scheme="blues")),
-            tooltip=["Statut", "Nombre"],
-            order=alt.Order("Nombre", sort="descending")
-        ).properties(height=350)
-        
-        st.altair_chart(donut, use_container_width=True)
-
-   
 
 # ========================================
 # PAGE 2 : GESTION DES CANDIDATURES
@@ -2046,6 +2080,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
