@@ -44,6 +44,12 @@ def init_session_state():
     if 'fiche_candidat' not in st.session_state:
         st.session_state.fiche_candidat = None
 
+def auto_save_entretien(gsheet_client, sheet_url, entretien_data):
+    """Sauvegarde automatique silencieuse"""
+    if entretien_data and entretien_data.get("Matricule"):
+        save_entretien_to_gsheet(gsheet_client, sheet_url, entretien_data, show_success=False)
+        paris_tz = pytz.timezone('Europe/Paris')
+        st.session_state.last_save_time = datetime.now(paris_tz)
 # --- CONFIGURATION GOOGLE SHEETS ---
 @st.cache_resource
 def get_gsheet_connection():
@@ -144,7 +150,7 @@ def create_entretien_sheet_if_not_exists(_client, sheet_url):
             spreadsheet.worksheet("Entretien RH")
             return True
         except gspread.WorksheetNotFound:
-            worksheet = spreadsheet.add_worksheet(title="Entretien RH", rows="1000", cols="60")
+            worksheet = spreadsheet.add_worksheet(title="Entretien RH", rows="1000", cols="57")
             
             headers = [
                 "Matricule", "Nom", "Prénom", "Date_Entretien", "Referente_RH",
@@ -173,111 +179,131 @@ def create_entretien_sheet_if_not_exists(_client, sheet_url):
                 "Attentes_Manager", "Avis_RH_Synthese", "Decision_RH_Poste"
             ]
             
-            worksheet.update('A1:BE1', [headers])
+            worksheet.update('A1:BD1', [headers])
             return True
             
     except Exception as e:
         st.error(f"Erreur lors de la création de l'onglet 'Entretien RH' : {str(e)}")
         return False
 
-def save_entretien_to_gsheet(_client, sheet_url, entretien_data, show_success=True):
+def auto_save_entretien(gsheet_client, sheet_url, entretien_data):
+    """Sauvegarde automatique silencieuse avec gestion des accès concurrents"""
+    if entretien_data and entretien_data.get("Matricule"):
+        try:
+            save_entretien_to_gsheet(gsheet_client, sheet_url, entretien_data, show_success=False)
+            paris_tz = pytz.timezone('Europe/Paris')
+            st.session_state.last_save_time = datetime.now(paris_tz)
+        except Exception as e:
+            # Sauvegarde silencieuse - on ne bloque pas l'utilisateur en cas d'erreur
+            pass
+
+def save_entretien_to_gsheet(_client, sheet_url, entretien_data, show_success=True, max_retries=3):
     """
     Sauvegarde un entretien RH dans l'onglet "Entretien RH".
+    Gère les sauvegardes concurrentes avec système de retry.
     """
-    try:
-        spreadsheet = _client.open_by_url(sheet_url)
-        worksheet = spreadsheet.worksheet("Entretien RH")
-        
-        all_records = worksheet.get_all_records()
-        existing_row = None
-        
-        for idx, record in enumerate(all_records):
-            if str(record.get("Matricule", "")) == str(entretien_data.get("Matricule", "")):
-                existing_row = idx + 2
-                break
-        
-        row_data = [
-            entretien_data.get("Matricule", ""),
-            entretien_data.get("Nom", ""),
-            entretien_data.get("Prénom", ""),
-            entretien_data.get("Date_Entretien", ""),
-            entretien_data.get("Referente_RH", ""),
-            # Vœu 1
-            entretien_data.get("Voeu_1", ""),
-            entretien_data.get("V1_Motivations", ""),
-            entretien_data.get("V1_Vision_Enjeux", ""),
-            entretien_data.get("V1_Premieres_Actions", ""),
-            entretien_data.get("V1_Competence_1_Nom", ""),
-            entretien_data.get("V1_Competence_1_Niveau", ""),
-            entretien_data.get("V1_Competence_1_Justification", ""),
-            entretien_data.get("V1_Competence_2_Nom", ""),
-            entretien_data.get("V1_Competence_2_Niveau", ""),
-            entretien_data.get("V1_Competence_2_Justification", ""),
-            entretien_data.get("V1_Competence_3_Nom", ""),
-            entretien_data.get("V1_Competence_3_Niveau", ""),
-            entretien_data.get("V1_Competence_3_Justification", ""),
-            entretien_data.get("V1_Experience_Niveau", ""),
-            entretien_data.get("V1_Experience_Justification", ""),
-            entretien_data.get("V1_Besoin_Accompagnement", ""),
-            entretien_data.get("V1_Type_Accompagnement", ""),
-            # Vœu 2
-            entretien_data.get("Voeu_2", ""),
-            entretien_data.get("V2_Motivations", ""),
-            entretien_data.get("V2_Vision_Enjeux", ""),
-            entretien_data.get("V2_Premieres_Actions", ""),
-            entretien_data.get("V2_Competence_1_Nom", ""),
-            entretien_data.get("V2_Competence_1_Niveau", ""),
-            entretien_data.get("V2_Competence_1_Justification", ""),
-            entretien_data.get("V2_Competence_2_Nom", ""),
-            entretien_data.get("V2_Competence_2_Niveau", ""),
-            entretien_data.get("V2_Competence_2_Justification", ""),
-            entretien_data.get("V2_Competence_3_Nom", ""),
-            entretien_data.get("V2_Competence_3_Niveau", ""),
-            entretien_data.get("V2_Competence_3_Justification", ""),
-            entretien_data.get("V2_Experience_Niveau", ""),
-            entretien_data.get("V2_Experience_Justification", ""),
-            entretien_data.get("V2_Besoin_Accompagnement", ""),
-            entretien_data.get("V2_Type_Accompagnement", ""),
-            # Vœu 3
-            entretien_data.get("Voeu_3", ""),
-            entretien_data.get("V3_Motivations", ""),
-            entretien_data.get("V3_Vision_Enjeux", ""),
-            entretien_data.get("V3_Premieres_Actions", ""),
-            entretien_data.get("V3_Competence_1_Nom", ""),
-            entretien_data.get("V3_Competence_1_Niveau", ""),
-            entretien_data.get("V3_Competence_1_Justification", ""),
-            entretien_data.get("V3_Competence_2_Nom", ""),
-            entretien_data.get("V3_Competence_2_Niveau", ""),
-            entretien_data.get("V3_Competence_2_Justification", ""),
-            entretien_data.get("V3_Competence_3_Nom", ""),
-            entretien_data.get("V3_Competence_3_Niveau", ""),
-            entretien_data.get("V3_Competence_3_Justification", ""),
-            entretien_data.get("V3_Experience_Niveau", ""),
-            entretien_data.get("V3_Experience_Justification", ""),
-            entretien_data.get("V3_Besoin_Accompagnement", ""),
-            entretien_data.get("V3_Type_Accompagnement", ""),
-            # Avis RH
-            entretien_data.get("Attentes_Manager", ""),
-            entretien_data.get("Avis_RH_Synthese", ""),
-            entretien_data.get("Decision_RH_Poste", "")
-        ]
-        
-        if existing_row:
-            worksheet.update(f'A{existing_row}:BE{existing_row}', [row_data])
-        else:
-            worksheet.append_row(row_data)
-        
-        # Mettre à jour le temps de dernière sauvegarde
-        st.session_state.last_save_time = datetime.now()
-        
-        if show_success:
-            st.success(f"✅ Sauvegarde effectuée à {st.session_state.last_save_time.strftime('%H:%M:%S')}")
-        
-        return True
-        
-    except Exception as e:
-        st.error(f"Erreur lors de la sauvegarde : {str(e)}")
-        return False
+    for attempt in range(max_retries):
+        try:
+            spreadsheet = _client.open_by_url(sheet_url)
+            worksheet = spreadsheet.worksheet("Entretien RH")
+            
+            # Recharger les données à chaque tentative pour éviter les conflits
+            all_records = worksheet.get_all_records()
+            existing_row = None
+            
+            for idx, record in enumerate(all_records):
+                if str(record.get("Matricule", "")) == str(entretien_data.get("Matricule", "")):
+                    existing_row = idx + 2
+                    break
+            
+            row_data = [
+                entretien_data.get("Matricule", ""),
+                entretien_data.get("Nom", ""),
+                entretien_data.get("Prénom", ""),
+                entretien_data.get("Date_Entretien", ""),
+                entretien_data.get("Referente_RH", ""),
+                # Vœu 1
+                entretien_data.get("Voeu_1", ""),
+                entretien_data.get("V1_Motivations", ""),
+                entretien_data.get("V1_Vision_Enjeux", ""),
+                entretien_data.get("V1_Premieres_Actions", ""),
+                entretien_data.get("V1_Competence_1_Nom", ""),
+                entretien_data.get("V1_Competence_1_Niveau", ""),
+                entretien_data.get("V1_Competence_1_Justification", ""),
+                entretien_data.get("V1_Competence_2_Nom", ""),
+                entretien_data.get("V1_Competence_2_Niveau", ""),
+                entretien_data.get("V1_Competence_2_Justification", ""),
+                entretien_data.get("V1_Competence_3_Nom", ""),
+                entretien_data.get("V1_Competence_3_Niveau", ""),
+                entretien_data.get("V1_Competence_3_Justification", ""),
+                entretien_data.get("V1_Experience_Niveau", ""),
+                entretien_data.get("V1_Experience_Justification", ""),
+                entretien_data.get("V1_Besoin_Accompagnement", ""),
+                entretien_data.get("V1_Type_Accompagnement", ""),
+                # Vœu 2
+                entretien_data.get("Voeu_2", ""),
+                entretien_data.get("V2_Motivations", ""),
+                entretien_data.get("V2_Vision_Enjeux", ""),
+                entretien_data.get("V2_Premieres_Actions", ""),
+                entretien_data.get("V2_Competence_1_Nom", ""),
+                entretien_data.get("V2_Competence_1_Niveau", ""),
+                entretien_data.get("V2_Competence_1_Justification", ""),
+                entretien_data.get("V2_Competence_2_Nom", ""),
+                entretien_data.get("V2_Competence_2_Niveau", ""),
+                entretien_data.get("V2_Competence_2_Justification", ""),
+                entretien_data.get("V2_Competence_3_Nom", ""),
+                entretien_data.get("V2_Competence_3_Niveau", ""),
+                entretien_data.get("V2_Competence_3_Justification", ""),
+                entretien_data.get("V2_Experience_Niveau", ""),
+                entretien_data.get("V2_Experience_Justification", ""),
+                entretien_data.get("V2_Besoin_Accompagnement", ""),
+                entretien_data.get("V2_Type_Accompagnement", ""),
+                # Vœu 3
+                entretien_data.get("Voeu_3", ""),
+                entretien_data.get("V3_Motivations", ""),
+                entretien_data.get("V3_Vision_Enjeux", ""),
+                entretien_data.get("V3_Premieres_Actions", ""),
+                entretien_data.get("V3_Competence_1_Nom", ""),
+                entretien_data.get("V3_Competence_1_Niveau", ""),
+                entretien_data.get("V3_Competence_1_Justification", ""),
+                entretien_data.get("V3_Competence_2_Nom", ""),
+                entretien_data.get("V3_Competence_2_Niveau", ""),
+                entretien_data.get("V3_Competence_2_Justification", ""),
+                entretien_data.get("V3_Competence_3_Nom", ""),
+                entretien_data.get("V3_Competence_3_Niveau", ""),
+                entretien_data.get("V3_Competence_3_Justification", ""),
+                entretien_data.get("V3_Experience_Niveau", ""),
+                entretien_data.get("V3_Experience_Justification", ""),
+                entretien_data.get("V3_Besoin_Accompagnement", ""),
+                entretien_data.get("V3_Type_Accompagnement", ""),
+                # Avis RH
+                entretien_data.get("Attentes_Manager", ""),
+                entretien_data.get("Avis_RH_Synthese", ""),
+                entretien_data.get("Decision_RH_Poste", "")
+            ]
+            
+            if existing_row:
+                worksheet.update(f'A{existing_row}:BD{existing_row}', [row_data])
+            else:
+                worksheet.append_row(row_data)
+            
+            # Mettre à jour le temps de dernière sauvegarde en heure de Paris
+            paris_tz = pytz.timezone('Europe/Paris')
+            st.session_state.last_save_time = datetime.now(paris_tz)
+            
+            if show_success:
+                st.success(f"✅ Sauvegarde effectuée à {st.session_state.last_save_time.strftime('%H:%M:%S')}")
+            
+            return True
+            
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(0.5 * (attempt + 1))  # Backoff exponentiel
+                continue
+            else:
+                if show_success:
+                    st.error(f"Erreur lors de la sauvegarde après {max_retries} tentatives : {str(e)}")
+                return False
 
 def update_voeu_retenu(_client, sheet_url, matricule, poste):
     """
@@ -749,12 +775,38 @@ elif page == "👥 Gestion des Candidatures":
             )
         
         with col_select2:
-            if st.button("➡️ Aller à l'entretien", type="primary", disabled=(selected_for_entretien == "-- Sélectionner --")):
-                st.session_state['selected_collaborateur'] = selected_for_entretien
-                st.session_state['navigate_to_entretien'] = True
-                st.rerun()
-    else:
-        st.info("Aucun collaborateur ne correspond aux filtres sélectionnés")
+            if st.button("➡️ Aller à l'entretien", type="primary", disabled=(selected_for_entretien == "-- Sélectionner --"), key="goto_entretien_btn"):
+            # Récupérer le matricule du collaborateur sélectionné
+                collab_mask = (display_df["NOM"] + " " + display_df["Prénom"]) == selected_for_entretien
+                if collab_mask.any():
+                    matricule = display_df[collab_mask]["Matricule"].iloc[0]
+ # Charger l'entretien existant
+                    existing_entretien = load_entretien_from_gsheet(gsheet_client, SHEET_URL, matricule)
+            
+            # Récupérer les infos du collaborateur depuis CAP 2025
+                    collab_full_mask = (collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]) == selected_for_entretien
+                    collab = collaborateurs_df[collab_full_mask].iloc[0]
+            
+                    if existing_entretien:
+                        st.session_state.entretien_data = existing_entretien
+                    else:
+                        st.session_state.entretien_data = {
+                            "Matricule": matricule,
+                            "Nom": get_safe_value(collab.get('NOM', '')),
+                            "Prénom": get_safe_value(collab.get('Prénom', '')),
+                            "Date_Entretien": datetime.now().strftime("%d/%m/%Y"),
+                            "Referente_RH": get_safe_value(collab.get('Référente RH', '')),
+                            "Voeu_1": get_safe_value(collab.get('Vœux 1', '')),
+                            "Voeu_2": get_safe_value(collab.get('Vœux 2', '')),
+                            "Voeu_3": get_safe_value(collab.get('Voeux 3', ''))
+                      }
+            
+                    st.session_state.current_matricule = matricule
+                    st.session_state.selected_collaborateur = selected_for_entretien
+                    st.session_state.navigate_to_entretien = True
+            
+            # Forcer la navigation vers la page Entretien RH
+                    st.switch_page("app.py")  # Ou le nom de votre fichier principal
 
 # ========================================
 # PAGE 3 : ENTRETIEN RH (PARTIE 1/2)
@@ -934,10 +986,14 @@ elif page == "📝 Entretien RH":
                 "💬 Avis RH"
             ])
             
-            # ========== VŒEU 1 ==========
+           # ========== VŒEU 1 ==========
             with tab_voeu1:
                 if voeu1_label and voeu1_label != "Positionnement manquant" and voeu1_label != "Non renseigné":
                     st.subheader(f"Évaluation du Vœu 1 : {voeu1_label}")
+                    
+                    # Afficher un indicateur de dernière sauvegarde
+                    if st.session_state.last_save_time:
+                        st.caption(f"💾 Dernière sauvegarde automatique : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
                     
                     st.markdown("#### 📋 Questions générales")
                     
@@ -947,7 +1003,9 @@ elif page == "📝 Entretien RH":
                         key="v1_motiv",
                         height=100
                     )
-                    st.session_state.entretien_data["V1_Motivations"] = v1_motiv
+                    if v1_motiv != st.session_state.entretien_data.get("V1_Motivations", ""):
+                        st.session_state.entretien_data["V1_Motivations"] = v1_motiv
+                        auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     v1_vision = st.text_area(
                         "Quelle est votre vision des enjeux du poste ?",
@@ -955,7 +1013,9 @@ elif page == "📝 Entretien RH":
                         key="v1_vision",
                         height=100
                     )
-                    st.session_state.entretien_data["V1_Vision_Enjeux"] = v1_vision
+                    if v1_vision != st.session_state.entretien_data.get("V1_Vision_Enjeux", ""):
+                        st.session_state.entretien_data["V1_Vision_Enjeux"] = v1_vision
+                        auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     v1_actions = st.text_area(
                         "Quelles seraient vos premières actions à la prise de poste ?",
@@ -963,7 +1023,9 @@ elif page == "📝 Entretien RH":
                         key="v1_actions",
                         height=100
                     )
-                    st.session_state.entretien_data["V1_Premieres_Actions"] = v1_actions
+                    if v1_actions != st.session_state.entretien_data.get("V1_Premieres_Actions", ""):
+                        st.session_state.entretien_data["V1_Premieres_Actions"] = v1_actions
+                        auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     st.markdown("#### 🎯 Évaluation des compétences")
@@ -976,7 +1038,9 @@ elif page == "📝 Entretien RH":
                             value=st.session_state.entretien_data.get("V1_Competence_1_Nom", ""),
                             key="v1_c1_nom"
                         )
-                        st.session_state.entretien_data["V1_Competence_1_Nom"] = v1_c1_nom
+                        if v1_c1_nom != st.session_state.entretien_data.get("V1_Competence_1_Nom", ""):
+                            st.session_state.entretien_data["V1_Competence_1_Nom"] = v1_c1_nom
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
                         niveau_options = ["Débutant", "Confirmé", "Expert"]
                         current_niveau = st.session_state.entretien_data.get("V1_Competence_1_Niveau", "Débutant")
@@ -988,7 +1052,9 @@ elif page == "📝 Entretien RH":
                             index=niveau_index,
                             key="v1_c1_niv"
                         )
-                        st.session_state.entretien_data["V1_Competence_1_Niveau"] = v1_c1_niv
+                        if v1_c1_niv != st.session_state.entretien_data.get("V1_Competence_1_Niveau", ""):
+                            st.session_state.entretien_data["V1_Competence_1_Niveau"] = v1_c1_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_comp1_2:
                         v1_c1_just = st.text_area(
@@ -997,7 +1063,9 @@ elif page == "📝 Entretien RH":
                             key="v1_c1_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V1_Competence_1_Justification"] = v1_c1_just
+                        if v1_c1_just != st.session_state.entretien_data.get("V1_Competence_1_Justification", ""):
+                            st.session_state.entretien_data["V1_Competence_1_Justification"] = v1_c1_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     
@@ -1009,7 +1077,9 @@ elif page == "📝 Entretien RH":
                             value=st.session_state.entretien_data.get("V1_Competence_2_Nom", ""),
                             key="v1_c2_nom"
                         )
-                        st.session_state.entretien_data["V1_Competence_2_Nom"] = v1_c2_nom
+                        if v1_c2_nom != st.session_state.entretien_data.get("V1_Competence_2_Nom", ""):
+                            st.session_state.entretien_data["V1_Competence_2_Nom"] = v1_c2_nom
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
                         current_niveau = st.session_state.entretien_data.get("V1_Competence_2_Niveau", "Débutant")
                         niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
@@ -1020,7 +1090,9 @@ elif page == "📝 Entretien RH":
                             index=niveau_index,
                             key="v1_c2_niv"
                         )
-                        st.session_state.entretien_data["V1_Competence_2_Niveau"] = v1_c2_niv
+                        if v1_c2_niv != st.session_state.entretien_data.get("V1_Competence_2_Niveau", ""):
+                            st.session_state.entretien_data["V1_Competence_2_Niveau"] = v1_c2_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_comp2_2:
                         v1_c2_just = st.text_area(
@@ -1029,7 +1101,9 @@ elif page == "📝 Entretien RH":
                             key="v1_c2_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V1_Competence_2_Justification"] = v1_c2_just
+                        if v1_c2_just != st.session_state.entretien_data.get("V1_Competence_2_Justification", ""):
+                            st.session_state.entretien_data["V1_Competence_2_Justification"] = v1_c2_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     
@@ -1041,7 +1115,9 @@ elif page == "📝 Entretien RH":
                             value=st.session_state.entretien_data.get("V1_Competence_3_Nom", ""),
                             key="v1_c3_nom"
                         )
-                        st.session_state.entretien_data["V1_Competence_3_Nom"] = v1_c3_nom
+                        if v1_c3_nom != st.session_state.entretien_data.get("V1_Competence_3_Nom", ""):
+                            st.session_state.entretien_data["V1_Competence_3_Nom"] = v1_c3_nom
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
                         current_niveau = st.session_state.entretien_data.get("V1_Competence_3_Niveau", "Débutant")
                         niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
@@ -1052,7 +1128,9 @@ elif page == "📝 Entretien RH":
                             index=niveau_index,
                             key="v1_c3_niv"
                         )
-                        st.session_state.entretien_data["V1_Competence_3_Niveau"] = v1_c3_niv
+                        if v1_c3_niv != st.session_state.entretien_data.get("V1_Competence_3_Niveau", ""):
+                            st.session_state.entretien_data["V1_Competence_3_Niveau"] = v1_c3_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_comp3_2:
                         v1_c3_just = st.text_area(
@@ -1061,7 +1139,9 @@ elif page == "📝 Entretien RH":
                             key="v1_c3_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V1_Competence_3_Justification"] = v1_c3_just
+                        if v1_c3_just != st.session_state.entretien_data.get("V1_Competence_3_Justification", ""):
+                            st.session_state.entretien_data["V1_Competence_3_Justification"] = v1_c3_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     st.markdown("#### 📊 Expérience")
@@ -1078,7 +1158,9 @@ elif page == "📝 Entretien RH":
                             index=exp_index,
                             key="v1_exp_niv"
                         )
-                        st.session_state.entretien_data["V1_Experience_Niveau"] = v1_exp_niv
+                        if v1_exp_niv != st.session_state.entretien_data.get("V1_Experience_Niveau", ""):
+                            st.session_state.entretien_data["V1_Experience_Niveau"] = v1_exp_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_exp2:
                         v1_exp_just = st.text_area(
@@ -1087,7 +1169,9 @@ elif page == "📝 Entretien RH":
                             key="v1_exp_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V1_Experience_Justification"] = v1_exp_just
+                        if v1_exp_just != st.session_state.entretien_data.get("V1_Experience_Justification", ""):
+                            st.session_state.entretien_data["V1_Experience_Justification"] = v1_exp_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     st.markdown("#### 🎓 Accompagnement et Formation")
@@ -1104,7 +1188,9 @@ elif page == "📝 Entretien RH":
                             index=accomp_index,
                             key="v1_form_besoin"
                         )
-                        st.session_state.entretien_data["V1_Besoin_Accompagnement"] = v1_besoin
+                        if v1_besoin != st.session_state.entretien_data.get("V1_Besoin_Accompagnement", ""):
+                            st.session_state.entretien_data["V1_Besoin_Accompagnement"] = v1_besoin
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_form2:
                         if v1_besoin == "Oui":
@@ -1114,9 +1200,13 @@ elif page == "📝 Entretien RH":
                                 key="v1_form_type",
                                 height=100
                             )
-                            st.session_state.entretien_data["V1_Type_Accompagnement"] = v1_type
+                            if v1_type != st.session_state.entretien_data.get("V1_Type_Accompagnement", ""):
+                                st.session_state.entretien_data["V1_Type_Accompagnement"] = v1_type
+                                auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         else:
-                            st.session_state.entretien_data["V1_Type_Accompagnement"] = ""
+                            if st.session_state.entretien_data.get("V1_Type_Accompagnement", "") != "":
+                                st.session_state.entretien_data["V1_Type_Accompagnement"] = ""
+                                auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     # Auto-save après chaque onglet
                     if st.button("💾 Sauvegarder Vœu 1", key="save_v1"):
@@ -1125,10 +1215,14 @@ elif page == "📝 Entretien RH":
                 else:
                     st.warning("Aucun vœu 1 renseigné pour ce collaborateur")
             
-            # ========== VŒEU 2 ==========
+           # ========== VŒEU 2 ==========
             with tab_voeu2:
                 if voeu2_label and voeu2_label != "Positionnement manquant" and voeu2_label != "Non renseigné":
                     st.subheader(f"Évaluation du Vœu 2 : {voeu2_label}")
+                    
+                    # Afficher un indicateur de dernière sauvegarde
+                    if st.session_state.last_save_time:
+                        st.caption(f"💾 Dernière sauvegarde automatique : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
                     
                     st.markdown("#### 📋 Questions générales")
                     
@@ -1138,7 +1232,9 @@ elif page == "📝 Entretien RH":
                         key="v2_motiv",
                         height=100
                     )
-                    st.session_state.entretien_data["V2_Motivations"] = v2_motiv
+                    if v2_motiv != st.session_state.entretien_data.get("V2_Motivations", ""):
+                        st.session_state.entretien_data["V2_Motivations"] = v2_motiv
+                        auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     v2_vision = st.text_area(
                         "Quelle est votre vision des enjeux du poste ?",
@@ -1146,7 +1242,9 @@ elif page == "📝 Entretien RH":
                         key="v2_vision",
                         height=100
                     )
-                    st.session_state.entretien_data["V2_Vision_Enjeux"] = v2_vision
+                    if v2_vision != st.session_state.entretien_data.get("V2_Vision_Enjeux", ""):
+                        st.session_state.entretien_data["V2_Vision_Enjeux"] = v2_vision
+                        auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     v2_actions = st.text_area(
                         "Quelles seraient vos premières actions à la prise de poste ?",
@@ -1154,7 +1252,9 @@ elif page == "📝 Entretien RH":
                         key="v2_actions",
                         height=100
                     )
-                    st.session_state.entretien_data["V2_Premieres_Actions"] = v2_actions
+                    if v2_actions != st.session_state.entretien_data.get("V2_Premieres_Actions", ""):
+                        st.session_state.entretien_data["V2_Premieres_Actions"] = v2_actions
+                        auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     st.markdown("#### 🎯 Évaluation des compétences")
@@ -1167,7 +1267,9 @@ elif page == "📝 Entretien RH":
                             value=st.session_state.entretien_data.get("V2_Competence_1_Nom", ""),
                             key="v2_c1_nom"
                         )
-                        st.session_state.entretien_data["V2_Competence_1_Nom"] = v2_c1_nom
+                        if v2_c1_nom != st.session_state.entretien_data.get("V2_Competence_1_Nom", ""):
+                            st.session_state.entretien_data["V2_Competence_1_Nom"] = v2_c1_nom
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
                         niveau_options = ["Débutant", "Confirmé", "Expert"]
                         current_niveau = st.session_state.entretien_data.get("V2_Competence_1_Niveau", "Débutant")
@@ -1179,7 +1281,9 @@ elif page == "📝 Entretien RH":
                             index=niveau_index,
                             key="v2_c1_niv"
                         )
-                        st.session_state.entretien_data["V2_Competence_1_Niveau"] = v2_c1_niv
+                        if v2_c1_niv != st.session_state.entretien_data.get("V2_Competence_1_Niveau", ""):
+                            st.session_state.entretien_data["V2_Competence_1_Niveau"] = v2_c1_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_comp1_2:
                         v2_c1_just = st.text_area(
@@ -1188,7 +1292,9 @@ elif page == "📝 Entretien RH":
                             key="v2_c1_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V2_Competence_1_Justification"] = v2_c1_just
+                        if v2_c1_just != st.session_state.entretien_data.get("V2_Competence_1_Justification", ""):
+                            st.session_state.entretien_data["V2_Competence_1_Justification"] = v2_c1_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     
@@ -1200,7 +1306,9 @@ elif page == "📝 Entretien RH":
                             value=st.session_state.entretien_data.get("V2_Competence_2_Nom", ""),
                             key="v2_c2_nom"
                         )
-                        st.session_state.entretien_data["V2_Competence_2_Nom"] = v2_c2_nom
+                        if v2_c2_nom != st.session_state.entretien_data.get("V2_Competence_2_Nom", ""):
+                            st.session_state.entretien_data["V2_Competence_2_Nom"] = v2_c2_nom
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
                         current_niveau = st.session_state.entretien_data.get("V2_Competence_2_Niveau", "Débutant")
                         niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
@@ -1211,7 +1319,9 @@ elif page == "📝 Entretien RH":
                             index=niveau_index,
                             key="v2_c2_niv"
                         )
-                        st.session_state.entretien_data["V2_Competence_2_Niveau"] = v2_c2_niv
+                        if v2_c2_niv != st.session_state.entretien_data.get("V2_Competence_2_Niveau", ""):
+                            st.session_state.entretien_data["V2_Competence_2_Niveau"] = v2_c2_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_comp2_2:
                         v2_c2_just = st.text_area(
@@ -1220,7 +1330,9 @@ elif page == "📝 Entretien RH":
                             key="v2_c2_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V2_Competence_2_Justification"] = v2_c2_just
+                        if v2_c2_just != st.session_state.entretien_data.get("V2_Competence_2_Justification", ""):
+                            st.session_state.entretien_data["V2_Competence_2_Justification"] = v2_c2_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     
@@ -1232,7 +1344,9 @@ elif page == "📝 Entretien RH":
                             value=st.session_state.entretien_data.get("V2_Competence_3_Nom", ""),
                             key="v2_c3_nom"
                         )
-                        st.session_state.entretien_data["V2_Competence_3_Nom"] = v2_c3_nom
+                        if v2_c3_nom != st.session_state.entretien_data.get("V2_Competence_3_Nom", ""):
+                            st.session_state.entretien_data["V2_Competence_3_Nom"] = v2_c3_nom
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
                         current_niveau = st.session_state.entretien_data.get("V2_Competence_3_Niveau", "Débutant")
                         niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
@@ -1243,7 +1357,9 @@ elif page == "📝 Entretien RH":
                             index=niveau_index,
                             key="v2_c3_niv"
                         )
-                        st.session_state.entretien_data["V2_Competence_3_Niveau"] = v2_c3_niv
+                        if v2_c3_niv != st.session_state.entretien_data.get("V2_Competence_3_Niveau", ""):
+                            st.session_state.entretien_data["V2_Competence_3_Niveau"] = v2_c3_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_comp3_2:
                         v2_c3_just = st.text_area(
@@ -1252,7 +1368,9 @@ elif page == "📝 Entretien RH":
                             key="v2_c3_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V2_Competence_3_Justification"] = v2_c3_just
+                        if v2_c3_just != st.session_state.entretien_data.get("V2_Competence_3_Justification", ""):
+                            st.session_state.entretien_data["V2_Competence_3_Justification"] = v2_c3_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     st.markdown("#### 📊 Expérience")
@@ -1269,7 +1387,9 @@ elif page == "📝 Entretien RH":
                             index=exp_index,
                             key="v2_exp_niv"
                         )
-                        st.session_state.entretien_data["V2_Experience_Niveau"] = v2_exp_niv
+                        if v2_exp_niv != st.session_state.entretien_data.get("V2_Experience_Niveau", ""):
+                            st.session_state.entretien_data["V2_Experience_Niveau"] = v2_exp_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_exp2:
                         v2_exp_just = st.text_area(
@@ -1278,7 +1398,9 @@ elif page == "📝 Entretien RH":
                             key="v2_exp_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V2_Experience_Justification"] = v2_exp_just
+                        if v2_exp_just != st.session_state.entretien_data.get("V2_Experience_Justification", ""):
+                            st.session_state.entretien_data["V2_Experience_Justification"] = v2_exp_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     st.markdown("#### 🎓 Accompagnement et Formation")
@@ -1295,7 +1417,9 @@ elif page == "📝 Entretien RH":
                             index=accomp_index,
                             key="v2_form_besoin"
                         )
-                        st.session_state.entretien_data["V2_Besoin_Accompagnement"] = v2_besoin
+                        if v2_besoin != st.session_state.entretien_data.get("V2_Besoin_Accompagnement", ""):
+                            st.session_state.entretien_data["V2_Besoin_Accompagnement"] = v2_besoin
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_form2:
                         if v2_besoin == "Oui":
@@ -1305,9 +1429,13 @@ elif page == "📝 Entretien RH":
                                 key="v2_form_type",
                                 height=100
                             )
-                            st.session_state.entretien_data["V2_Type_Accompagnement"] = v2_type
+                            if v2_type != st.session_state.entretien_data.get("V2_Type_Accompagnement", ""):
+                                st.session_state.entretien_data["V2_Type_Accompagnement"] = v2_type
+                                auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         else:
-                            st.session_state.entretien_data["V2_Type_Accompagnement"] = ""
+                            if st.session_state.entretien_data.get("V2_Type_Accompagnement", "") != "":
+                                st.session_state.entretien_data["V2_Type_Accompagnement"] = ""
+                                auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     if st.button("💾 Sauvegarder Vœu 2", key="save_v2"):
                         save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
@@ -1315,10 +1443,14 @@ elif page == "📝 Entretien RH":
                 else:
                     st.warning("Aucun vœu 2 renseigné pour ce collaborateur")
             
-            # ========== VŒEU 3 ==========
+           # ========== VŒEU 3 ==========
             with tab_voeu3:
                 if voeu3_label and voeu3_label != "Positionnement manquant" and voeu3_label != "Non renseigné":
                     st.subheader(f"Évaluation du Vœu 3 : {voeu3_label}")
+                    
+                    # Afficher un indicateur de dernière sauvegarde
+                    if st.session_state.last_save_time:
+                        st.caption(f"💾 Dernière sauvegarde automatique : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
                     
                     st.markdown("#### 📋 Questions générales")
                     
@@ -1328,7 +1460,9 @@ elif page == "📝 Entretien RH":
                         key="v3_motiv",
                         height=100
                     )
-                    st.session_state.entretien_data["V3_Motivations"] = v3_motiv
+                    if v3_motiv != st.session_state.entretien_data.get("V3_Motivations", ""):
+                        st.session_state.entretien_data["V3_Motivations"] = v3_motiv
+                        auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     v3_vision = st.text_area(
                         "Quelle est votre vision des enjeux du poste ?",
@@ -1336,7 +1470,9 @@ elif page == "📝 Entretien RH":
                         key="v3_vision",
                         height=100
                     )
-                    st.session_state.entretien_data["V3_Vision_Enjeux"] = v3_vision
+                    if v3_vision != st.session_state.entretien_data.get("V3_Vision_Enjeux", ""):
+                        st.session_state.entretien_data["V3_Vision_Enjeux"] = v3_vision
+                        auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     v3_actions = st.text_area(
                         "Quelles seraient vos premières actions à la prise de poste ?",
@@ -1344,7 +1480,9 @@ elif page == "📝 Entretien RH":
                         key="v3_actions",
                         height=100
                     )
-                    st.session_state.entretien_data["V3_Premieres_Actions"] = v3_actions
+                    if v3_actions != st.session_state.entretien_data.get("V3_Premieres_Actions", ""):
+                        st.session_state.entretien_data["V3_Premieres_Actions"] = v3_actions
+                        auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     st.markdown("#### 🎯 Évaluation des compétences")
@@ -1357,7 +1495,9 @@ elif page == "📝 Entretien RH":
                             value=st.session_state.entretien_data.get("V3_Competence_1_Nom", ""),
                             key="v3_c1_nom"
                         )
-                        st.session_state.entretien_data["V3_Competence_1_Nom"] = v3_c1_nom
+                        if v3_c1_nom != st.session_state.entretien_data.get("V3_Competence_1_Nom", ""):
+                            st.session_state.entretien_data["V3_Competence_1_Nom"] = v3_c1_nom
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
                         niveau_options = ["Débutant", "Confirmé", "Expert"]
                         current_niveau = st.session_state.entretien_data.get("V3_Competence_1_Niveau", "Débutant")
@@ -1369,7 +1509,9 @@ elif page == "📝 Entretien RH":
                             index=niveau_index,
                             key="v3_c1_niv"
                         )
-                        st.session_state.entretien_data["V3_Competence_1_Niveau"] = v3_c1_niv
+                        if v3_c1_niv != st.session_state.entretien_data.get("V3_Competence_1_Niveau", ""):
+                            st.session_state.entretien_data["V3_Competence_1_Niveau"] = v3_c1_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_comp1_2:
                         v3_c1_just = st.text_area(
@@ -1378,7 +1520,9 @@ elif page == "📝 Entretien RH":
                             key="v3_c1_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V3_Competence_1_Justification"] = v3_c1_just
+                        if v3_c1_just != st.session_state.entretien_data.get("V3_Competence_1_Justification", ""):
+                            st.session_state.entretien_data["V3_Competence_1_Justification"] = v3_c1_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     
@@ -1390,7 +1534,9 @@ elif page == "📝 Entretien RH":
                             value=st.session_state.entretien_data.get("V3_Competence_2_Nom", ""),
                             key="v3_c2_nom"
                         )
-                        st.session_state.entretien_data["V3_Competence_2_Nom"] = v3_c2_nom
+                        if v3_c2_nom != st.session_state.entretien_data.get("V3_Competence_2_Nom", ""):
+                            st.session_state.entretien_data["V3_Competence_2_Nom"] = v3_c2_nom
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
                         current_niveau = st.session_state.entretien_data.get("V3_Competence_2_Niveau", "Débutant")
                         niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
@@ -1401,7 +1547,9 @@ elif page == "📝 Entretien RH":
                             index=niveau_index,
                             key="v3_c2_niv"
                         )
-                        st.session_state.entretien_data["V3_Competence_2_Niveau"] = v3_c2_niv
+                        if v3_c2_niv != st.session_state.entretien_data.get("V3_Competence_2_Niveau", ""):
+                            st.session_state.entretien_data["V3_Competence_2_Niveau"] = v3_c2_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_comp2_2:
                         v3_c2_just = st.text_area(
@@ -1410,7 +1558,9 @@ elif page == "📝 Entretien RH":
                             key="v3_c2_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V3_Competence_2_Justification"] = v3_c2_just
+                        if v3_c2_just != st.session_state.entretien_data.get("V3_Competence_2_Justification", ""):
+                            st.session_state.entretien_data["V3_Competence_2_Justification"] = v3_c2_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     
@@ -1422,7 +1572,9 @@ elif page == "📝 Entretien RH":
                             value=st.session_state.entretien_data.get("V3_Competence_3_Nom", ""),
                             key="v3_c3_nom"
                         )
-                        st.session_state.entretien_data["V3_Competence_3_Nom"] = v3_c3_nom
+                        if v3_c3_nom != st.session_state.entretien_data.get("V3_Competence_3_Nom", ""):
+                            st.session_state.entretien_data["V3_Competence_3_Nom"] = v3_c3_nom
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
                         current_niveau = st.session_state.entretien_data.get("V3_Competence_3_Niveau", "Débutant")
                         niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
@@ -1433,7 +1585,9 @@ elif page == "📝 Entretien RH":
                             index=niveau_index,
                             key="v3_c3_niv"
                         )
-                        st.session_state.entretien_data["V3_Competence_3_Niveau"] = v3_c3_niv
+                        if v3_c3_niv != st.session_state.entretien_data.get("V3_Competence_3_Niveau", ""):
+                            st.session_state.entretien_data["V3_Competence_3_Niveau"] = v3_c3_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_comp3_2:
                         v3_c3_just = st.text_area(
@@ -1442,7 +1596,9 @@ elif page == "📝 Entretien RH":
                             key="v3_c3_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V3_Competence_3_Justification"] = v3_c3_just
+                        if v3_c3_just != st.session_state.entretien_data.get("V3_Competence_3_Justification", ""):
+                            st.session_state.entretien_data["V3_Competence_3_Justification"] = v3_c3_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     st.markdown("#### 📊 Expérience")
@@ -1459,7 +1615,9 @@ elif page == "📝 Entretien RH":
                             index=exp_index,
                             key="v3_exp_niv"
                         )
-                        st.session_state.entretien_data["V3_Experience_Niveau"] = v3_exp_niv
+                        if v3_exp_niv != st.session_state.entretien_data.get("V3_Experience_Niveau", ""):
+                            st.session_state.entretien_data["V3_Experience_Niveau"] = v3_exp_niv
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_exp2:
                         v3_exp_just = st.text_area(
@@ -1468,7 +1626,9 @@ elif page == "📝 Entretien RH":
                             key="v3_exp_just",
                             height=100
                         )
-                        st.session_state.entretien_data["V3_Experience_Justification"] = v3_exp_just
+                        if v3_exp_just != st.session_state.entretien_data.get("V3_Experience_Justification", ""):
+                            st.session_state.entretien_data["V3_Experience_Justification"] = v3_exp_just
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     st.divider()
                     st.markdown("#### 🎓 Accompagnement et Formation")
@@ -1485,7 +1645,9 @@ elif page == "📝 Entretien RH":
                             index=accomp_index,
                             key="v3_form_besoin"
                         )
-                        st.session_state.entretien_data["V3_Besoin_Accompagnement"] = v3_besoin
+                        if v3_besoin != st.session_state.entretien_data.get("V3_Besoin_Accompagnement", ""):
+                            st.session_state.entretien_data["V3_Besoin_Accompagnement"] = v3_besoin
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_form2:
                         if v3_besoin == "Oui":
@@ -1495,9 +1657,13 @@ elif page == "📝 Entretien RH":
                                 key="v3_form_type",
                                 height=100
                             )
-                            st.session_state.entretien_data["V3_Type_Accompagnement"] = v3_type
+                            if v3_type != st.session_state.entretien_data.get("V3_Type_Accompagnement", ""):
+                                st.session_state.entretien_data["V3_Type_Accompagnement"] = v3_type
+                                auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         else:
-                            st.session_state.entretien_data["V3_Type_Accompagnement"] = ""
+                            if st.session_state.entretien_data.get("V3_Type_Accompagnement", "") != "":
+                                st.session_state.entretien_data["V3_Type_Accompagnement"] = ""
+                                auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     if st.button("💾 Sauvegarder Vœu 3", key="save_v3"):
                         save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
@@ -1505,9 +1671,13 @@ elif page == "📝 Entretien RH":
                 else:
                     st.warning("Aucun vœu 3 renseigné pour ce collaborateur")
             
-            # ========== AVIS RH ==========
+           # ========== AVIS RH ==========
             with tab_avis:
                 st.subheader("💬 Avis RH Final")
+                
+                # Afficher un indicateur de dernière sauvegarde
+                if st.session_state.last_save_time:
+                    st.caption(f"💾 Dernière sauvegarde automatique : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
                 
                 attentes_mgr = st.text_area(
                     "Attentes vis-à-vis du futur manager & dans quels cas le solliciter ?",
@@ -1515,7 +1685,9 @@ elif page == "📝 Entretien RH":
                     key="attentes_manager",
                     height=150
                 )
-                st.session_state.entretien_data["Attentes_Manager"] = attentes_mgr
+                if attentes_mgr != st.session_state.entretien_data.get("Attentes_Manager", ""):
+                    st.session_state.entretien_data["Attentes_Manager"] = attentes_mgr
+                    auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                 
                 avis_synthese = st.text_area(
                     "Avis RH - Synthèse globale de l'entretien",
@@ -1523,7 +1695,9 @@ elif page == "📝 Entretien RH":
                     key="avis_synthese",
                     height=200
                 )
-                st.session_state.entretien_data["Avis_RH_Synthese"] = avis_synthese
+                if avis_synthese != st.session_state.entretien_data.get("Avis_RH_Synthese", ""):
+                    st.session_state.entretien_data["Avis_RH_Synthese"] = avis_synthese
+                    auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                 
                 st.divider()
                 st.markdown("#### 🎯 Décision RH")
@@ -1552,47 +1726,56 @@ elif page == "📝 Entretien RH":
                     index=decision_index,
                     key="decision_rh"
                 )
-                
-                # Si "Autre" est sélectionné, afficher un module de recherche
-                if decision_rh == "Autre":
-                    st.markdown("##### 🔍 Rechercher un autre poste")
-                    search_poste = st.text_input("Rechercher un poste", key="search_autre_poste")
-                    
-                    if search_poste:
-                        postes_filtres = postes_df[postes_df["Poste"].str.contains(search_poste, case=False, na=False)]
+
+                # ✅ Variable pour stocker le poste final sélectionné
+                poste_final = None
+                autre_poste_selectionne = None
+
+                if decision_rh != "-- Aucune décision --":
+                    if decision_rh == "Autre":
+                        st.markdown("##### 🔍 Rechercher un autre poste")
+                        search_poste = st.text_input("Rechercher un poste", key="search_autre_poste")
                         
-                        if not postes_filtres.empty:
-                            poste_autre = st.selectbox(
-                                "Sélectionner un poste",
-                                options=["-- Sélectionner --"] + postes_filtres["Poste"].tolist(),
-                                key="select_autre_poste"
-                            )
+                        if search_poste:
+                            postes_filtres = postes_df[postes_df["Poste"].str.contains(search_poste, case=False, na=False)]
                             
-                            if poste_autre != "-- Sélectionner --":
-                                decision_rh = poste_autre
-                        else:
-                            st.info("Aucun poste trouvé avec ce terme de recherche")
+                            if not postes_filtres.empty:
+                                autre_poste_selectionne = st.selectbox(
+                                    "Sélectionner un poste",
+                                    options=["-- Sélectionner --"] + postes_filtres["Poste"].tolist(),
+                                    key="select_autre_poste"
+                                )
+                                
+                                if autre_poste_selectionne != "-- Sélectionner --":
+                                    poste_final = autre_poste_selectionne
+                                    st.session_state.entretien_data["Decision_RH_Poste"] = autre_poste_selectionne
+                            else:
+                                st.info("Aucun poste trouvé avec ce terme de recherche")
+                    else:
+                        poste_final = decision_rh
+                        st.session_state.entretien_data["Decision_RH_Poste"] = decision_rh
                 
                 # Si une décision est prise, afficher la confirmation
-                if decision_rh and decision_rh != "-- Aucune décision --":
-                    st.divider()
-                    st.markdown(f"##### Validez-vous le poste **{decision_rh}** pour le collaborateur **{st.session_state.entretien_data.get('Prénom', '')} {st.session_state.entretien_data.get('Nom', '')}** ?")
+                if poste_final:
+                    st.markdown(f"##### Validez-vous le poste **{poste_final}** pour le collaborateur **{st.session_state.entretien_data.get('Prénom', '')} {st.session_state.entretien_data.get('Nom', '')}** ?")
                     
                     col_btn1, col_btn2, col_btn3 = st.columns(3)
                     
                     with col_btn1:
                         if st.button("❌ Non", key="btn_non", use_container_width=True):
+                            st.session_state.entretien_data["Decision_RH_Poste"] = ""
                             st.info("Décision annulée")
+                            auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
                     with col_btn2:
                         if st.button("🟠 Oui en option RH", key="btn_option", type="secondary", use_container_width=True):
-                            # Ajouter dans "Commentaires RH"
-                            commentaire = f"Option RH à l'issue entretien : {decision_rh}"
+                            # Ajouter dans "Commentaires RH" - utiliser poste_final au lieu de decision_rh
+                            commentaire = f"Option RH à l'issue entretien : {poste_final}"
                             success = update_commentaire_rh(gsheet_client, SHEET_URL, st.session_state.current_matricule, commentaire)
                             
                             if success:
                                 # Sauvegarder la décision dans l'entretien
-                                st.session_state.entretien_data["Decision_RH_Poste"] = f"Option: {decision_rh}"
+                                st.session_state.entretien_data["Decision_RH_Poste"] = f"Option: {poste_final}"
                                 save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=False)
                                 
                                 st.success("✅ Option RH enregistrée avec succès !")
@@ -1601,12 +1784,12 @@ elif page == "📝 Entretien RH":
                     
                     with col_btn3:
                         if st.button("🟢 Oui, vœu retenu", key="btn_retenu", type="primary", use_container_width=True):
-                            # Mettre à jour "Vœux Retenu"
-                            success = update_voeu_retenu(gsheet_client, SHEET_URL, st.session_state.current_matricule, decision_rh)
+                            # Mettre à jour "Vœux Retenu" - utiliser poste_final au lieu de decision_rh
+                            success = update_voeu_retenu(gsheet_client, SHEET_URL, st.session_state.current_matricule, poste_final)
                             
                             if success:
                                 # Sauvegarder la décision dans l'entretien
-                                st.session_state.entretien_data["Decision_RH_Poste"] = f"Retenu: {decision_rh}"
+                                st.session_state.entretien_data["Decision_RH_Poste"] = f"Retenu: {poste_final}"
                                 save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=False)
                                 
                                 st.success("✅ Vœu retenu enregistré avec succès !")
@@ -1901,4 +2084,5 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
