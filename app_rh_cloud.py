@@ -44,12 +44,7 @@ def init_session_state():
     if 'fiche_candidat' not in st.session_state:
         st.session_state.fiche_candidat = None
 
-def auto_save_entretien(gsheet_client, sheet_url, entretien_data):
-    """Sauvegarde automatique silencieuse"""
-    if entretien_data and entretien_data.get("Matricule"):
-        save_entretien_to_gsheet(gsheet_client, sheet_url, entretien_data, show_success=False)
-        paris_tz = pytz.timezone('Europe/Paris')
-        st.session_state.last_save_time = datetime.now(paris_tz)
+
 # --- CONFIGURATION GOOGLE SHEETS ---
 @st.cache_resource
 def get_gsheet_connection():
@@ -806,7 +801,7 @@ elif page == "👥 Gestion des Candidatures":
                     st.session_state.navigate_to_entretien = True
             
             # Forcer la navigation vers la page Entretien RH
-                    st.switch_page("app.py")  # Ou le nom de votre fichier principal
+                    st.switch_page("app_rh_cloud.py")  # Ou le nom de votre fichier principal
 
 # ========================================
 # PAGE 3 : ENTRETIEN RH (PARTIE 1/2)
@@ -2084,5 +2079,6 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
