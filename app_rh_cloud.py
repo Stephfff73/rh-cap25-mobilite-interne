@@ -4,6 +4,7 @@ from datetime import datetime, date
 import time
 from google.oauth2 import service_account
 import gspread
+import pytz
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -12,6 +13,72 @@ st.set_page_config(
     page_icon="🏢",
     initial_sidebar_state="expanded"
 )
+
+# --- STYLE CSS PERSONNALISÉ ---
+st.markdown("""
+<style>
+    /* Arrière-plan général noir */
+    .stApp {
+        background-color: #000000;
+        color: #FFFFFF;
+    }
+    
+    /* Sidebar gris anthracite */
+    [data-testid="stSidebar"] {
+        background-color: #2B2B2B;
+    }
+    
+    [data-testid="stSidebar"] * {
+        color: #FFFFFF !important;
+    }
+    
+    /* Texte blanc général */
+    .stMarkdown, .stText, p, span, div {
+        color: #FFFFFF;
+    }
+    
+    /* Headers blancs */
+    h1, h2, h3, h4, h5, h6 {
+        color: #FFFFFF !important;
+    }
+    
+    /* Metrics personnalisées */
+    [data-testid="stMetricValue"] {
+        color: #FFFFFF;
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        color: #CCCCCC;
+    }
+    
+    /* Dataframes */
+    .stDataFrame {
+        background-color: #1E1E1E;
+    }
+    
+    /* Inputs et selectbox */
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > select,
+    .stMultiSelect > div > div {
+        background-color: #2B2B2B;
+        color: #FFFFFF;
+    }
+    
+    /* Boutons */
+    .stButton > button {
+        background-color: #4A4A4A;
+        color: #FFFFFF;
+        border: 1px solid #6A6A6A;
+    }
+    
+    .stButton > button:hover {
+        background-color: #5A5A5A;
+        border: 1px solid #7A7A7A;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # --- CONFIGURATION GOOGLE SHEETS ---
 @st.cache_resource
@@ -116,10 +183,10 @@ def create_entretien_sheet_if_not_exists(_client, sheet_url):
                 "V3_Experience_Niveau", "V3_Experience_Justification",
                 "V3_Besoin_Accompagnement", "V3_Type_Accompagnement",
                 # Avis RH
-                "Attentes_Manager", "Avis_RH_Synthese"
+                "Attentes_Manager", "Avis_RH_Synthese", "Decision_RH_Poste"
             ]
             
-            worksheet.update('A1:AX1', [headers])
+            worksheet.update('A1:AY1', [headers])
             return True
             
     except Exception as e:
@@ -204,11 +271,12 @@ def save_entretien_to_gsheet(_client, sheet_url, entretien_data):
             entretien_data.get("V3_Type_Accompagnement", ""),
             # Avis RH
             entretien_data.get("Attentes_Manager", ""),
-            entretien_data.get("Avis_RH_Synthese", "")
+            entretien_data.get("Avis_RH_Synthese", ""),
+            entretien_data.get("Decision_RH_Poste", "")
         ]
         
         if existing_row:
-            worksheet.update(f'A{existing_row}:AX{existing_row}', [row_data])
+            worksheet.update(f'A{existing_row}:AY{existing_row}', [row_data])
         else:
             worksheet.append_row(row_data)
         
@@ -216,6 +284,74 @@ def save_entretien_to_gsheet(_client, sheet_url, entretien_data):
         
     except Exception as e:
         st.error(f"Erreur lors de la sauvegarde : {str(e)}")
+        return False
+
+def update_voeu_retenu(_client, sheet_url, matricule, poste):
+    """
+    Met à jour la colonne 'Vœux Retenu' dans l'onglet CAP 2025
+    """
+    try:
+        spreadsheet = _client.open_by_url(sheet_url)
+        worksheet = spreadsheet.worksheet("CAP 2025")
+        
+        all_values = worksheet.get_all_values()
+        headers = all_values[1]
+        
+        # Trouver l'index de la colonne "Vœux Retenu"
+        try:
+            voeu_retenu_col = headers.index("Vœux Retenu") + 1
+            matricule_col = headers.index("Matricule") + 1
+        except ValueError:
+            st.error("Colonnes 'Vœux Retenu' ou 'Matricule' introuvables")
+            return False
+        
+        # Trouver la ligne du collaborateur
+        for idx, row in enumerate(all_values[2:], start=3):
+            if row[matricule_col - 1] == str(matricule):
+                # Mettre à jour la cellule
+                worksheet.update_cell(idx, voeu_retenu_col, poste)
+                return True
+        
+        st.error("Matricule introuvable")
+        return False
+        
+    except Exception as e:
+        st.error(f"Erreur lors de la mise à jour : {str(e)}")
+        return False
+
+def update_commentaire_rh(_client, sheet_url, matricule, commentaire):
+    """
+    Ajoute un commentaire dans la colonne 'Commentaires RH' de l'onglet CAP 2025
+    """
+    try:
+        spreadsheet = _client.open_by_url(sheet_url)
+        worksheet = spreadsheet.worksheet("CAP 2025")
+        
+        all_values = worksheet.get_all_values()
+        headers = all_values[1]
+        
+        # Trouver l'index des colonnes
+        try:
+            commentaire_col = headers.index("Commentaires RH") + 1
+            matricule_col = headers.index("Matricule") + 1
+        except ValueError:
+            st.error("Colonnes 'Commentaires RH' ou 'Matricule' introuvables")
+            return False
+        
+        # Trouver la ligne du collaborateur
+        for idx, row in enumerate(all_values[2:], start=3):
+            if row[matricule_col - 1] == str(matricule):
+                # Récupérer le commentaire existant et ajouter le nouveau
+                existing_comment = row[commentaire_col - 1]
+                new_comment = f"{existing_comment}\n{commentaire}" if existing_comment else commentaire
+                worksheet.update_cell(idx, commentaire_col, new_comment)
+                return True
+        
+        st.error("Matricule introuvable")
+        return False
+        
+    except Exception as e:
+        st.error(f"Erreur lors de la mise à jour : {str(e)}")
         return False
 
 def calculate_anciennete(date_str):
@@ -240,7 +376,7 @@ def calculate_anciennete(date_str):
             except ValueError:
                 continue
         
-        return date_str  # Si aucun format ne correspond, retourner la valeur originale
+        return date_str
     except:
         return date_str
 
@@ -258,19 +394,16 @@ def parse_date(date_str):
 
 def get_safe_value(value):
     """Retourne une valeur string sûre, évitant les Series pandas"""
-    # Vérifier d'abord si c'est une Series pandas
     if isinstance(value, pd.Series):
         if len(value) > 0:
             val = value.iloc[0]
             return str(val) if pd.notna(val) and val != "" else ""
         return ""
-    # Ensuite vérifier si c'est NaN
     try:
         if pd.isna(value):
             return ""
     except (ValueError, TypeError):
         pass
-    # Retourner la valeur convertie en string
     return str(value) if value else ""
 
 # --- URL DU GOOGLE SHEET ---
@@ -314,7 +447,10 @@ if st.sidebar.button("🔄 Rafraîchir les données", use_container_width=True):
     st.rerun()
 
 st.sidebar.divider()
-st.sidebar.caption(f"Dernière mise à jour : {datetime.now().strftime('%H:%M:%S')}")
+# Heure de Paris
+paris_tz = pytz.timezone('Europe/Paris')
+paris_time = datetime.now(paris_tz)
+st.sidebar.caption(f"Dernière mise à jour : {paris_time.strftime('%H:%M:%S')}")
 
 # ========================================
 # PAGE 1 : TABLEAU DE BORD
@@ -326,14 +462,57 @@ if page == "📊 Tableau de Bord":
     # Première ligne de métriques
     col1, col2, col3, col4 = st.columns(4)
     
-    # Nombre de collaborateurs = nombre de matricules non vides
-    nb_collaborateurs = len(collaborateurs_df[collaborateurs_df["Matricule"].notna() & (collaborateurs_df["Matricule"] != "")])
+    # Collaborateurs à repositionner (avec filtre "Rencontre RH / Positionnement" = "OUI")
+    nb_collaborateurs = len(collaborateurs_df[
+        (collaborateurs_df["Matricule"].notna()) & 
+        (collaborateurs_df["Matricule"] != "") &
+        (collaborateurs_df["Rencontre RH / Positionnement"].str.upper() == "OUI")
+    ])
     
-    # Calcul du nombre de postes ouverts (somme de "Nombre total de postes" où "Mobilité interne" = "Oui")
+    # Postes ouverts
     postes_ouverts_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
     nb_postes_ouverts = int(postes_ouverts_df["Nombre total de postes"].sum()) if "Nombre total de postes" in postes_df.columns else len(postes_ouverts_df)
     
-    # Entretiens planifiés (Date de rdv non vide et postérieure à aujourd'hui)
+    # Postes attribués (Vœux Retenu non vide)
+    nb_postes_attribues = len(collaborateurs_df[
+        (collaborateurs_df["Vœux Retenu"].notna()) & 
+        (collaborateurs_df["Vœux Retenu"].astype(str).str.strip() != "")
+    ])
+    
+    # Pourcentage d'attribution
+    pct_attribution = (nb_postes_attribues / nb_postes_ouverts * 100) if nb_postes_ouverts > 0 else 0
+    
+    col1.metric("👥 Collaborateurs à repositionner", nb_collaborateurs)
+    col2.metric("📍 Postes ouverts", nb_postes_ouverts)
+    col3.metric("👩🏻‍💻✅ Postes attribués", nb_postes_attribues)
+    
+    # Jauge de pourcentage d'attribution
+    with col4:
+        st.metric("% d'attribution", f"{pct_attribution:.1f}%")
+        # Barre de progression visuelle
+        st.progress(min(pct_attribution / 100, 1.0))
+    
+    # Deuxième ligne de métriques
+    col5, col6, col7, col8 = st.columns(4)
+    
+    nb_priorite_1 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 1"])
+    nb_priorite_2 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 2"])
+    nb_priorite_3_4 = len(collaborateurs_df[
+        (collaborateurs_df["Priorité"] == "Priorité 3") | 
+        (collaborateurs_df["Priorité"] == "Priorité 4")
+    ])
+    
+    col5.metric("⭐ Priorité 1", nb_priorite_1)
+    col6.metric("⭐ Priorité 2", nb_priorite_2)
+    col7.metric("⭐ Priorité 3 et 4", nb_priorite_3_4)
+    
+    # Espace vide pour alignement
+    col8.write("")
+    
+    # Troisième ligne de métriques
+    col9, col10, col11, col12 = st.columns(4)
+    
+    # Entretiens planifiés, aujourd'hui et réalisés
     today = date.today()
     entretiens_planifies = 0
     entretiens_aujourd_hui = 0
@@ -349,22 +528,10 @@ if page == "📊 Tableau de Bord":
             elif date_rdv < today:
                 entretiens_realises += 1
     
-    col1.metric("👥 Collaborateurs", nb_collaborateurs)
-    col2.metric("📍 Postes ouverts", nb_postes_ouverts)
-    col3.metric("📅 Entretiens planifiés", entretiens_planifies)
-    col4.metric("⌛ Entretiens prévus aujourd'hui", entretiens_aujourd_hui)
-    
-    # Deuxième ligne de métriques
-    col5, col6, col7, col8 = st.columns(4)
-    
-    nb_priorite_1 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 1"])
-    nb_priorite_2 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 2"])
-    nb_priorite_3 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 3"])
-    
-    col5.metric("⭐ Priorité 1", nb_priorite_1)
-    col6.metric("⭐ Priorité 2", nb_priorite_2)
-    col7.metric("⭐ Priorité 3", nb_priorite_3)
-    col8.metric("✅ Entretiens réalisés", entretiens_realises)
+    col9.metric("📅 Entretiens planifiés", entretiens_planifies)
+    col10.metric("✅ Entretiens réalisés", entretiens_realises)
+    col11.metric("⌛ Entretiens prévus aujourd'hui", entretiens_aujourd_hui)
+    col12.write("")
     
     st.divider()
     
@@ -374,13 +541,12 @@ if page == "📊 Tableau de Bord":
     with col_chart1:
         st.subheader("🔥 Top 10 des postes les plus demandés")
         
-        # Concaténer tous les vœux (excluant "Positionnement manquant" et valeurs vides)
+        # Concaténer tous les vœux
         all_voeux = pd.concat([
             collaborateurs_df["Vœux 1"],
             collaborateurs_df["Vœux 2"],
             collaborateurs_df["Voeux 3"]
         ])
-        # Filtrer pour ne garder que les valeurs valides (non vides, non null, non "Positionnement manquant")
         all_voeux = all_voeux[
             all_voeux.notna() & 
             (all_voeux.astype(str).str.strip() != "") & 
@@ -390,7 +556,6 @@ if page == "📊 Tableau de Bord":
         if len(all_voeux) > 0:
             top_postes = all_voeux.value_counts().head(10)
             
-            # Créer le tableau avec classement
             top_df = pd.DataFrame({
                 "Classement": range(1, len(top_postes) + 1),
                 "Poste": top_postes.index,
@@ -400,7 +565,12 @@ if page == "📊 Tableau de Bord":
             st.dataframe(
                 top_df,
                 use_container_width=True,
-                hide_index=True
+                hide_index=True,
+                column_config={
+                    "Classement": st.column_config.NumberColumn(width="small"),
+                    "Nombre de vœux": st.column_config.NumberColumn(width="small"),
+                    "Poste": st.column_config.TextColumn(width="large")
+                }
             )
         else:
             st.info("Aucun vœu enregistré pour le moment")
@@ -409,10 +579,8 @@ if page == "📊 Tableau de Bord":
         st.subheader("⚠️ Flop 10 des postes les moins demandés")
         
         if len(all_voeux) > 0:
-            # Trier par ordre croissant et prendre les 10 premiers
             flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
             
-            # Créer le tableau avec classement
             flop_df = pd.DataFrame({
                 "Classement": range(1, len(flop_postes) + 1),
                 "Poste": flop_postes.index,
@@ -422,7 +590,12 @@ if page == "📊 Tableau de Bord":
             st.dataframe(
                 flop_df,
                 use_container_width=True,
-                hide_index=True
+                hide_index=True,
+                column_config={
+                    "Classement": st.column_config.NumberColumn(width="small"),
+                    "Nombre de vœux": st.column_config.NumberColumn(width="small"),
+                    "Poste": st.column_config.TextColumn(width="large")
+                }
             )
         else:
             st.info("Aucun vœu enregistré pour le moment")
@@ -445,7 +618,6 @@ elif page == "👥 Gestion des Candidatures":
         )
     
     with col_f2:
-        # Filtre par collaborateur avec recherche
         all_collabs = sorted((collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]).unique())
         filtre_collaborateur = st.multiselect(
             "Filtrer par Collaborateur",
@@ -454,7 +626,6 @@ elif page == "👥 Gestion des Candidatures":
         )
     
     with col_f3:
-        # Recherche par nom de collaborateur
         search_nom = st.text_input("🔍 Rechercher un collaborateur par son nom")
     
     with col_f4:
@@ -464,7 +635,6 @@ elif page == "👥 Gestion des Candidatures":
             default=[]
         )
     
-    # Ligne de filtre supplémentaire pour la date
     filtre_date_rdv = st.date_input(
         "Filtrer par Date de rdv",
         value=None
@@ -472,8 +642,6 @@ elif page == "👥 Gestion des Candidatures":
     
     # Appliquer les filtres
     df_filtered = collaborateurs_df.copy()
-    
-    # FILTRE PRINCIPAL : Ne garder que les lignes avec un Matricule non vide
     df_filtered = df_filtered[df_filtered["Matricule"].notna() & (df_filtered["Matricule"].astype(str).str.strip() != "")]
     
     if filtre_direction:
@@ -501,10 +669,8 @@ elif page == "👥 Gestion des Candidatures":
     display_df = pd.DataFrame()
     
     for idx, row in df_filtered.iterrows():
-        # Calculer l'ancienneté
         anciennete = calculate_anciennete(get_safe_value(row.get("Date entrée groupe", "")))
         
-        # Préparer la date et heure d'entretien
         date_rdv = get_safe_value(row.get("Date de rdv", ""))
         heure_rdv = get_safe_value(row.get("Heure de rdv", ""))
         
@@ -513,22 +679,18 @@ elif page == "👥 Gestion des Candidatures":
         else:
             entretien = ""
         
-        # Assessment
         assessment = get_safe_value(row.get("Assesment à planifier O/N", "Non"))
         if not assessment or assessment.strip() == "":
             assessment = "Non"
         
-        # Manager actuel - CORRECTION: traiter chaque champ séparément
         prenom_manager = get_safe_value(row.get('Prénom Manager', ''))
         nom_manager = get_safe_value(row.get('Nom Manager', ''))
         manager_actuel = f"{prenom_manager} {nom_manager}".strip()
         
-        # Vœux
         voeu_1 = get_safe_value(row.get("Vœux 1", ""))
         voeu_2 = get_safe_value(row.get("Vœux 2", ""))
         voeu_3 = get_safe_value(row.get("Voeux 3", ""))
         
-        # Remplacer "Positionnement manquant" par ""
         if voeu_2 == "Positionnement manquant":
             voeu_2 = ""
         if voeu_3 == "Positionnement manquant":
@@ -556,7 +718,7 @@ elif page == "👥 Gestion des Candidatures":
             "Date Assessment": get_safe_value(row.get("Date Assessment", "")),
             "Vœux Retenu": get_safe_value(row.get("Vœux Retenu", "")),
             "Commentaires RH": get_safe_value(row.get("Commentaires RH", "")),
-            "Matricule": get_safe_value(row.get("Matricule", ""))  # Caché mais nécessaire pour la navigation
+            "Matricule": get_safe_value(row.get("Matricule", ""))
         }
         
         display_df = pd.concat([display_df, pd.DataFrame([display_row])], ignore_index=True)
@@ -588,7 +750,6 @@ elif page == "👥 Gestion des Candidatures":
         
         with col_select2:
             if st.button("➡️ Aller à l'entretien", type="primary", disabled=(selected_for_entretien == "-- Sélectionner --")):
-                # Stocker la sélection dans session_state et changer de page
                 st.session_state['selected_collaborateur'] = selected_for_entretien
                 st.session_state['navigate_to_entretien'] = True
                 st.session_state['page'] = '📝 Entretien RH'
@@ -611,13 +772,11 @@ elif page == "📝 Entretien RH":
     # Sélection du collaborateur
     st.subheader("1️⃣ Sélection du collaborateur")
     
-    # Vérifier si on vient de la page "Gestion des Candidatures" ou "Analyse par Poste"
     preselected_collab = None
     if 'navigate_to_entretien' in st.session_state and st.session_state['navigate_to_entretien']:
         preselected_collab = st.session_state.get('selected_collaborateur')
         st.session_state['navigate_to_entretien'] = False
     
-    # Créer un filtre par direction
     col_dir, col_collab = st.columns([1, 2])
     
     with col_dir:
@@ -626,19 +785,16 @@ elif page == "📝 Entretien RH":
             options=["-- Toutes --"] + sorted(collaborateurs_df["Direction libellé"].unique())
         )
     
-    # Filtrer les collaborateurs par direction
     if selected_direction == "-- Toutes --":
         filtered_collabs_df = collaborateurs_df
     else:
         filtered_collabs_df = collaborateurs_df[collaborateurs_df["Direction libellé"] == selected_direction]
     
-    # Créer la liste des collaborateurs triée par nom
     collaborateur_list = sorted(
         (filtered_collabs_df["NOM"] + " " + filtered_collabs_df["Prénom"]).tolist()
     )
     
     with col_collab:
-        # Déterminer l'index par défaut
         default_index = 0
         if preselected_collab and preselected_collab in collaborateur_list:
             default_index = collaborateur_list.index(preselected_collab) + 1
@@ -650,7 +806,6 @@ elif page == "📝 Entretien RH":
         )
     
     if selected_collab != "-- Sélectionner --":
-        # Récupérer les infos du collaborateur
         collab_mask = (collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]) == selected_collab
         collab = collaborateurs_df[collab_mask].iloc[0]
         
@@ -1075,6 +1230,83 @@ elif page == "📝 Entretien RH":
                 key="avis_synthese",
                 height=200
             )
+            
+            st.divider()
+            st.markdown("#### 🎯 Décision RH")
+            
+            # Liste des vœux du collaborateur
+            voeux_list = []
+            if collab.get('Vœux 1') and collab.get('Vœux 1') != "Positionnement manquant":
+                voeux_list.append(get_safe_value(collab.get('Vœux 1')))
+            if collab.get('Vœux 2') and collab.get('Vœux 2') != "Positionnement manquant":
+                voeux_list.append(get_safe_value(collab.get('Vœux 2')))
+            if collab.get('Voeux 3') and collab.get('Voeux 3') != "Positionnement manquant":
+                voeux_list.append(get_safe_value(collab.get('Voeux 3')))
+            
+            voeux_list.append("Autre")
+            
+            decision_rh = st.selectbox(
+                "Décision RH",
+                options=["-- Aucune décision --"] + voeux_list,
+                key="decision_rh"
+            )
+            
+            # Si "Autre" est sélectionné, afficher un module de recherche
+            if decision_rh == "Autre":
+                st.markdown("##### 🔍 Rechercher un autre poste")
+                search_poste = st.text_input("Rechercher un poste", key="search_autre_poste")
+                
+                if search_poste:
+                    postes_filtres = postes_df[postes_df["Poste"].str.contains(search_poste, case=False, na=False)]
+                    
+                    if not postes_filtres.empty:
+                        poste_autre = st.selectbox(
+                            "Sélectionner un poste",
+                            options=["-- Sélectionner --"] + postes_filtres["Poste"].tolist(),
+                            key="select_autre_poste"
+                        )
+                        
+                        if poste_autre != "-- Sélectionner --":
+                            decision_rh = poste_autre
+                    else:
+                        st.info("Aucun poste trouvé avec ce terme de recherche")
+            
+            # Si une décision est prise, afficher la confirmation
+            if decision_rh and decision_rh != "-- Aucune décision --":
+                st.divider()
+                st.markdown(f"##### Validez-vous le poste **{decision_rh}** pour le collaborateur **{get_safe_value(collab.get('Prénom', ''))} {get_safe_value(collab.get('NOM', ''))}** ?")
+                
+                col_btn1, col_btn2, col_btn3 = st.columns(3)
+                
+                with col_btn1:
+                    if st.button("❌ Non", key="btn_non", use_container_width=True):
+                        st.rerun()
+                
+                with col_btn2:
+                    if st.button("🟠 Oui en option RH", key="btn_option", type="secondary", use_container_width=True):
+                        # Ajouter dans "Commentaires RH"
+                        commentaire = f"Option RH à l'issue entretien : {decision_rh}"
+                        success = update_commentaire_rh(gsheet_client, SHEET_URL, entretien_data["Matricule"], commentaire)
+                        
+                        if success:
+                            st.success("✅ Option RH enregistrée avec succès !")
+                            time.sleep(2)
+                            st.cache_data.clear()
+                            st.rerun()
+                
+                with col_btn3:
+                    if st.button("🟢 Oui, vœu retenu", key="btn_retenu", type="primary", use_container_width=True):
+                        # Mettre à jour "Vœux Retenu"
+                        success = update_voeu_retenu(gsheet_client, SHEET_URL, entretien_data["Matricule"], decision_rh)
+                        
+                        if success:
+                            st.success("✅ Vœu retenu enregistré avec succès !")
+                            time.sleep(2)
+                            st.cache_data.clear()
+                            st.rerun()
+                
+                # Stocker la décision dans entretien_data
+                entretien_data["Decision_RH_Poste"] = decision_rh
         
         # Bouton de sauvegarde
         st.divider()
@@ -1109,7 +1341,16 @@ elif page == "🎯 Analyse par Poste":
     
     for _, poste_row in postes_ouverts_df.iterrows():
         poste = poste_row["Poste"]
-        nb_postes_disponibles = int(poste_row.get("Nombre total de postes", 1))
+        nb_postes_total = int(poste_row.get("Nombre total de postes", 1))
+        
+        # Compter les postes attribués
+        nb_postes_attribues = len(collaborateurs_df[
+            (collaborateurs_df["Vœux Retenu"] == poste)
+        ])
+        
+        # Calculer les postes disponibles
+        nb_postes_disponibles = nb_postes_total - nb_postes_attribues
+        
         candidats = []
         candidats_data = []
         
@@ -1136,7 +1377,9 @@ elif page == "🎯 Analyse par Poste":
         nb_candidats = len(candidats)
         
         # Déterminer le statut
-        if nb_candidats == 0:
+        if nb_postes_disponibles == 0:
+            statut = "✅ Poste(s) pourvu(s)"
+        elif nb_candidats == 0:
             statut = "⚠️ Aucun candidat"
         elif nb_candidats < nb_postes_disponibles:
             statut = f"⚠️ Manque {nb_postes_disponibles - nb_candidats} candidat(s)"
@@ -1144,7 +1387,7 @@ elif page == "🎯 Analyse par Poste":
             statut = "✅ Vivier actif"
         else:
             # Calcul du ratio de tension
-            ratio = nb_candidats / nb_postes_disponibles
+            ratio = nb_candidats / nb_postes_disponibles if nb_postes_disponibles > 0 else nb_candidats
             if ratio <= 2:
                 statut = "🔶 Tension"
             elif ratio <= 3:
@@ -1156,6 +1399,7 @@ elif page == "🎯 Analyse par Poste":
             "Poste": poste,
             "Direction": poste_row.get("Direction", "N/A"),
             "Postes disponibles": nb_postes_disponibles,
+            "Postes attribués": nb_postes_attribues,
             "Nb_Candidats": nb_candidats,
             "Candidats": ", ".join(candidats) if candidats else "",
             "Candidats_Data": candidats_data,
@@ -1178,14 +1422,14 @@ elif page == "🎯 Analyse par Poste":
         )
     
     with col_filter3:
-        # Liste des statuts possibles
         statuts_possibles = [
             "⚠️ Aucun candidat",
             "⚠️ Manque",
             "✅ Vivier actif",
             "🔶 Tension",
             "🔴 Forte tension",
-            "🔴🔴 Très forte tension"
+            "🔴🔴 Très forte tension",
+            "✅ Poste(s) pourvu(s)"
         ]
         filtre_statut = st.multiselect(
             "Filtrer par Statut",
@@ -1203,7 +1447,6 @@ elif page == "🎯 Analyse par Poste":
         df_filtered_analysis = df_filtered_analysis[df_filtered_analysis["Direction"].isin(filtre_direction_analyse)]
     
     if filtre_statut:
-        # Pour le statut "Manque", on doit vérifier si le statut commence par "⚠️ Manque"
         def match_statut(statut_row):
             for filtre in filtre_statut:
                 if filtre == "⚠️ Manque":
@@ -1229,6 +1472,10 @@ elif page == "🎯 Analyse par Poste":
                 "Postes disponibles": st.column_config.NumberColumn(
                     "Postes disponibles",
                     format="%d"
+                ),
+                "Postes attribués": st.column_config.NumberColumn(
+                    "Postes attribués",
+                    format="%d"
                 )
             }
         )
@@ -1238,7 +1485,6 @@ elif page == "🎯 Analyse par Poste":
         # Section pour accéder aux fiches détaillées
         st.subheader("🔍 Accès aux fiches candidats")
         
-        # Sélection du poste (par ordre alphabétique)
         postes_tries = sorted(df_filtered_analysis["Poste"].tolist())
         poste_selected = st.selectbox(
             "Sélectionner un poste pour voir ses candidats",
@@ -1246,7 +1492,6 @@ elif page == "🎯 Analyse par Poste":
         )
         
         if poste_selected != "-- Sélectionner --":
-            # Récupérer les candidats du poste sélectionné
             candidats_du_poste = df_filtered_analysis[df_filtered_analysis["Poste"] == poste_selected]["Candidats_Data"].iloc[0]
             
             if len(candidats_du_poste) > 0:
@@ -1260,7 +1505,6 @@ elif page == "🎯 Analyse par Poste":
                 
                 with col_cand2:
                     if st.button("➡️ Voir la fiche", type="primary", disabled=(candidat_selected == "-- Sélectionner --")):
-                        # Afficher la fiche détaillée du collaborateur
                         st.session_state['show_fiche_detail'] = True
                         st.session_state['fiche_candidat'] = candidat_selected
                 
@@ -1269,12 +1513,10 @@ elif page == "🎯 Analyse par Poste":
                     st.divider()
                     st.subheader(f"📋 Fiche détaillée : {candidat_selected}")
                     
-                    # Récupérer les infos du collaborateur
                     collab_mask = (collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]) == candidat_selected
                     if collab_mask.any():
                         collab = collaborateurs_df[collab_mask].iloc[0]
                         
-                        # Afficher les infos dans un container - CORRECTION: utiliser get_safe_value sur chaque champ
                         with st.container(border=True):
                             col_info1, col_info2, col_info3 = st.columns(3)
                             
@@ -1307,7 +1549,6 @@ elif page == "🎯 Analyse par Poste":
                                 st.markdown(f"**Date RDV** : {date_rdv if date_rdv else 'N/A'}")
                                 st.markdown(f"**Priorité** : {priorite if priorite else 'N/A'}")
                         
-                        # Bouton pour accéder à l'entretien complet
                         if st.button("➡️ Accéder à l'entretien RH complet", type="secondary"):
                             st.session_state['selected_collaborateur'] = candidat_selected
                             st.session_state['navigate_to_entretien'] = True
@@ -1365,7 +1606,7 @@ elif page == "🌳 Référentiel Postes":
 # --- FOOTER ---
 st.divider()
 st.markdown("""
-<div style='text-align: center; color: #666; font-size: 0.9em;'>
-    <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
+<div style='text-align: center; color: #999; font-size: 0.9em;'>
+    <p>CAP25 - Pilotage de la Mobilité Interne | 🤖 Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
