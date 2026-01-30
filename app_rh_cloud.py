@@ -15,71 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- STYLE CSS PERSONNALISÉ ---
-st.markdown("""
-<style>
-    /* Arrière-plan général noir */
-    .stApp {
-        background-color: #000000;
-        color: #FFFFFF;
-    }
-    
-    /* Sidebar gris anthracite */
-    [data-testid="stSidebar"] {
-        background-color: #2B2B2B;
-    }
-    
-    [data-testid="stSidebar"] * {
-        color: #FFFFFF !important;
-    }
-    
-    /* Texte blanc général */
-    .stMarkdown, .stText, p, span, div {
-        color: #FFFFFF;
-    }
-    
-    /* Headers blancs */
-    h1, h2, h3, h4, h5, h6 {
-        color: #FFFFFF !important;
-    }
-    
-    /* Metrics personnalisées */
-    [data-testid="stMetricValue"] {
-        color: #FFFFFF;
-        font-size: 2rem;
-        font-weight: bold;
-    }
-    
-    [data-testid="stMetricLabel"] {
-        color: #CCCCCC;
-    }
-    
-    /* Dataframes */
-    .stDataFrame {
-        background-color: #1E1E1E;
-    }
-    
-    /* Inputs et selectbox */
-    .stTextInput > div > div > input,
-    .stSelectbox > div > div > select,
-    .stMultiSelect > div > div {
-        background-color: #2B2B2B;
-        color: #FFFFFF;
-    }
-    
-    /* Boutons */
-    .stButton > button {
-        background-color: #4A4A4A;
-        color: #FFFFFF;
-        border: 1px solid #6A6A6A;
-    }
-    
-    .stButton > button:hover {
-        background-color: #5A5A5A;
-        border: 1px solid #7A7A7A;
-    }
-</style>
-""", unsafe_allow_html=True)
+
 
 # --- INITIALISATION DE SESSION STATE ---
 def init_session_state():
@@ -1965,3 +1901,4 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
