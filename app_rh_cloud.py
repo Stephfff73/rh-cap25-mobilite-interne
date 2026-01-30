@@ -5,6 +5,7 @@ import time
 from google.oauth2 import service_account
 import gspread
 import pytz
+import json
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -80,6 +81,33 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- INITIALISATION DE SESSION STATE ---
+def init_session_state():
+    """Initialise toutes les variables de session nécessaires"""
+    if 'entretien_data' not in st.session_state:
+        st.session_state.entretien_data = {}
+    
+    if 'current_matricule' not in st.session_state:
+        st.session_state.current_matricule = None
+    
+    if 'selected_collaborateur' not in st.session_state:
+        st.session_state.selected_collaborateur = None
+    
+    if 'navigate_to_entretien' not in st.session_state:
+        st.session_state.navigate_to_entretien = False
+    
+    if 'auto_save_enabled' not in st.session_state:
+        st.session_state.auto_save_enabled = True
+    
+    if 'last_save_time' not in st.session_state:
+        st.session_state.last_save_time = None
+    
+    if 'show_fiche_detail' not in st.session_state:
+        st.session_state.show_fiche_detail = False
+    
+    if 'fiche_candidat' not in st.session_state:
+        st.session_state.fiche_candidat = None
+
 # --- CONFIGURATION GOOGLE SHEETS ---
 @st.cache_resource
 def get_gsheet_connection():
@@ -102,7 +130,7 @@ def get_gsheet_connection():
         st.error(f"Erreur de configuration des credentials : {str(e)}")
         return None
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30)  # Cache de 30 secondes pour plus de réactivité
 def load_data_from_gsheet(_client, sheet_url):
     """
     Charge les données depuis Google Sheets.
@@ -146,6 +174,29 @@ def load_data_from_gsheet(_client, sheet_url):
     
     return collaborateurs_df, postes_df
 
+def load_entretien_from_gsheet(_client, sheet_url, matricule):
+    """
+    Charge un entretien existant depuis Google Sheets
+    """
+    try:
+        spreadsheet = _client.open_by_url(sheet_url)
+        worksheet = spreadsheet.worksheet("Entretien RH")
+        
+        all_records = worksheet.get_all_records()
+        
+        for record in all_records:
+            if str(record.get("Matricule", "")) == str(matricule):
+                return record
+        
+        return None
+        
+    except gspread.WorksheetNotFound:
+        st.warning("L'onglet 'Entretien RH' n'existe pas encore. Il sera créé lors de la première sauvegarde.")
+        return None
+    except Exception as e:
+        st.error(f"Erreur lors du chargement de l'entretien : {str(e)}")
+        return None
+
 def create_entretien_sheet_if_not_exists(_client, sheet_url):
     """
     Crée l'onglet "Entretien RH" s'il n'existe pas déjà.
@@ -157,7 +208,7 @@ def create_entretien_sheet_if_not_exists(_client, sheet_url):
             spreadsheet.worksheet("Entretien RH")
             return True
         except gspread.WorksheetNotFound:
-            worksheet = spreadsheet.add_worksheet(title="Entretien RH", rows="1000", cols="50")
+            worksheet = spreadsheet.add_worksheet(title="Entretien RH", rows="1000", cols="60")
             
             headers = [
                 "Matricule", "Nom", "Prénom", "Date_Entretien", "Referente_RH",
@@ -186,14 +237,14 @@ def create_entretien_sheet_if_not_exists(_client, sheet_url):
                 "Attentes_Manager", "Avis_RH_Synthese", "Decision_RH_Poste"
             ]
             
-            worksheet.update('A1:AY1', [headers])
+            worksheet.update('A1:BE1', [headers])
             return True
             
     except Exception as e:
         st.error(f"Erreur lors de la création de l'onglet 'Entretien RH' : {str(e)}")
         return False
 
-def save_entretien_to_gsheet(_client, sheet_url, entretien_data):
+def save_entretien_to_gsheet(_client, sheet_url, entretien_data, show_success=True):
     """
     Sauvegarde un entretien RH dans l'onglet "Entretien RH".
     """
@@ -205,7 +256,7 @@ def save_entretien_to_gsheet(_client, sheet_url, entretien_data):
         existing_row = None
         
         for idx, record in enumerate(all_records):
-            if str(record.get("Matricule", "")) == str(entretien_data["Matricule"]):
+            if str(record.get("Matricule", "")) == str(entretien_data.get("Matricule", "")):
                 existing_row = idx + 2
                 break
         
@@ -276,9 +327,15 @@ def save_entretien_to_gsheet(_client, sheet_url, entretien_data):
         ]
         
         if existing_row:
-            worksheet.update(f'A{existing_row}:AY{existing_row}', [row_data])
+            worksheet.update(f'A{existing_row}:BE{existing_row}', [row_data])
         else:
             worksheet.append_row(row_data)
+        
+        # Mettre à jour le temps de dernière sauvegarde
+        st.session_state.last_save_time = datetime.now()
+        
+        if show_success:
+            st.success(f"✅ Sauvegarde effectuée à {st.session_state.last_save_time.strftime('%H:%M:%S')}")
         
         return True
         
@@ -310,6 +367,9 @@ def update_voeu_retenu(_client, sheet_url, matricule, poste):
             if row[matricule_col - 1] == str(matricule):
                 # Mettre à jour la cellule
                 worksheet.update_cell(idx, voeu_retenu_col, poste)
+                
+                # Vider le cache pour forcer le rechargement
+                st.cache_data.clear()
                 return True
         
         st.error("Matricule introuvable")
@@ -345,6 +405,9 @@ def update_commentaire_rh(_client, sheet_url, matricule, commentaire):
                 existing_comment = row[commentaire_col - 1]
                 new_comment = f"{existing_comment}\n{commentaire}" if existing_comment else commentaire
                 worksheet.update_cell(idx, commentaire_col, new_comment)
+                
+                # Vider le cache pour forcer le rechargement
+                st.cache_data.clear()
                 return True
         
         st.error("Matricule introuvable")
@@ -360,7 +423,6 @@ def calculate_anciennete(date_str):
         return "N/A"
     
     try:
-        # Essayer différents formats de date
         for fmt in ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"]:
             try:
                 date_entree = datetime.strptime(date_str, fmt)
@@ -410,6 +472,8 @@ def get_safe_value(value):
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1BXez24VFNhb470PrCjwNIFx6GdJFqLnVh8nFf3gGGvw/edit?usp=sharing"
 
 # --- INITIALISATION ---
+init_session_state()
+
 try:
     gsheet_client = get_gsheet_connection()
     if gsheet_client:
@@ -452,6 +516,10 @@ paris_tz = pytz.timezone('Europe/Paris')
 paris_time = datetime.now(paris_tz)
 st.sidebar.caption(f"Dernière mise à jour : {paris_time.strftime('%H:%M:%S')}")
 
+# Afficher le temps de dernière sauvegarde si disponible
+if st.session_state.last_save_time:
+    st.sidebar.caption(f"💾 Dernière sauvegarde : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
+
 # ========================================
 # PAGE 1 : TABLEAU DE BORD
 # ========================================
@@ -489,7 +557,6 @@ if page == "📊 Tableau de Bord":
     # Jauge de pourcentage d'attribution
     with col4:
         st.metric("% d'attribution", f"{pct_attribution:.1f}%")
-        # Barre de progression visuelle
         st.progress(min(pct_attribution / 100, 1.0))
     
     # Deuxième ligne de métriques
@@ -505,8 +572,6 @@ if page == "📊 Tableau de Bord":
     col5.metric("⭐ Priorité 1", nb_priorite_1)
     col6.metric("⭐ Priorité 2", nb_priorite_2)
     col7.metric("⭐ Priorité 3 et 4", nb_priorite_3_4)
-    
-    # Espace vide pour alignement
     col8.write("")
     
     # Troisième ligne de métriques
@@ -541,7 +606,6 @@ if page == "📊 Tableau de Bord":
     with col_chart1:
         st.subheader("🔥 Top 10 des postes les plus demandés")
         
-        # Concaténer tous les vœux
         all_voeux = pd.concat([
             collaborateurs_df["Vœux 1"],
             collaborateurs_df["Vœux 2"],
@@ -752,579 +816,871 @@ elif page == "👥 Gestion des Candidatures":
             if st.button("➡️ Aller à l'entretien", type="primary", disabled=(selected_for_entretien == "-- Sélectionner --")):
                 st.session_state['selected_collaborateur'] = selected_for_entretien
                 st.session_state['navigate_to_entretien'] = True
-                st.session_state['page'] = '📝 Entretien RH'
                 st.rerun()
     else:
         st.info("Aucun collaborateur ne correspond aux filtres sélectionnés")
 
 # ========================================
-# PAGE 3 : ENTRETIEN RH
+# PAGE 3 : ENTRETIEN RH (PARTIE 1/2)
 # ========================================
 
 elif page == "📝 Entretien RH":
     st.title("📝 Conduite d'Entretien RH - CAP 2025")
     
-    st.info("""
-    Ce formulaire permet de formaliser le compte rendu de l'entretien avec le collaborateur.
-    Les informations seront sauvegardées dans l'onglet "Entretien RH" du Google Sheet.
-    """)
+    # Info box avec sauvegarde automatique
+    col_info1, col_info2 = st.columns([3, 1])
+    with col_info1:
+        st.info("""
+        📝 Vos saisies sont sauvegardées automatiquement dans Google Sheets.
+        💡 Vous pouvez revenir sur cette page à tout moment pour consulter ou modifier un entretien.
+        """)
     
-    # Sélection du collaborateur
+    with col_info2:
+        if st.button("💾 Sauvegarder maintenant", type="secondary", use_container_width=True):
+            if st.session_state.entretien_data and st.session_state.current_matricule:
+                save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
+    
+    st.divider()
+    
+    # ===== SECTION 1 : SÉLECTION DU COLLABORATEUR =====
     st.subheader("1️⃣ Sélection du collaborateur")
     
-    preselected_collab = None
-    if 'navigate_to_entretien' in st.session_state and st.session_state['navigate_to_entretien']:
-        preselected_collab = st.session_state.get('selected_collaborateur')
-        st.session_state['navigate_to_entretien'] = False
+    # Création de deux colonnes pour les modes d'accès
+    col_mode1, col_mode2 = st.columns(2)
     
-    col_dir, col_collab = st.columns([1, 2])
-    
-    with col_dir:
-        selected_direction = st.selectbox(
-            "Filtrer par Direction",
-            options=["-- Toutes --"] + sorted(collaborateurs_df["Direction libellé"].unique())
+    with col_mode1:
+        st.markdown("#### 🆕 Nouvel entretien")
+        
+        col_dir, col_collab = st.columns([1, 2])
+        
+        with col_dir:
+            selected_direction = st.selectbox(
+                "Filtrer par Direction",
+                options=["-- Toutes --"] + sorted(collaborateurs_df["Direction libellé"].unique()),
+                key="filter_direction_new"
+            )
+        
+        if selected_direction == "-- Toutes --":
+            filtered_collabs_df = collaborateurs_df
+        else:
+            filtered_collabs_df = collaborateurs_df[collaborateurs_df["Direction libellé"] == selected_direction]
+        
+        collaborateur_list = sorted(
+            (filtered_collabs_df["NOM"] + " " + filtered_collabs_df["Prénom"]).tolist()
         )
-    
-    if selected_direction == "-- Toutes --":
-        filtered_collabs_df = collaborateurs_df
-    else:
-        filtered_collabs_df = collaborateurs_df[collaborateurs_df["Direction libellé"] == selected_direction]
-    
-    collaborateur_list = sorted(
-        (filtered_collabs_df["NOM"] + " " + filtered_collabs_df["Prénom"]).tolist()
-    )
-    
-    with col_collab:
-        default_index = 0
-        if preselected_collab and preselected_collab in collaborateur_list:
-            default_index = collaborateur_list.index(preselected_collab) + 1
         
-        selected_collab = st.selectbox(
-            "Rechercher un collaborateur (saisir les premières lettres)",
-            options=["-- Sélectionner --"] + collaborateur_list,
-            index=default_index
-        )
+        with col_collab:
+            # Vérifier s'il y a une navigation depuis une autre page
+            default_index = 0
+            if st.session_state.get('navigate_to_entretien') and st.session_state.get('selected_collaborateur'):
+                if st.session_state['selected_collaborateur'] in collaborateur_list:
+                    default_index = collaborateur_list.index(st.session_state['selected_collaborateur']) + 1
+                st.session_state['navigate_to_entretien'] = False
+            
+            selected_collab_new = st.selectbox(
+                "Sélectionner un collaborateur",
+                options=["-- Sélectionner --"] + collaborateur_list,
+                index=default_index,
+                key="select_collab_new"
+            )
+        
+        if st.button("▶️ Démarrer/Reprendre l'entretien", type="primary", disabled=(selected_collab_new == "-- Sélectionner --"), use_container_width=True):
+            # Récupérer les infos du collaborateur
+            collab_mask = (collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]) == selected_collab_new
+            collab = collaborateurs_df[collab_mask].iloc[0]
+            matricule = get_safe_value(collab.get('Matricule', ''))
+            
+            # Charger l'entretien existant ou initialiser un nouveau
+            existing_entretien = load_entretien_from_gsheet(gsheet_client, SHEET_URL, matricule)
+            
+            if existing_entretien:
+                # Charger les données existantes
+                st.session_state.entretien_data = existing_entretien
+                st.info(f"✅ Entretien existant chargé pour {selected_collab_new}")
+            else:
+                # Initialiser un nouvel entretien
+                st.session_state.entretien_data = {
+                    "Matricule": matricule,
+                    "Nom": get_safe_value(collab.get('NOM', '')),
+                    "Prénom": get_safe_value(collab.get('Prénom', '')),
+                    "Date_Entretien": datetime.now().strftime("%d/%m/%Y"),
+                    "Referente_RH": get_safe_value(collab.get('Référente RH', '')),
+                    "Voeu_1": get_safe_value(collab.get('Vœux 1', '')),
+                    "Voeu_2": get_safe_value(collab.get('Vœux 2', '')),
+                    "Voeu_3": get_safe_value(collab.get('Voeux 3', ''))
+                }
+            
+            st.session_state.current_matricule = matricule
+            st.session_state.selected_collaborateur = selected_collab_new
+            st.rerun()
     
-    if selected_collab != "-- Sélectionner --":
-        collab_mask = (collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]) == selected_collab
-        collab = collaborateurs_df[collab_mask].iloc[0]
+    with col_mode2:
+        st.markdown("#### 📂 Consulter un entretien existant")
         
-        # Afficher les infos du collaborateur
-        with st.container(border=True):
-            col_info1, col_info2, col_info3 = st.columns(3)
+        # Charger la liste des entretiens existants
+        try:
+            spreadsheet = gsheet_client.open_by_url(SHEET_URL)
+            worksheet = spreadsheet.worksheet("Entretien RH")
+            all_records = worksheet.get_all_records()
             
-            with col_info1:
-                st.markdown(f"**Matricule** : {get_safe_value(collab.get('Matricule', 'N/A'))}")
-                st.markdown(f"**Nom** : {get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}")
-                st.markdown(f"**Mail** : {get_safe_value(collab.get('Mail', 'N/A'))}")
+            entretiens_existants = [f"{record['Nom']} {record['Prénom']}" for record in all_records if record.get('Matricule')]
             
-            with col_info2:
-                st.markdown(f"**Poste actuel** : {get_safe_value(collab.get('Poste  libellé', 'N/A'))}")
-                st.markdown(f"**Direction** : {get_safe_value(collab.get('Direction libellé', 'N/A'))}")
-                anciennete_display = calculate_anciennete(get_safe_value(collab.get("Date entrée groupe", "")))
-                st.markdown(f"**Ancienneté** : {anciennete_display}")
-            
-            with col_info3:
-                st.markdown(f"**RRH** : {get_safe_value(collab.get('Référente RH', 'N/A'))}")
-                st.markdown(f"**Date RDV** : {get_safe_value(collab.get('Date de rdv', 'N/A'))}")
-                st.markdown(f"**Priorité** : {get_safe_value(collab.get('Priorité', 'N/A'))}")
-        
+            if entretiens_existants:
+                selected_existing = st.selectbox(
+                    "Entretiens déjà sauvegardés",
+                    options=["-- Sélectionner --"] + sorted(entretiens_existants),
+                    key="select_existing_entretien"
+                )
+                
+                if st.button("📖 Ouvrir cet entretien", type="secondary", disabled=(selected_existing == "-- Sélectionner --"), use_container_width=True):
+                    # Trouver le matricule correspondant
+                    for record in all_records:
+                        if f"{record['Nom']} {record['Prénom']}" == selected_existing:
+                            st.session_state.entretien_data = record
+                            st.session_state.current_matricule = record['Matricule']
+                            st.session_state.selected_collaborateur = selected_existing
+                            st.success(f"✅ Entretien chargé : {selected_existing}")
+                            st.rerun()
+                            break
+            else:
+                st.info("Aucun entretien sauvegardé pour le moment")
+                
+        except Exception as e:
+            st.warning("Impossible de charger les entretiens existants")
+    
+    # ===== SECTION 2 : FORMULAIRE D'ENTRETIEN =====
+    if st.session_state.current_matricule and st.session_state.selected_collaborateur:
         st.divider()
         
-        # Initialiser l'entretien data
-        entretien_data = {
-            "Matricule": get_safe_value(collab.get('Matricule', '')),
-            "Nom": get_safe_value(collab.get('NOM', '')),
-            "Prénom": get_safe_value(collab.get('Prénom', '')),
-            "Date_Entretien": datetime.now().strftime("%d/%m/%Y"),
-            "Referente_RH": get_safe_value(collab.get('Référente RH', ''))
-        }
-        
-        # Tabs pour les 3 vœux
-        voeu1_label = get_safe_value(collab.get('Vœux 1', 'Non renseigné'))
-        voeu2_label = get_safe_value(collab.get('Vœux 2', 'Non renseigné')) if collab.get('Vœux 2') else 'Non renseigné'
-        voeu3_label = get_safe_value(collab.get('Voeux 3', 'Non renseigné')) if collab.get('Voeux 3') else 'Non renseigné'
-        
-        tab_voeu1, tab_voeu2, tab_voeu3, tab_avis = st.tabs([
-            f"🎯 Vœu 1: {voeu1_label}", 
-            f"🎯 Vœu 2: {voeu2_label}", 
-            f"🎯 Vœu 3: {voeu3_label}",
-            "💬 Avis RH"
-        ])
-        
-        # ========== VŒEU 1 ==========
-        with tab_voeu1:
-            if collab.get('Vœux 1') and collab.get('Vœux 1') != "Positionnement manquant":
-                st.subheader(f"Évaluation du Vœu 1 : {get_safe_value(collab.get('Vœux 1'))}")
-                
-                entretien_data["Voeu_1"] = get_safe_value(collab.get('Vœux 1', ''))
-                
-                st.markdown("#### 📋 Questions générales")
-                entretien_data["V1_Motivations"] = st.text_area(
-                    "Quelles sont vos motivations pour ce poste ?",
-                    key="v1_motiv",
-                    height=100
-                )
-                
-                entretien_data["V1_Vision_Enjeux"] = st.text_area(
-                    "Quelle est votre vision des enjeux du poste ?",
-                    key="v1_vision",
-                    height=100
-                )
-                
-                entretien_data["V1_Premieres_Actions"] = st.text_area(
-                    "Quelles seraient vos premières actions à la prise de poste ?",
-                    key="v1_actions",
-                    height=100
-                )
-                
-                st.divider()
-                st.markdown("#### 🎯 Évaluation des compétences")
-                
-                # Compétence 1
-                col_comp1_1, col_comp1_2 = st.columns([1, 2])
-                with col_comp1_1:
-                    entretien_data["V1_Competence_1_Nom"] = st.text_input("Compétence 1", key="v1_c1_nom")
-                    entretien_data["V1_Competence_1_Niveau"] = st.selectbox(
-                        "Niveau",
-                        ["Débutant", "Confirmé", "Expert"],
-                        key="v1_c1_niv"
-                    )
-                with col_comp1_2:
-                    entretien_data["V1_Competence_1_Justification"] = st.text_area(
-                        "Justification et exemples concrets",
-                        key="v1_c1_just",
-                        height=100
-                    )
-                
-                st.divider()
-                
-                # Compétence 2
-                col_comp2_1, col_comp2_2 = st.columns([1, 2])
-                with col_comp2_1:
-                    entretien_data["V1_Competence_2_Nom"] = st.text_input("Compétence 2", key="v1_c2_nom")
-                    entretien_data["V1_Competence_2_Niveau"] = st.selectbox(
-                        "Niveau",
-                        ["Débutant", "Confirmé", "Expert"],
-                        key="v1_c2_niv"
-                    )
-                with col_comp2_2:
-                    entretien_data["V1_Competence_2_Justification"] = st.text_area(
-                        "Justification et exemples concrets",
-                        key="v1_c2_just",
-                        height=100
-                    )
-                
-                st.divider()
-                
-                # Compétence 3
-                col_comp3_1, col_comp3_2 = st.columns([1, 2])
-                with col_comp3_1:
-                    entretien_data["V1_Competence_3_Nom"] = st.text_input("Compétence 3", key="v1_c3_nom")
-                    entretien_data["V1_Competence_3_Niveau"] = st.selectbox(
-                        "Niveau",
-                        ["Débutant", "Confirmé", "Expert"],
-                        key="v1_c3_niv"
-                    )
-                with col_comp3_2:
-                    entretien_data["V1_Competence_3_Justification"] = st.text_area(
-                        "Justification et exemples concrets",
-                        key="v1_c3_just",
-                        height=100
-                    )
-                
-                st.divider()
-                st.markdown("#### 📊 Expérience")
-                
-                col_exp1, col_exp2 = st.columns([1, 2])
-                with col_exp1:
-                    entretien_data["V1_Experience_Niveau"] = st.selectbox(
-                        "Niveau d'expérience dans des contextes comparables",
-                        ["Débutant (0-3 ans)", "Confirmé (3-7 ans)", "Expert (8+ ans)"],
-                        key="v1_exp_niv"
-                    )
-                with col_exp2:
-                    entretien_data["V1_Experience_Justification"] = st.text_area(
-                        "Quelle expérience justifie ce niveau ?",
-                        key="v1_exp_just",
-                        height=100
-                    )
-                
-                st.divider()
-                st.markdown("#### 🎓 Accompagnement et Formation")
-                
-                col_form1, col_form2 = st.columns([1, 2])
-                with col_form1:
-                    entretien_data["V1_Besoin_Accompagnement"] = st.radio(
-                        "Besoin d'accompagnement / formation ?",
-                        ["Non", "Oui"],
-                        key="v1_form_besoin"
-                    )
-                with col_form2:
-                    if entretien_data["V1_Besoin_Accompagnement"] == "Oui":
-                        entretien_data["V1_Type_Accompagnement"] = st.text_area(
-                            "Quels types de soutien ou d'accompagnement ?",
-                            key="v1_form_type",
-                            height=100
-                        )
-                    else:
-                        entretien_data["V1_Type_Accompagnement"] = ""
+        # Récupérer les infos du collaborateur depuis CAP 2025
+        collab_mask = (collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]) == st.session_state.selected_collaborateur
+        if collab_mask.any():
+            collab = collaborateurs_df[collab_mask].iloc[0]
             
-            else:
-                st.warning("Aucun vœu 1 renseigné pour ce collaborateur")
-        
-        # ========== VŒEU 2 ==========
-        with tab_voeu2:
-            if collab.get('Vœux 2') and collab.get('Vœux 2') != "Positionnement manquant":
-                st.subheader(f"Évaluation du Vœu 2 : {get_safe_value(collab.get('Vœux 2'))}")
+            # Afficher les infos du collaborateur
+            with st.container(border=True):
+                col_info1, col_info2, col_info3 = st.columns(3)
                 
-                entretien_data["Voeu_2"] = get_safe_value(collab.get('Vœux 2', ''))
+                with col_info1:
+                    st.markdown(f"**Matricule** : {get_safe_value(collab.get('Matricule', 'N/A'))}")
+                    st.markdown(f"**Nom** : {get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}")
+                    st.markdown(f"**Mail** : {get_safe_value(collab.get('Mail', 'N/A'))}")
                 
-                st.markdown("#### 📋 Questions générales")
-                entretien_data["V2_Motivations"] = st.text_area(
-                    "Quelles sont vos motivations pour ce poste ?",
-                    key="v2_motiv",
-                    height=100
-                )
+                with col_info2:
+                    st.markdown(f"**Poste actuel** : {get_safe_value(collab.get('Poste  libellé', 'N/A'))}")
+                    st.markdown(f"**Direction** : {get_safe_value(collab.get('Direction libellé', 'N/A'))}")
+                    anciennete_display = calculate_anciennete(get_safe_value(collab.get("Date entrée groupe", "")))
+                    st.markdown(f"**Ancienneté** : {anciennete_display}")
                 
-                entretien_data["V2_Vision_Enjeux"] = st.text_area(
-                    "Quelle est votre vision des enjeux du poste ?",
-                    key="v2_vision",
-                    height=100
-                )
-                
-                entretien_data["V2_Premieres_Actions"] = st.text_area(
-                    "Quelles seraient vos premières actions à la prise de poste ?",
-                    key="v2_actions",
-                    height=100
-                )
-                
-                st.divider()
-                st.markdown("#### 🎯 Évaluation des compétences")
-                
-                # Compétence 1
-                col_comp1_1, col_comp1_2 = st.columns([1, 2])
-                with col_comp1_1:
-                    entretien_data["V2_Competence_1_Nom"] = st.text_input("Compétence 1", key="v2_c1_nom")
-                    entretien_data["V2_Competence_1_Niveau"] = st.selectbox(
-                        "Niveau",
-                        ["Débutant", "Confirmé", "Expert"],
-                        key="v2_c1_niv"
-                    )
-                with col_comp1_2:
-                    entretien_data["V2_Competence_1_Justification"] = st.text_area(
-                        "Justification et exemples concrets",
-                        key="v2_c1_just",
-                        height=100
-                    )
-                
-                st.divider()
-                
-                # Compétence 2
-                col_comp2_1, col_comp2_2 = st.columns([1, 2])
-                with col_comp2_1:
-                    entretien_data["V2_Competence_2_Nom"] = st.text_input("Compétence 2", key="v2_c2_nom")
-                    entretien_data["V2_Competence_2_Niveau"] = st.selectbox(
-                        "Niveau",
-                        ["Débutant", "Confirmé", "Expert"],
-                        key="v2_c2_niv"
-                    )
-                with col_comp2_2:
-                    entretien_data["V2_Competence_2_Justification"] = st.text_area(
-                        "Justification et exemples concrets",
-                        key="v2_c2_just",
-                        height=100
-                    )
-                
-                st.divider()
-                
-                # Compétence 3
-                col_comp3_1, col_comp3_2 = st.columns([1, 2])
-                with col_comp3_1:
-                    entretien_data["V2_Competence_3_Nom"] = st.text_input("Compétence 3", key="v2_c3_nom")
-                    entretien_data["V2_Competence_3_Niveau"] = st.selectbox(
-                        "Niveau",
-                        ["Débutant", "Confirmé", "Expert"],
-                        key="v2_c3_niv"
-                    )
-                with col_comp3_2:
-                    entretien_data["V2_Competence_3_Justification"] = st.text_area(
-                        "Justification et exemples concrets",
-                        key="v2_c3_just",
-                        height=100
-                    )
-                
-                st.divider()
-                st.markdown("#### 📊 Expérience")
-                
-                col_exp1, col_exp2 = st.columns([1, 2])
-                with col_exp1:
-                    entretien_data["V2_Experience_Niveau"] = st.selectbox(
-                        "Niveau d'expérience dans des contextes comparables",
-                        ["Débutant (0-3 ans)", "Confirmé (3-7 ans)", "Expert (8+ ans)"],
-                        key="v2_exp_niv"
-                    )
-                with col_exp2:
-                    entretien_data["V2_Experience_Justification"] = st.text_area(
-                        "Quelle expérience justifie ce niveau ?",
-                        key="v2_exp_just",
-                        height=100
-                    )
-                
-                st.divider()
-                st.markdown("#### 🎓 Accompagnement et Formation")
-                
-                col_form1, col_form2 = st.columns([1, 2])
-                with col_form1:
-                    entretien_data["V2_Besoin_Accompagnement"] = st.radio(
-                        "Besoin d'accompagnement / formation ?",
-                        ["Non", "Oui"],
-                        key="v2_form_besoin"
-                    )
-                with col_form2:
-                    if entretien_data["V2_Besoin_Accompagnement"] == "Oui":
-                        entretien_data["V2_Type_Accompagnement"] = st.text_area(
-                            "Quels types de soutien ou d'accompagnement ?",
-                            key="v2_form_type",
-                            height=100
-                        )
-                    else:
-                        entretien_data["V2_Type_Accompagnement"] = ""
-            
-            else:
-                st.warning("Aucun vœu 2 renseigné pour ce collaborateur")
-        
-        # ========== VŒEU 3 ==========
-        with tab_voeu3:
-            if collab.get('Voeux 3') and collab.get('Voeux 3') != "Positionnement manquant":
-                st.subheader(f"Évaluation du Vœu 3 : {get_safe_value(collab.get('Voeux 3'))}")
-                
-                entretien_data["Voeu_3"] = get_safe_value(collab.get('Voeux 3', ''))
-                
-                st.markdown("#### 📋 Questions générales")
-                entretien_data["V3_Motivations"] = st.text_area(
-                    "Quelles sont vos motivations pour ce poste ?",
-                    key="v3_motiv",
-                    height=100
-                )
-                
-                entretien_data["V3_Vision_Enjeux"] = st.text_area(
-                    "Quelle est votre vision des enjeux du poste ?",
-                    key="v3_vision",
-                    height=100
-                )
-                
-                entretien_data["V3_Premieres_Actions"] = st.text_area(
-                    "Quelles seraient vos premières actions à la prise de poste ?",
-                    key="v3_actions",
-                    height=100
-                )
-                
-                st.divider()
-                st.markdown("#### 🎯 Évaluation des compétences")
-                
-                # Compétence 1
-                col_comp1_1, col_comp1_2 = st.columns([1, 2])
-                with col_comp1_1:
-                    entretien_data["V3_Competence_1_Nom"] = st.text_input("Compétence 1", key="v3_c1_nom")
-                    entretien_data["V3_Competence_1_Niveau"] = st.selectbox(
-                        "Niveau",
-                        ["Débutant", "Confirmé", "Expert"],
-                        key="v3_c1_niv"
-                    )
-                with col_comp1_2:
-                    entretien_data["V3_Competence_1_Justification"] = st.text_area(
-                        "Justification et exemples concrets",
-                        key="v3_c1_just",
-                        height=100
-                    )
-                
-                st.divider()
-                
-                # Compétence 2
-                col_comp2_1, col_comp2_2 = st.columns([1, 2])
-                with col_comp2_1:
-                    entretien_data["V3_Competence_2_Nom"] = st.text_input("Compétence 2", key="v3_c2_nom")
-                    entretien_data["V3_Competence_2_Niveau"] = st.selectbox(
-                        "Niveau",
-                        ["Débutant", "Confirmé", "Expert"],
-                        key="v3_c2_niv"
-                    )
-                with col_comp2_2:
-                    entretien_data["V3_Competence_2_Justification"] = st.text_area(
-                        "Justification et exemples concrets",
-                        key="v3_c2_just",
-                        height=100
-                    )
-                
-                st.divider()
-                
-                # Compétence 3
-                col_comp3_1, col_comp3_2 = st.columns([1, 2])
-                with col_comp3_1:
-                    entretien_data["V3_Competence_3_Nom"] = st.text_input("Compétence 3", key="v3_c3_nom")
-                    entretien_data["V3_Competence_3_Niveau"] = st.selectbox(
-                        "Niveau",
-                        ["Débutant", "Confirmé", "Expert"],
-                        key="v3_c3_niv"
-                    )
-                with col_comp3_2:
-                    entretien_data["V3_Competence_3_Justification"] = st.text_area(
-                        "Justification et exemples concrets",
-                        key="v3_c3_just",
-                        height=100
-                    )
-                
-                st.divider()
-                st.markdown("#### 📊 Expérience")
-                
-                col_exp1, col_exp2 = st.columns([1, 2])
-                with col_exp1:
-                    entretien_data["V3_Experience_Niveau"] = st.selectbox(
-                        "Niveau d'expérience dans des contextes comparables",
-                        ["Débutant (0-3 ans)", "Confirmé (3-7 ans)", "Expert (8+ ans)"],
-                        key="v3_exp_niv"
-                    )
-                with col_exp2:
-                    entretien_data["V3_Experience_Justification"] = st.text_area(
-                        "Quelle expérience justifie ce niveau ?",
-                        key="v3_exp_just",
-                        height=100
-                    )
-                
-                st.divider()
-                st.markdown("#### 🎓 Accompagnement et Formation")
-                
-                col_form1, col_form2 = st.columns([1, 2])
-                with col_form1:
-                    entretien_data["V3_Besoin_Accompagnement"] = st.radio(
-                        "Besoin d'accompagnement / formation ?",
-                        ["Non", "Oui"],
-                        key="v3_form_besoin"
-                    )
-                with col_form2:
-                    if entretien_data["V3_Besoin_Accompagnement"] == "Oui":
-                        entretien_data["V3_Type_Accompagnement"] = st.text_area(
-                            "Quels types de soutien ou d'accompagnement ?",
-                            key="v3_form_type",
-                            height=100
-                        )
-                    else:
-                        entretien_data["V3_Type_Accompagnement"] = ""
-            
-            else:
-                st.warning("Aucun vœu 3 renseigné pour ce collaborateur")
-        
-        # ========== AVIS RH ==========
-        with tab_avis:
-            st.subheader("💬 Avis RH Final")
-            
-            entretien_data["Attentes_Manager"] = st.text_area(
-                "Attentes vis-à-vis du futur manager & dans quels cas le solliciter ?",
-                key="attentes_manager",
-                height=150
-            )
-            
-            entretien_data["Avis_RH_Synthese"] = st.text_area(
-                "Avis RH - Synthèse globale de l'entretien",
-                key="avis_synthese",
-                height=200
-            )
+                with col_info3:
+                    st.markdown(f"**RRH** : {get_safe_value(collab.get('Référente RH', 'N/A'))}")
+                    st.markdown(f"**Date RDV** : {get_safe_value(collab.get('Date de rdv', 'N/A'))}")
+                    st.markdown(f"**Priorité** : {get_safe_value(collab.get('Priorité', 'N/A'))}")
             
             st.divider()
-            st.markdown("#### 🎯 Décision RH")
             
-            # Liste des vœux du collaborateur
-            voeux_list = []
-            if collab.get('Vœux 1') and collab.get('Vœux 1') != "Positionnement manquant":
-                voeux_list.append(get_safe_value(collab.get('Vœux 1')))
-            if collab.get('Vœux 2') and collab.get('Vœux 2') != "Positionnement manquant":
-                voeux_list.append(get_safe_value(collab.get('Vœux 2')))
-            if collab.get('Voeux 3') and collab.get('Voeux 3') != "Positionnement manquant":
-                voeux_list.append(get_safe_value(collab.get('Voeux 3')))
+            # Bouton pour changer de collaborateur
+            if st.button("🔄 Sélectionner un autre collaborateur"):
+                st.session_state.current_matricule = None
+                st.session_state.selected_collaborateur = None
+                st.session_state.entretien_data = {}
+                st.rerun()
             
-            voeux_list.append("Autre")
+            # Tabs pour les 3 vœux
+            voeu1_label = st.session_state.entretien_data.get('Voeu_1', 'Non renseigné')
+            voeu2_label = st.session_state.entretien_data.get('Voeu_2', 'Non renseigné')
+            voeu3_label = st.session_state.entretien_data.get('Voeu_3', 'Non renseigné')
             
-            decision_rh = st.selectbox(
-                "Décision RH",
-                options=["-- Aucune décision --"] + voeux_list,
-                key="decision_rh"
-            )
+            tab_voeu1, tab_voeu2, tab_voeu3, tab_avis = st.tabs([
+                f"🎯 Vœu 1: {voeu1_label if voeu1_label else 'Non renseigné'}", 
+                f"🎯 Vœu 2: {voeu2_label if voeu2_label else 'Non renseigné'}", 
+                f"🎯 Vœu 3: {voeu3_label if voeu3_label else 'Non renseigné'}",
+                "💬 Avis RH"
+            ])
             
-            # Si "Autre" est sélectionné, afficher un module de recherche
-            if decision_rh == "Autre":
-                st.markdown("##### 🔍 Rechercher un autre poste")
-                search_poste = st.text_input("Rechercher un poste", key="search_autre_poste")
-                
-                if search_poste:
-                    postes_filtres = postes_df[postes_df["Poste"].str.contains(search_poste, case=False, na=False)]
+            # ========== VŒEU 1 ==========
+            with tab_voeu1:
+                if voeu1_label and voeu1_label != "Positionnement manquant" and voeu1_label != "Non renseigné":
+                    st.subheader(f"Évaluation du Vœu 1 : {voeu1_label}")
                     
-                    if not postes_filtres.empty:
-                        poste_autre = st.selectbox(
-                            "Sélectionner un poste",
-                            options=["-- Sélectionner --"] + postes_filtres["Poste"].tolist(),
-                            key="select_autre_poste"
+                    st.markdown("#### 📋 Questions générales")
+                    
+                    v1_motiv = st.text_area(
+                        "Quelles sont vos motivations pour ce poste ?",
+                        value=st.session_state.entretien_data.get("V1_Motivations", ""),
+                        key="v1_motiv",
+                        height=100
+                    )
+                    st.session_state.entretien_data["V1_Motivations"] = v1_motiv
+                    
+                    v1_vision = st.text_area(
+                        "Quelle est votre vision des enjeux du poste ?",
+                        value=st.session_state.entretien_data.get("V1_Vision_Enjeux", ""),
+                        key="v1_vision",
+                        height=100
+                    )
+                    st.session_state.entretien_data["V1_Vision_Enjeux"] = v1_vision
+                    
+                    v1_actions = st.text_area(
+                        "Quelles seraient vos premières actions à la prise de poste ?",
+                        value=st.session_state.entretien_data.get("V1_Premieres_Actions", ""),
+                        key="v1_actions",
+                        height=100
+                    )
+                    st.session_state.entretien_data["V1_Premieres_Actions"] = v1_actions
+                    
+                    st.divider()
+                    st.markdown("#### 🎯 Évaluation des compétences")
+                    
+                    # Compétence 1
+                    col_comp1_1, col_comp1_2 = st.columns([1, 2])
+                    with col_comp1_1:
+                        v1_c1_nom = st.text_input(
+                            "Compétence 1",
+                            value=st.session_state.entretien_data.get("V1_Competence_1_Nom", ""),
+                            key="v1_c1_nom"
                         )
+                        st.session_state.entretien_data["V1_Competence_1_Nom"] = v1_c1_nom
                         
-                        if poste_autre != "-- Sélectionner --":
-                            decision_rh = poste_autre
-                    else:
-                        st.info("Aucun poste trouvé avec ce terme de recherche")
-            
-            # Si une décision est prise, afficher la confirmation
-            if decision_rh and decision_rh != "-- Aucune décision --":
-                st.divider()
-                st.markdown(f"##### Validez-vous le poste **{decision_rh}** pour le collaborateur **{get_safe_value(collab.get('Prénom', ''))} {get_safe_value(collab.get('NOM', ''))}** ?")
-                
-                col_btn1, col_btn2, col_btn3 = st.columns(3)
-                
-                with col_btn1:
-                    if st.button("❌ Non", key="btn_non", use_container_width=True):
-                        st.rerun()
-                
-                with col_btn2:
-                    if st.button("🟠 Oui en option RH", key="btn_option", type="secondary", use_container_width=True):
-                        # Ajouter dans "Commentaires RH"
-                        commentaire = f"Option RH à l'issue entretien : {decision_rh}"
-                        success = update_commentaire_rh(gsheet_client, SHEET_URL, entretien_data["Matricule"], commentaire)
+                        niveau_options = ["Débutant", "Confirmé", "Expert"]
+                        current_niveau = st.session_state.entretien_data.get("V1_Competence_1_Niveau", "Débutant")
+                        niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
                         
-                        if success:
-                            st.success("✅ Option RH enregistrée avec succès !")
-                            time.sleep(2)
-                            st.cache_data.clear()
-                            st.rerun()
-                
-                with col_btn3:
-                    if st.button("🟢 Oui, vœu retenu", key="btn_retenu", type="primary", use_container_width=True):
-                        # Mettre à jour "Vœux Retenu"
-                        success = update_voeu_retenu(gsheet_client, SHEET_URL, entretien_data["Matricule"], decision_rh)
-                        
-                        if success:
-                            st.success("✅ Vœu retenu enregistré avec succès !")
-                            time.sleep(2)
-                            st.cache_data.clear()
-                            st.rerun()
-                
-                # Stocker la décision dans entretien_data
-                entretien_data["Decision_RH_Poste"] = decision_rh
-        
-        # Bouton de sauvegarde
-        st.divider()
-        
-        col_save1, col_save2, col_save3 = st.columns([1, 1, 1])
-        
-        with col_save2:
-            if st.button("💾 Enregistrer l'entretien", type="primary", use_container_width=True):
-                with st.spinner("Sauvegarde en cours..."):
-                    success = save_entretien_to_gsheet(gsheet_client, SHEET_URL, entretien_data)
+                        v1_c1_niv = st.selectbox(
+                            "Niveau",
+                            niveau_options,
+                            index=niveau_index,
+                            key="v1_c1_niv"
+                        )
+                        st.session_state.entretien_data["V1_Competence_1_Niveau"] = v1_c1_niv
                     
-                    if success:
-                        st.success("✅ Entretien enregistré avec succès dans Google Sheets !")
-                        time.sleep(2)
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error("❌ Erreur lors de l'enregistrement")
+                    with col_comp1_2:
+                        v1_c1_just = st.text_area(
+                            "Justification et exemples concrets",
+                            value=st.session_state.entretien_data.get("V1_Competence_1_Justification", ""),
+                            key="v1_c1_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V1_Competence_1_Justification"] = v1_c1_just
+                    
+                    st.divider()
+                    
+                    # Compétence 2
+                    col_comp2_1, col_comp2_2 = st.columns([1, 2])
+                    with col_comp2_1:
+                        v1_c2_nom = st.text_input(
+                            "Compétence 2",
+                            value=st.session_state.entretien_data.get("V1_Competence_2_Nom", ""),
+                            key="v1_c2_nom"
+                        )
+                        st.session_state.entretien_data["V1_Competence_2_Nom"] = v1_c2_nom
+                        
+                        current_niveau = st.session_state.entretien_data.get("V1_Competence_2_Niveau", "Débutant")
+                        niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
+                        
+                        v1_c2_niv = st.selectbox(
+                            "Niveau",
+                            niveau_options,
+                            index=niveau_index,
+                            key="v1_c2_niv"
+                        )
+                        st.session_state.entretien_data["V1_Competence_2_Niveau"] = v1_c2_niv
+                    
+                    with col_comp2_2:
+                        v1_c2_just = st.text_area(
+                            "Justification et exemples concrets",
+                            value=st.session_state.entretien_data.get("V1_Competence_2_Justification", ""),
+                            key="v1_c2_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V1_Competence_2_Justification"] = v1_c2_just
+                    
+                    st.divider()
+                    
+                    # Compétence 3
+                    col_comp3_1, col_comp3_2 = st.columns([1, 2])
+                    with col_comp3_1:
+                        v1_c3_nom = st.text_input(
+                            "Compétence 3",
+                            value=st.session_state.entretien_data.get("V1_Competence_3_Nom", ""),
+                            key="v1_c3_nom"
+                        )
+                        st.session_state.entretien_data["V1_Competence_3_Nom"] = v1_c3_nom
+                        
+                        current_niveau = st.session_state.entretien_data.get("V1_Competence_3_Niveau", "Débutant")
+                        niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
+                        
+                        v1_c3_niv = st.selectbox(
+                            "Niveau",
+                            niveau_options,
+                            index=niveau_index,
+                            key="v1_c3_niv"
+                        )
+                        st.session_state.entretien_data["V1_Competence_3_Niveau"] = v1_c3_niv
+                    
+                    with col_comp3_2:
+                        v1_c3_just = st.text_area(
+                            "Justification et exemples concrets",
+                            value=st.session_state.entretien_data.get("V1_Competence_3_Justification", ""),
+                            key="v1_c3_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V1_Competence_3_Justification"] = v1_c3_just
+                    
+                    st.divider()
+                    st.markdown("#### 📊 Expérience")
+                    
+                    col_exp1, col_exp2 = st.columns([1, 2])
+                    with col_exp1:
+                        exp_options = ["Débutant (0-3 ans)", "Confirmé (3-7 ans)", "Expert (8+ ans)"]
+                        current_exp = st.session_state.entretien_data.get("V1_Experience_Niveau", "Débutant (0-3 ans)")
+                        exp_index = exp_options.index(current_exp) if current_exp in exp_options else 0
+                        
+                        v1_exp_niv = st.selectbox(
+                            "Niveau d'expérience dans des contextes comparables",
+                            exp_options,
+                            index=exp_index,
+                            key="v1_exp_niv"
+                        )
+                        st.session_state.entretien_data["V1_Experience_Niveau"] = v1_exp_niv
+                    
+                    with col_exp2:
+                        v1_exp_just = st.text_area(
+                            "Quelle expérience justifie ce niveau ?",
+                            value=st.session_state.entretien_data.get("V1_Experience_Justification", ""),
+                            key="v1_exp_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V1_Experience_Justification"] = v1_exp_just
+                    
+                    st.divider()
+                    st.markdown("#### 🎓 Accompagnement et Formation")
+                    
+                    col_form1, col_form2 = st.columns([1, 2])
+                    with col_form1:
+                        accomp_options = ["Non", "Oui"]
+                        current_accomp = st.session_state.entretien_data.get("V1_Besoin_Accompagnement", "Non")
+                        accomp_index = accomp_options.index(current_accomp) if current_accomp in accomp_options else 0
+                        
+                        v1_besoin = st.radio(
+                            "Besoin d'accompagnement / formation ?",
+                            accomp_options,
+                            index=accomp_index,
+                            key="v1_form_besoin"
+                        )
+                        st.session_state.entretien_data["V1_Besoin_Accompagnement"] = v1_besoin
+                    
+                    with col_form2:
+                        if v1_besoin == "Oui":
+                            v1_type = st.text_area(
+                                "Quels types de soutien ou d'accompagnement ?",
+                                value=st.session_state.entretien_data.get("V1_Type_Accompagnement", ""),
+                                key="v1_form_type",
+                                height=100
+                            )
+                            st.session_state.entretien_data["V1_Type_Accompagnement"] = v1_type
+                        else:
+                            st.session_state.entretien_data["V1_Type_Accompagnement"] = ""
+                    
+                    # Auto-save après chaque onglet
+                    if st.button("💾 Sauvegarder Vœu 1", key="save_v1"):
+                        save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
+                
+                else:
+                    st.warning("Aucun vœu 1 renseigné pour ce collaborateur")
+            
+            # ========== VŒEU 2 ==========
+            with tab_voeu2:
+                if voeu2_label and voeu2_label != "Positionnement manquant" and voeu2_label != "Non renseigné":
+                    st.subheader(f"Évaluation du Vœu 2 : {voeu2_label}")
+                    
+                    st.markdown("#### 📋 Questions générales")
+                    
+                    v2_motiv = st.text_area(
+                        "Quelles sont vos motivations pour ce poste ?",
+                        value=st.session_state.entretien_data.get("V2_Motivations", ""),
+                        key="v2_motiv",
+                        height=100
+                    )
+                    st.session_state.entretien_data["V2_Motivations"] = v2_motiv
+                    
+                    v2_vision = st.text_area(
+                        "Quelle est votre vision des enjeux du poste ?",
+                        value=st.session_state.entretien_data.get("V2_Vision_Enjeux", ""),
+                        key="v2_vision",
+                        height=100
+                    )
+                    st.session_state.entretien_data["V2_Vision_Enjeux"] = v2_vision
+                    
+                    v2_actions = st.text_area(
+                        "Quelles seraient vos premières actions à la prise de poste ?",
+                        value=st.session_state.entretien_data.get("V2_Premieres_Actions", ""),
+                        key="v2_actions",
+                        height=100
+                    )
+                    st.session_state.entretien_data["V2_Premieres_Actions"] = v2_actions
+                    
+                    st.divider()
+                    st.markdown("#### 🎯 Évaluation des compétences")
+                    
+                    # Compétence 1
+                    col_comp1_1, col_comp1_2 = st.columns([1, 2])
+                    with col_comp1_1:
+                        v2_c1_nom = st.text_input(
+                            "Compétence 1",
+                            value=st.session_state.entretien_data.get("V2_Competence_1_Nom", ""),
+                            key="v2_c1_nom"
+                        )
+                        st.session_state.entretien_data["V2_Competence_1_Nom"] = v2_c1_nom
+                        
+                        niveau_options = ["Débutant", "Confirmé", "Expert"]
+                        current_niveau = st.session_state.entretien_data.get("V2_Competence_1_Niveau", "Débutant")
+                        niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
+                        
+                        v2_c1_niv = st.selectbox(
+                            "Niveau",
+                            niveau_options,
+                            index=niveau_index,
+                            key="v2_c1_niv"
+                        )
+                        st.session_state.entretien_data["V2_Competence_1_Niveau"] = v2_c1_niv
+                    
+                    with col_comp1_2:
+                        v2_c1_just = st.text_area(
+                            "Justification et exemples concrets",
+                            value=st.session_state.entretien_data.get("V2_Competence_1_Justification", ""),
+                            key="v2_c1_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V2_Competence_1_Justification"] = v2_c1_just
+                    
+                    st.divider()
+                    
+                    # Compétence 2
+                    col_comp2_1, col_comp2_2 = st.columns([1, 2])
+                    with col_comp2_1:
+                        v2_c2_nom = st.text_input(
+                            "Compétence 2",
+                            value=st.session_state.entretien_data.get("V2_Competence_2_Nom", ""),
+                            key="v2_c2_nom"
+                        )
+                        st.session_state.entretien_data["V2_Competence_2_Nom"] = v2_c2_nom
+                        
+                        current_niveau = st.session_state.entretien_data.get("V2_Competence_2_Niveau", "Débutant")
+                        niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
+                        
+                        v2_c2_niv = st.selectbox(
+                            "Niveau",
+                            niveau_options,
+                            index=niveau_index,
+                            key="v2_c2_niv"
+                        )
+                        st.session_state.entretien_data["V2_Competence_2_Niveau"] = v2_c2_niv
+                    
+                    with col_comp2_2:
+                        v2_c2_just = st.text_area(
+                            "Justification et exemples concrets",
+                            value=st.session_state.entretien_data.get("V2_Competence_2_Justification", ""),
+                            key="v2_c2_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V2_Competence_2_Justification"] = v2_c2_just
+                    
+                    st.divider()
+                    
+                    # Compétence 3
+                    col_comp3_1, col_comp3_2 = st.columns([1, 2])
+                    with col_comp3_1:
+                        v2_c3_nom = st.text_input(
+                            "Compétence 3",
+                            value=st.session_state.entretien_data.get("V2_Competence_3_Nom", ""),
+                            key="v2_c3_nom"
+                        )
+                        st.session_state.entretien_data["V2_Competence_3_Nom"] = v2_c3_nom
+                        
+                        current_niveau = st.session_state.entretien_data.get("V2_Competence_3_Niveau", "Débutant")
+                        niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
+                        
+                        v2_c3_niv = st.selectbox(
+                            "Niveau",
+                            niveau_options,
+                            index=niveau_index,
+                            key="v2_c3_niv"
+                        )
+                        st.session_state.entretien_data["V2_Competence_3_Niveau"] = v2_c3_niv
+                    
+                    with col_comp3_2:
+                        v2_c3_just = st.text_area(
+                            "Justification et exemples concrets",
+                            value=st.session_state.entretien_data.get("V2_Competence_3_Justification", ""),
+                            key="v2_c3_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V2_Competence_3_Justification"] = v2_c3_just
+                    
+                    st.divider()
+                    st.markdown("#### 📊 Expérience")
+                    
+                    col_exp1, col_exp2 = st.columns([1, 2])
+                    with col_exp1:
+                        exp_options = ["Débutant (0-3 ans)", "Confirmé (3-7 ans)", "Expert (8+ ans)"]
+                        current_exp = st.session_state.entretien_data.get("V2_Experience_Niveau", "Débutant (0-3 ans)")
+                        exp_index = exp_options.index(current_exp) if current_exp in exp_options else 0
+                        
+                        v2_exp_niv = st.selectbox(
+                            "Niveau d'expérience dans des contextes comparables",
+                            exp_options,
+                            index=exp_index,
+                            key="v2_exp_niv"
+                        )
+                        st.session_state.entretien_data["V2_Experience_Niveau"] = v2_exp_niv
+                    
+                    with col_exp2:
+                        v2_exp_just = st.text_area(
+                            "Quelle expérience justifie ce niveau ?",
+                            value=st.session_state.entretien_data.get("V2_Experience_Justification", ""),
+                            key="v2_exp_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V2_Experience_Justification"] = v2_exp_just
+                    
+                    st.divider()
+                    st.markdown("#### 🎓 Accompagnement et Formation")
+                    
+                    col_form1, col_form2 = st.columns([1, 2])
+                    with col_form1:
+                        accomp_options = ["Non", "Oui"]
+                        current_accomp = st.session_state.entretien_data.get("V2_Besoin_Accompagnement", "Non")
+                        accomp_index = accomp_options.index(current_accomp) if current_accomp in accomp_options else 0
+                        
+                        v2_besoin = st.radio(
+                            "Besoin d'accompagnement / formation ?",
+                            accomp_options,
+                            index=accomp_index,
+                            key="v2_form_besoin"
+                        )
+                        st.session_state.entretien_data["V2_Besoin_Accompagnement"] = v2_besoin
+                    
+                    with col_form2:
+                        if v2_besoin == "Oui":
+                            v2_type = st.text_area(
+                                "Quels types de soutien ou d'accompagnement ?",
+                                value=st.session_state.entretien_data.get("V2_Type_Accompagnement", ""),
+                                key="v2_form_type",
+                                height=100
+                            )
+                            st.session_state.entretien_data["V2_Type_Accompagnement"] = v2_type
+                        else:
+                            st.session_state.entretien_data["V2_Type_Accompagnement"] = ""
+                    
+                    if st.button("💾 Sauvegarder Vœu 2", key="save_v2"):
+                        save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
+                
+                else:
+                    st.warning("Aucun vœu 2 renseigné pour ce collaborateur")
+            
+            # ========== VŒEU 3 ==========
+            with tab_voeu3:
+                if voeu3_label and voeu3_label != "Positionnement manquant" and voeu3_label != "Non renseigné":
+                    st.subheader(f"Évaluation du Vœu 3 : {voeu3_label}")
+                    
+                    st.markdown("#### 📋 Questions générales")
+                    
+                    v3_motiv = st.text_area(
+                        "Quelles sont vos motivations pour ce poste ?",
+                        value=st.session_state.entretien_data.get("V3_Motivations", ""),
+                        key="v3_motiv",
+                        height=100
+                    )
+                    st.session_state.entretien_data["V3_Motivations"] = v3_motiv
+                    
+                    v3_vision = st.text_area(
+                        "Quelle est votre vision des enjeux du poste ?",
+                        value=st.session_state.entretien_data.get("V3_Vision_Enjeux", ""),
+                        key="v3_vision",
+                        height=100
+                    )
+                    st.session_state.entretien_data["V3_Vision_Enjeux"] = v3_vision
+                    
+                    v3_actions = st.text_area(
+                        "Quelles seraient vos premières actions à la prise de poste ?",
+                        value=st.session_state.entretien_data.get("V3_Premieres_Actions", ""),
+                        key="v3_actions",
+                        height=100
+                    )
+                    st.session_state.entretien_data["V3_Premieres_Actions"] = v3_actions
+                    
+                    st.divider()
+                    st.markdown("#### 🎯 Évaluation des compétences")
+                    
+                    # Compétence 1
+                    col_comp1_1, col_comp1_2 = st.columns([1, 2])
+                    with col_comp1_1:
+                        v3_c1_nom = st.text_input(
+                            "Compétence 1",
+                            value=st.session_state.entretien_data.get("V3_Competence_1_Nom", ""),
+                            key="v3_c1_nom"
+                        )
+                        st.session_state.entretien_data["V3_Competence_1_Nom"] = v3_c1_nom
+                        
+                        niveau_options = ["Débutant", "Confirmé", "Expert"]
+                        current_niveau = st.session_state.entretien_data.get("V3_Competence_1_Niveau", "Débutant")
+                        niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
+                        
+                        v3_c1_niv = st.selectbox(
+                            "Niveau",
+                            niveau_options,
+                            index=niveau_index,
+                            key="v3_c1_niv"
+                        )
+                        st.session_state.entretien_data["V3_Competence_1_Niveau"] = v3_c1_niv
+                    
+                    with col_comp1_2:
+                        v3_c1_just = st.text_area(
+                            "Justification et exemples concrets",
+                            value=st.session_state.entretien_data.get("V3_Competence_1_Justification", ""),
+                            key="v3_c1_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V3_Competence_1_Justification"] = v3_c1_just
+                    
+                    st.divider()
+                    
+                    # Compétence 2
+                    col_comp2_1, col_comp2_2 = st.columns([1, 2])
+                    with col_comp2_1:
+                        v3_c2_nom = st.text_input(
+                            "Compétence 2",
+                            value=st.session_state.entretien_data.get("V3_Competence_2_Nom", ""),
+                            key="v3_c2_nom"
+                        )
+                        st.session_state.entretien_data["V3_Competence_2_Nom"] = v3_c2_nom
+                        
+                        current_niveau = st.session_state.entretien_data.get("V3_Competence_2_Niveau", "Débutant")
+                        niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
+                        
+                        v3_c2_niv = st.selectbox(
+                            "Niveau",
+                            niveau_options,
+                            index=niveau_index,
+                            key="v3_c2_niv"
+                        )
+                        st.session_state.entretien_data["V3_Competence_2_Niveau"] = v3_c2_niv
+                    
+                    with col_comp2_2:
+                        v3_c2_just = st.text_area(
+                            "Justification et exemples concrets",
+                            value=st.session_state.entretien_data.get("V3_Competence_2_Justification", ""),
+                            key="v3_c2_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V3_Competence_2_Justification"] = v3_c2_just
+                    
+                    st.divider()
+                    
+                    # Compétence 3
+                    col_comp3_1, col_comp3_2 = st.columns([1, 2])
+                    with col_comp3_1:
+                        v3_c3_nom = st.text_input(
+                            "Compétence 3",
+                            value=st.session_state.entretien_data.get("V3_Competence_3_Nom", ""),
+                            key="v3_c3_nom"
+                        )
+                        st.session_state.entretien_data["V3_Competence_3_Nom"] = v3_c3_nom
+                        
+                        current_niveau = st.session_state.entretien_data.get("V3_Competence_3_Niveau", "Débutant")
+                        niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
+                        
+                        v3_c3_niv = st.selectbox(
+                            "Niveau",
+                            niveau_options,
+                            index=niveau_index,
+                            key="v3_c3_niv"
+                        )
+                        st.session_state.entretien_data["V3_Competence_3_Niveau"] = v3_c3_niv
+                    
+                    with col_comp3_2:
+                        v3_c3_just = st.text_area(
+                            "Justification et exemples concrets",
+                            value=st.session_state.entretien_data.get("V3_Competence_3_Justification", ""),
+                            key="v3_c3_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V3_Competence_3_Justification"] = v3_c3_just
+                    
+                    st.divider()
+                    st.markdown("#### 📊 Expérience")
+                    
+                    col_exp1, col_exp2 = st.columns([1, 2])
+                    with col_exp1:
+                        exp_options = ["Débutant (0-3 ans)", "Confirmé (3-7 ans)", "Expert (8+ ans)"]
+                        current_exp = st.session_state.entretien_data.get("V3_Experience_Niveau", "Débutant (0-3 ans)")
+                        exp_index = exp_options.index(current_exp) if current_exp in exp_options else 0
+                        
+                        v3_exp_niv = st.selectbox(
+                            "Niveau d'expérience dans des contextes comparables",
+                            exp_options,
+                            index=exp_index,
+                            key="v3_exp_niv"
+                        )
+                        st.session_state.entretien_data["V3_Experience_Niveau"] = v3_exp_niv
+                    
+                    with col_exp2:
+                        v3_exp_just = st.text_area(
+                            "Quelle expérience justifie ce niveau ?",
+                            value=st.session_state.entretien_data.get("V3_Experience_Justification", ""),
+                            key="v3_exp_just",
+                            height=100
+                        )
+                        st.session_state.entretien_data["V3_Experience_Justification"] = v3_exp_just
+                    
+                    st.divider()
+                    st.markdown("#### 🎓 Accompagnement et Formation")
+                    
+                    col_form1, col_form2 = st.columns([1, 2])
+                    with col_form1:
+                        accomp_options = ["Non", "Oui"]
+                        current_accomp = st.session_state.entretien_data.get("V3_Besoin_Accompagnement", "Non")
+                        accomp_index = accomp_options.index(current_accomp) if current_accomp in accomp_options else 0
+                        
+                        v3_besoin = st.radio(
+                            "Besoin d'accompagnement / formation ?",
+                            accomp_options,
+                            index=accomp_index,
+                            key="v3_form_besoin"
+                        )
+                        st.session_state.entretien_data["V3_Besoin_Accompagnement"] = v3_besoin
+                    
+                    with col_form2:
+                        if v3_besoin == "Oui":
+                            v3_type = st.text_area(
+                                "Quels types de soutien ou d'accompagnement ?",
+                                value=st.session_state.entretien_data.get("V3_Type_Accompagnement", ""),
+                                key="v3_form_type",
+                                height=100
+                            )
+                            st.session_state.entretien_data["V3_Type_Accompagnement"] = v3_type
+                        else:
+                            st.session_state.entretien_data["V3_Type_Accompagnement"] = ""
+                    
+                    if st.button("💾 Sauvegarder Vœu 3", key="save_v3"):
+                        save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
+                
+                else:
+                    st.warning("Aucun vœu 3 renseigné pour ce collaborateur")
+            
+            # ========== AVIS RH ==========
+            with tab_avis:
+                st.subheader("💬 Avis RH Final")
+                
+                attentes_mgr = st.text_area(
+                    "Attentes vis-à-vis du futur manager & dans quels cas le solliciter ?",
+                    value=st.session_state.entretien_data.get("Attentes_Manager", ""),
+                    key="attentes_manager",
+                    height=150
+                )
+                st.session_state.entretien_data["Attentes_Manager"] = attentes_mgr
+                
+                avis_synthese = st.text_area(
+                    "Avis RH - Synthèse globale de l'entretien",
+                    value=st.session_state.entretien_data.get("Avis_RH_Synthese", ""),
+                    key="avis_synthese",
+                    height=200
+                )
+                st.session_state.entretien_data["Avis_RH_Synthese"] = avis_synthese
+                
+                st.divider()
+                st.markdown("#### 🎯 Décision RH")
+                
+                # Liste des vœux du collaborateur
+                voeux_list = []
+                if voeu1_label and voeu1_label != "Positionnement manquant" and voeu1_label != "Non renseigné":
+                    voeux_list.append(voeu1_label)
+                if voeu2_label and voeu2_label != "Positionnement manquant" and voeu2_label != "Non renseigné":
+                    voeux_list.append(voeu2_label)
+                if voeu3_label and voeu3_label != "Positionnement manquant" and voeu3_label != "Non renseigné":
+                    voeux_list.append(voeu3_label)
+                
+                voeux_list.append("Autre")
+                
+                # Index de la décision actuelle
+                current_decision = st.session_state.entretien_data.get("Decision_RH_Poste", "")
+                if current_decision and current_decision in voeux_list:
+                    decision_index = voeux_list.index(current_decision) + 1
+                else:
+                    decision_index = 0
+                
+                decision_rh = st.selectbox(
+                    "Décision RH",
+                    options=["-- Aucune décision --"] + voeux_list,
+                    index=decision_index,
+                    key="decision_rh"
+                )
+                
+                # Si "Autre" est sélectionné, afficher un module de recherche
+                if decision_rh == "Autre":
+                    st.markdown("##### 🔍 Rechercher un autre poste")
+                    search_poste = st.text_input("Rechercher un poste", key="search_autre_poste")
+                    
+                    if search_poste:
+                        postes_filtres = postes_df[postes_df["Poste"].str.contains(search_poste, case=False, na=False)]
+                        
+                        if not postes_filtres.empty:
+                            poste_autre = st.selectbox(
+                                "Sélectionner un poste",
+                                options=["-- Sélectionner --"] + postes_filtres["Poste"].tolist(),
+                                key="select_autre_poste"
+                            )
+                            
+                            if poste_autre != "-- Sélectionner --":
+                                decision_rh = poste_autre
+                        else:
+                            st.info("Aucun poste trouvé avec ce terme de recherche")
+                
+                # Si une décision est prise, afficher la confirmation
+                if decision_rh and decision_rh != "-- Aucune décision --":
+                    st.divider()
+                    st.markdown(f"##### Validez-vous le poste **{decision_rh}** pour le collaborateur **{st.session_state.entretien_data.get('Prénom', '')} {st.session_state.entretien_data.get('Nom', '')}** ?")
+                    
+                    col_btn1, col_btn2, col_btn3 = st.columns(3)
+                    
+                    with col_btn1:
+                        if st.button("❌ Non", key="btn_non", use_container_width=True):
+                            st.info("Décision annulée")
+                    
+                    with col_btn2:
+                        if st.button("🟠 Oui en option RH", key="btn_option", type="secondary", use_container_width=True):
+                            # Ajouter dans "Commentaires RH"
+                            commentaire = f"Option RH à l'issue entretien : {decision_rh}"
+                            success = update_commentaire_rh(gsheet_client, SHEET_URL, st.session_state.current_matricule, commentaire)
+                            
+                            if success:
+                                # Sauvegarder la décision dans l'entretien
+                                st.session_state.entretien_data["Decision_RH_Poste"] = f"Option: {decision_rh}"
+                                save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=False)
+                                
+                                st.success("✅ Option RH enregistrée avec succès !")
+                                time.sleep(2)
+                                st.rerun()
+                    
+                    with col_btn3:
+                        if st.button("🟢 Oui, vœu retenu", key="btn_retenu", type="primary", use_container_width=True):
+                            # Mettre à jour "Vœux Retenu"
+                            success = update_voeu_retenu(gsheet_client, SHEET_URL, st.session_state.current_matricule, decision_rh)
+                            
+                            if success:
+                                # Sauvegarder la décision dans l'entretien
+                                st.session_state.entretien_data["Decision_RH_Poste"] = f"Retenu: {decision_rh}"
+                                save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=False)
+                                
+                                st.success("✅ Vœu retenu enregistré avec succès !")
+                                time.sleep(2)
+                                st.rerun()
+                
+                # Bouton de sauvegarde final
+                st.divider()
+                if st.button("💾 Sauvegarder l'entretien complet", type="primary", use_container_width=True):
+                    save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
 
 # ========================================
 # PAGE 4 : ANALYSE PAR POSTE
@@ -1552,7 +1908,6 @@ elif page == "🎯 Analyse par Poste":
                         if st.button("➡️ Accéder à l'entretien RH complet", type="secondary"):
                             st.session_state['selected_collaborateur'] = candidat_selected
                             st.session_state['navigate_to_entretien'] = True
-                            st.session_state['page'] = '📝 Entretien RH'
                             st.rerun()
             else:
                 st.info("Aucun candidat pour ce poste")
@@ -1607,6 +1962,6 @@ elif page == "🌳 Référentiel Postes":
 st.divider()
 st.markdown("""
 <div style='text-align: center; color: #999; font-size: 0.9em;'>
-    <p>CAP25 - Pilotage de la Mobilité Interne | 🤖 Synchronisé avec Google Sheets</p>
+    <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
