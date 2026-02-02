@@ -146,7 +146,7 @@ def create_entretien_sheet_if_not_exists(_client, sheet_url):
             spreadsheet.worksheet("Entretien RH")
             return True
         except gspread.WorksheetNotFound:
-            worksheet = spreadsheet.add_worksheet(title="Entretien RH", rows="1000", cols="57")
+           worksheet = spreadsheet.add_worksheet(title="Entretien RH", rows="1000", cols="59")
             
             headers = [
                 "Matricule", "Nom", "Prénom", "Date_Entretien", "Referente_RH",
@@ -175,7 +175,7 @@ def create_entretien_sheet_if_not_exists(_client, sheet_url):
                 "Attentes_Manager", "Avis_RH_Synthese", "Decision_RH_Poste"
             ]
             
-            worksheet.update('A1:BD1', [headers])
+            worksheet.update('A1:BG1', [headers])
             return True
             
     except Exception as e:
@@ -279,7 +279,7 @@ def save_entretien_to_gsheet(_client, sheet_url, entretien_data, show_success=Tr
             ]
             
             if existing_row:
-                worksheet.update(f'A{existing_row}:BD{existing_row}', [row_data])
+                worksheet.update(f'A{existing_row}:BG{existing_row}', [row_data])
             else:
                 worksheet.append_row(row_data)
             
@@ -822,7 +822,7 @@ elif page == "👥 Gestion des Candidatures":
                     st.session_state.navigate_to_entretien = True
             
             # Forcer la navigation vers la page Entretien RH
-                    st.switch_page("app_rh_cloud.py")  # Ou le nom de votre fichier principal
+                    st.rerun()
 
 # ========================================
 # PAGE 3 : ENTRETIEN RH
@@ -1002,7 +1002,7 @@ elif page == "📝 Entretien RH":
                 "💬 Avis RH"
             ])
             
-           # ========== VŒEU 1 ==========
+            # ========== VŒEU 1 ==========
             with tab_voeu1:
                 if voeu1_label and voeu1_label != "Positionnement manquant" and voeu1_label != "Non renseigné":
                     st.subheader(f"Évaluation du Vœu 1 : {voeu1_label}")
@@ -1231,7 +1231,7 @@ elif page == "📝 Entretien RH":
                 else:
                     st.warning("Aucun vœu 1 renseigné pour ce collaborateur")
             
-           # ========== VŒEU 2 ==========
+            # ========== VŒEU 2 ==========
             with tab_voeu2:
                 if voeu2_label and voeu2_label != "Positionnement manquant" and voeu2_label != "Non renseigné":
                     st.subheader(f"Évaluation du Vœu 2 : {voeu2_label}")
@@ -1459,7 +1459,7 @@ elif page == "📝 Entretien RH":
                 else:
                     st.warning("Aucun vœu 2 renseigné pour ce collaborateur")
             
-           # ========== VŒEU 3 ==========
+            # ========== VŒEU 3 ==========
             with tab_voeu3:
                 if voeu3_label and voeu3_label != "Positionnement manquant" and voeu3_label != "Non renseigné":
                     st.subheader(f"Évaluation du Vœu 3 : {voeu3_label}")
@@ -1687,7 +1687,7 @@ elif page == "📝 Entretien RH":
                 else:
                     st.warning("Aucun vœu 3 renseigné pour ce collaborateur")
             
-           # ========== AVIS RH ==========
+            # ========== AVIS RH ==========
             with tab_avis:
                 st.subheader("💬 Avis RH Final")
                 
@@ -1816,7 +1816,6 @@ elif page == "📝 Entretien RH":
                 st.divider()
                 if st.button("💾 Sauvegarder l'entretien complet", type="primary", use_container_width=True):
                     save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
-
 # ========================================
 # PAGE 4 : ANALYSE PAR POSTE
 # ========================================
@@ -2100,6 +2099,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
