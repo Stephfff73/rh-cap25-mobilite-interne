@@ -488,9 +488,8 @@ if page == "📊 Tableau de Bord":
     st.title("📊 Tableau de Bord - Vue d'ensemble")
     
     # Première ligne de métriques
-st.subheader("📌 Avancement global de la mobilité")
-
-kpi_main1, kpi_main2, kpi_main3 = st.columns(3)
+    st.subheader("📌 Avancement global de la mobilité")
+    kpi_main1, kpi_main2, kpi_main3 = st.columns(3)
 
     
     # Collaborateurs à repositionner (avec filtre "Rencontre RH / Positionnement" = "OUI")
@@ -2101,4 +2100,5 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
