@@ -535,7 +535,7 @@ if page == "📊 Tableau de Bord":
     
     # Deuxième ligne de métriques
     st.subheader("⭐ Ventilation des Priorités 1 à 4")
-    col5, col6, col7, col8 = st.columns(3)
+    col5, col6, col7 = st.columns(3)
     
     nb_priorite_1 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 1"])
     nb_priorite_2 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 2"])
@@ -825,7 +825,7 @@ elif page == "👥 Gestion des Candidatures":
                     st.switch_page("app_rh_cloud.py")  # Ou le nom de votre fichier principal
 
 # ========================================
-# PAGE 3 : ENTRETIEN RH (PARTIE 1/2)
+# PAGE 3 : ENTRETIEN RH
 # ========================================
 
 elif page == "📝 Entretien RH":
@@ -2100,5 +2100,6 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
