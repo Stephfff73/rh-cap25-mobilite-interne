@@ -484,15 +484,14 @@ if st.session_state.last_save_time:
 # PAGE 1 : TABLEAU DE BORD
 # ========================================
 
-# ========================================
-# PAGE 1 : TABLEAU DE BORD
-# ========================================
-
 if page == "📊 Tableau de Bord":
     st.title("📊 Tableau de Bord - Vue d'ensemble")
     
     # Première ligne de métriques
-    col1, col2, col3, col4 = st.columns(4)
+st.subheader("📌 Avancement global de la mobilité")
+
+kpi_main1, kpi_main2, kpi_main3 = st.columns(3)
+
     
     # Collaborateurs à repositionner (avec filtre "Rencontre RH / Positionnement" = "OUI")
     nb_collaborateurs = len(collaborateurs_df[
@@ -514,17 +513,30 @@ if page == "📊 Tableau de Bord":
     # Pourcentage d'attribution
     pct_attribution = (nb_postes_attribues / nb_postes_ouverts * 100) if nb_postes_ouverts > 0 else 0
     
-    col1.metric("👥 Collaborateurs à repositionner", nb_collaborateurs)
-    col2.metric("📍 Postes ouverts", nb_postes_ouverts)
-    col3.metric("👩🏻‍💻✅ Postes attribués", nb_postes_attribues)
-    
-    # Jauge de pourcentage d'attribution
-    with col4:
-        st.metric("% d'attribution", f"{pct_attribution:.1f}%")
-        st.progress(min(pct_attribution / 100, 1.0))
+    kpi_main1.metric(
+        "👥 Collaborateurs concernés",
+        nb_collaborateurs,
+        help="Collaborateurs identifiés comme nécessitant un repositionnement"
+    )
+
+    kpi_main2.metric(
+        "📍Postes ouverts à la mobilité",
+        nb_postes_ouverts,
+        help="Inclut les postes créés et rendus vacants par mobilité"
+    )
+
+    kpi_main3.metric(
+        "👩🏻‍💻✅ Taux d'affectation",
+        f"{pct_attribution:.1f}%",
+        delta=f"{nb_postes_attribues} postes attribués"
+    )
+
+    st.progress(min(pct_attribution / 100, 1.0))
+
     
     # Deuxième ligne de métriques
-    col5, col6, col7, col8 = st.columns(4)
+    st.subheader("⭐ Ventilation des Priorités 1 à 4")
+    col5, col6, col7, col8 = st.columns(3)
     
     nb_priorite_1 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 1"])
     nb_priorite_2 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 2"])
@@ -536,10 +548,11 @@ if page == "📊 Tableau de Bord":
     col5.metric("⭐ Priorité 1", nb_priorite_1)
     col6.metric("⭐ Priorité 2", nb_priorite_2)
     col7.metric("⭐ Priorité 3 et 4", nb_priorite_3_4)
-    col8.write("")
+
     
     # Troisième ligne de métriques
-    col9, col10, col11, col12 = st.columns(4)
+    st.subheader("🗓️ Pilotage des entretiens RH")
+    col9, col10, col11 = st.columns(3)
     
     # Entretiens planifiés, aujourd'hui et réalisés
     today = date.today()
@@ -556,11 +569,12 @@ if page == "📊 Tableau de Bord":
                 entretiens_aujourd_hui += 1
             elif date_rdv < today:
                 entretiens_realises += 1
-    
+
+
     col9.metric("📅 Entretiens planifiés", entretiens_planifies)
     col10.metric("✅ Entretiens réalisés", entretiens_realises)
     col11.metric("⌛ Entretiens prévus aujourd'hui", entretiens_aujourd_hui)
-    col12.write("")
+
     
     st.divider()
     
@@ -604,7 +618,7 @@ if page == "📊 Tableau de Bord":
             st.info("Aucun vœu enregistré pour le moment")
     
     with col_chart2:
-        st.subheader("⚠️ Flop 10 des postes les moins demandés")
+        st.subheader("⚠️ Postes en tension d’attractivité")
         
         if len(all_voeux) > 0:
             flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
@@ -2087,3 +2101,4 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
