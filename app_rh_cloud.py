@@ -146,7 +146,7 @@ def create_entretien_sheet_if_not_exists(_client, sheet_url):
             spreadsheet.worksheet("Entretien RH")
             return True
         except gspread.WorksheetNotFound:
-           worksheet = spreadsheet.add_worksheet(title="Entretien RH", rows="1000", cols="59")
+            worksheet = spreadsheet.add_worksheet(title="Entretien RH", rows="1000", cols="59")
             
             headers = [
                 "Matricule", "Nom", "Prénom", "Date_Entretien", "Referente_RH",
@@ -2099,6 +2099,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
