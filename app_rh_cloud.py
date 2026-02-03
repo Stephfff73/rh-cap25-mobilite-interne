@@ -1820,6 +1820,10 @@ elif page == "📝 Entretien RH":
 # PAGE 4 : ANALYSE PAR POSTE
 # ========================================
 
+# ========================================
+# PAGE 4 : ANALYSE PAR POSTE
+# ========================================
+
 elif page == "🎯 Analyse par Poste":
     st.title("🎯 Analyse des Viviers par Poste")
     
@@ -1845,22 +1849,29 @@ elif page == "🎯 Analyse par Poste":
         candidats_data = []
         
         for _, collab in collaborateurs_df.iterrows():
+            nom_collab = get_safe_value(collab.get('NOM', ''))
+            prenom_collab = get_safe_value(collab.get('Prénom', ''))
+            poste_actuel_collab = get_safe_value(collab.get('Poste  libellé', ''))  # Bien noter le double espace
+            
+            voeu_match = None  # Variable pour capter quel vœu correspond
+            
             if collab.get("Vœux 1") == poste:
-                candidats.append(f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))} (V1)")
-                candidats_data.append({
-                    "nom": f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}",
-                    "matricule": get_safe_value(collab.get('Matricule', ''))
-                })
+                voeu_match = "V1"
             elif collab.get("Vœux 2") == poste:
-                candidats.append(f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))} (V2)")
-                candidats_data.append({
-                    "nom": f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}",
-                    "matricule": get_safe_value(collab.get('Matricule', ''))
-                })
+                voeu_match = "V2"
             elif collab.get("Voeux 3") == poste:
-                candidats.append(f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))} (V3)")
+                voeu_match = "V3"
+            
+            if voeu_match:
+                # Format enrichi : NOM Prénom (Vx) - Actuellement : "Poste libellé"
+                if poste_actuel_collab:
+                    candidat_label = f"{nom_collab} {prenom_collab} ({voeu_match}) - Actuellement : \"{poste_actuel_collab}\""
+                else:
+                    candidat_label = f"{nom_collab} {prenom_collab} ({voeu_match}) - Actuellement : \"N/A\""
+                
+                candidats.append(candidat_label)
                 candidats_data.append({
-                    "nom": f"{get_safe_value(collab.get('NOM', ''))} {get_safe_value(collab.get('Prénom', ''))}",
+                    "nom": f"{nom_collab} {prenom_collab}",
                     "matricule": get_safe_value(collab.get('Matricule', ''))
                 })
         
@@ -1966,6 +1977,10 @@ elif page == "🎯 Analyse par Poste":
                 "Postes attribués": st.column_config.NumberColumn(
                     "Postes attribués",
                     format="%d"
+                ),
+                "Candidats": st.column_config.TextColumn(
+                    "Candidats",
+                    width="large"
                 )
             }
         )
@@ -2016,9 +2031,9 @@ elif page == "🎯 Analyse par Poste":
                                 prenom = get_safe_value(collab.get('Prénom', ''))
                                 mail = get_safe_value(collab.get('Mail', ''))
                                 
-                                st.markdown(f"**Matricule** : {matricule if matricule else 'N/A'}")
+                                st.markdown(f"**Matricule** : {matricule if matricule else '/'}")
                                 st.markdown(f"**Nom** : {nom} {prenom}")
-                                st.markdown(f"**Mail** : {mail if mail else 'N/A'}")
+                                st.markdown(f"**Mail** : {mail if mail else '/'}")
                             
                             with col_info2:
                                 poste_actuel = get_safe_value(collab.get('Poste  libellé', ''))
@@ -2026,8 +2041,8 @@ elif page == "🎯 Analyse par Poste":
                                 date_entree = get_safe_value(collab.get("Date entrée groupe", ""))
                                 anciennete_display = calculate_anciennete(date_entree)
                                 
-                                st.markdown(f"**Poste actuel** : {poste_actuel if poste_actuel else 'N/A'}")
-                                st.markdown(f"**Direction** : {direction if direction else 'N/A'}")
+                                st.markdown(f"**Poste actuel** : {poste_actuel if poste_actuel else '/'}")
+                                st.matic(f"**Direction** : {direction if direction else '/'}")
                                 st.markdown(f"**Ancienneté** : {anciennete_display}")
                             
                             with col_info3:
@@ -2036,8 +2051,25 @@ elif page == "🎯 Analyse par Poste":
                                 priorite = get_safe_value(collab.get('Priorité', ''))
                                 
                                 st.markdown(f"**RRH** : {rrh if rrh else 'N/A'}")
-                                st.markdown(f"**Date RDV** : {date_rdv if date_rdv else 'N/A'}")
-                                st.markdown(f"**Priorité** : {priorite if priorite else 'N/A'}")
+                                st.markdown(f"**Date RDV** : {date_rdv if date_rdv else '/'}")
+                                st.markdown(f"**Priorité** : {priorite if priorite else '/'}")
+                        
+                        # Afficher les vœux du candidat
+                        st.markdown("##### 🎯 Vœux du candidat")
+                        voeux_col1, voeux_col2, voeux_col3 = st.columns(3)
+                        
+                        voeu1_cand = get_safe_value(collab.get('Vœux 1', ''))
+                        voeu2_cand = get_safe_value(collab.get('Vœux 2', ''))
+                        voeu3_cand = get_safe_value(collab.get('Voeux 3', ''))
+                        
+                        with voeux_col1:
+                            st.markdown(f"**Vœu 1** : {voeu1_cand if voeu1_cand else '/'}")
+                        with voeux_col2:
+                            st.markdown(f"**Vœu 2** : {voeu2_cand if voeu2_cand and voeu2_cand != 'Positionnement manquant' else '/'}")
+                        with voeux_col3:
+                            st.markdown(f"**Vœu 3** : {voeu3_cand if voeu3_cand and voeu3_cand != 'Positionnement manquant' else '/'}")
+                        
+                        st.divider()
                         
                         if st.button("➡️ Accéder à l'entretien RH complet", type="secondary"):
                             st.session_state['selected_collaborateur'] = candidat_selected
@@ -2099,6 +2131,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
