@@ -68,22 +68,55 @@ def get_gsheet_connection():
         st.error(f"Erreur de configuration des credentials : {str(e)}")
         return None
 
-@st.cache_data(ttl=30)  # Cache de 30 secondes pour plus de réactivité
+def api_call_with_retry(func, max_retries=5, initial_delay=1):
+    """
+    Exécute un appel API avec retry et backoff exponentiel
+    pour gérer les limites de quota Google Sheets
+    """
+    import time
+    import random
+    
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except gspread.exceptions.APIError as e:
+            # Vérifier si c'est une erreur de quota (429)
+            if e.response.status_code == 429:
+                if attempt < max_retries - 1:
+                    # Backoff exponentiel avec jitter
+                    delay = initial_delay * (2 ** attempt) + random.uniform(0, 1)
+                    st.warning(f"⏳ Limite de quota API atteinte. Nouvelle tentative dans {delay:.1f}s...")
+                    time.sleep(delay)
+                    continue
+                else:
+                    st.error("❌ Impossible de charger les données après plusieurs tentatives. Veuillez réessayer dans quelques minutes.")
+                    raise
+            else:
+                # Autre erreur API
+                raise
+        except Exception as e:
+            # Erreur non liée au quota
+            raise
+    
+    return None
+
+@st.cache_data(ttl=60)  # Cache de 60 secondes pour plus de réactivité
 def load_data_from_gsheet(_client, sheet_url):
     """
-    Charge les données depuis Google Sheets.
+    Charge les données depuis Google Sheets avec gestion du quota.
     Onglets : CAP 2025 (collaborateurs) et Postes (référentiel)
     """
     try:
-        spreadsheet = _client.open_by_url(sheet_url)
+        spreadsheet = api_call_with_retry(lambda: _client.open_by_url(sheet_url))
     except Exception as e:
         st.error(f"Impossible d'ouvrir le Google Sheet : {str(e)}")
         return pd.DataFrame(), pd.DataFrame()
     
     # Charger l'onglet "CAP 2025" (collaborateurs)
     try:
-        cap_sheet = spreadsheet.worksheet("CAP 2025")
-        all_values = cap_sheet.get_all_values()
+        cap_sheet = api_call_with_retry(lambda: spreadsheet.worksheet("CAP 2025"))
+        all_values = api_call_with_retry(lambda: cap_sheet.get_all_values())
+        
         headers = all_values[1]
         data = all_values[2:]
         
@@ -99,8 +132,8 @@ def load_data_from_gsheet(_client, sheet_url):
     
     # Charger l'onglet "Postes" (référentiel)
     try:
-        postes_sheet = spreadsheet.worksheet("Postes")
-        postes_data = postes_sheet.get_all_records()
+        postes_sheet = api_call_with_retry(lambda: spreadsheet.worksheet("Postes"))
+        postes_data = api_call_with_retry(lambda: postes_sheet.get_all_records())
         postes_df = pd.DataFrame(postes_data)
         
     except gspread.WorksheetNotFound:
@@ -114,13 +147,13 @@ def load_data_from_gsheet(_client, sheet_url):
 
 def load_entretien_from_gsheet(_client, sheet_url, matricule):
     """
-    Charge un entretien existant depuis Google Sheets
+    Charge un entretien existant depuis Google Sheets avec gestion du quota
     """
     try:
-        spreadsheet = _client.open_by_url(sheet_url)
-        worksheet = spreadsheet.worksheet("Entretien RH")
+        spreadsheet = api_call_with_retry(lambda: _client.open_by_url(sheet_url))
+        worksheet = api_call_with_retry(lambda: spreadsheet.worksheet("Entretien RH"))
         
-        all_records = worksheet.get_all_records()
+        all_records = api_call_with_retry(lambda: worksheet.get_all_records())
         
         for record in all_records:
             if str(record.get("Matricule", "")) == str(matricule):
@@ -467,6 +500,9 @@ page = st.sidebar.radio(
 # Bouton de rafraîchissement
 st.sidebar.divider()
 if st.sidebar.button("🔄 Rafraîchir les données", use_container_width=True):
+    st.sidebar.caption("ℹ️ Les données sont mises en cache pendant 1 minute")
+    st.sidebar.warning("⚠️ Rafraîchissement en cours... Évitez de rafraîchir trop souvent pour ne pas dépasser les quotas Google Sheets.")
+    time.sleep(1)  # Petit délai pour que l'utilisateur voie le message
     st.cache_data.clear()
     st.rerun()
 
@@ -2040,17 +2076,17 @@ elif page == "🎯 Analyse par Poste":
                                 direction = get_safe_value(collab.get('Direction libellé', ''))
                                 date_entree = get_safe_value(collab.get("Date entrée groupe", ""))
                                 anciennete_display = calculate_anciennete(date_entree)
-                                
+    
                                 st.markdown(f"**Poste actuel** : {poste_actuel if poste_actuel else '/'}")
-                                st.matic(f"**Direction** : {direction if direction else '/'}")
+                                st.markdown(f"**Direction** : {direction if direction else '/'}")
                                 st.markdown(f"**Ancienneté** : {anciennete_display}")
-                            
-                            with col_info3:
+
+                        with col_info3:
                                 rrh = get_safe_value(collab.get('Référente RH', ''))
                                 date_rdv = get_safe_value(collab.get('Date de rdv', ''))
                                 priorite = get_safe_value(collab.get('Priorité', ''))
-                                
-                                st.markdown(f"**RRH** : {rrh if rrh else 'N/A'}")
+    
+                                st.markdown(f"**RRH** : {rrh if rrh else '/'}")
                                 st.markdown(f"**Date RDV** : {date_rdv if date_rdv else '/'}")
                                 st.markdown(f"**Priorité** : {priorite if priorite else '/'}")
                         
@@ -2131,6 +2167,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
