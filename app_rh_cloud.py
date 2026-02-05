@@ -11,7 +11,7 @@ import io
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
-    page_title="CAP25 - Pilotage Mobilité", 
+    page_title="CAP25 - Pilotage Mobilité v.05/02/26",  # ← Changer la version
     layout="wide", 
     page_icon="🏢",
     initial_sidebar_state="expanded"
@@ -2165,7 +2165,7 @@ elif page == "💻 Comparatif des candidatures par Poste":
                 # Affichage du tableau
                 st.dataframe(
                     df_comparatif,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True
                 )
                 
@@ -2498,5 +2498,6 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
