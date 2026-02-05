@@ -7,6 +7,7 @@ import gspread
 import pytz
 import json
 import altair as alt
+import io
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -15,8 +16,6 @@ st.set_page_config(
     page_icon="🏢",
     initial_sidebar_state="expanded"
 )
-
-
 
 # --- INITIALISATION DE SESSION STATE ---
 def init_session_state():
@@ -44,7 +43,10 @@ def init_session_state():
     
     if 'fiche_candidat' not in st.session_state:
         st.session_state.fiche_candidat = None
-
+    
+    # NOUVEAU : Pour forcer le rechargement de l'entretien
+    if 'force_reload_entretien' not in st.session_state:
+        st.session_state.force_reload_entretien = False
 
 # --- CONFIGURATION GOOGLE SHEETS ---
 @st.cache_resource
@@ -80,10 +82,8 @@ def api_call_with_retry(func, max_retries=5, initial_delay=1):
         try:
             return func()
         except gspread.exceptions.APIError as e:
-            # Vérifier si c'est une erreur de quota (429)
             if e.response.status_code == 429:
                 if attempt < max_retries - 1:
-                    # Backoff exponentiel avec jitter
                     delay = initial_delay * (2 ** attempt) + random.uniform(0, 1)
                     st.warning(f"⏳ Limite de quota API atteinte. Nouvelle tentative dans {delay:.1f}s...")
                     time.sleep(delay)
@@ -92,15 +92,13 @@ def api_call_with_retry(func, max_retries=5, initial_delay=1):
                     st.error("❌ Impossible de charger les données après plusieurs tentatives. Veuillez réessayer dans quelques minutes.")
                     raise
             else:
-                # Autre erreur API
                 raise
         except Exception as e:
-            # Erreur non liée au quota
             raise
     
     return None
 
-@st.cache_data(ttl=60)  # Cache de 60 secondes pour plus de réactivité
+@st.cache_data(ttl=60)
 def load_data_from_gsheet(_client, sheet_url):
     """
     Charge les données depuis Google Sheets avec gestion du quota.
@@ -223,7 +221,6 @@ def auto_save_entretien(gsheet_client, sheet_url, entretien_data):
             paris_tz = pytz.timezone('Europe/Paris')
             st.session_state.last_save_time = datetime.now(paris_tz)
         except Exception as e:
-            # Sauvegarde silencieuse - on ne bloque pas l'utilisateur en cas d'erreur
             pass
 
 def save_entretien_to_gsheet(_client, sheet_url, entretien_data, show_success=True, max_retries=3):
@@ -236,7 +233,6 @@ def save_entretien_to_gsheet(_client, sheet_url, entretien_data, show_success=Tr
             spreadsheet = _client.open_by_url(sheet_url)
             worksheet = spreadsheet.worksheet("Entretien RH")
             
-            # Recharger les données à chaque tentative pour éviter les conflits
             all_records = worksheet.get_all_records()
             existing_row = None
             
@@ -316,7 +312,6 @@ def save_entretien_to_gsheet(_client, sheet_url, entretien_data, show_success=Tr
             else:
                 worksheet.append_row(row_data)
             
-            # Mettre à jour le temps de dernière sauvegarde en heure de Paris
             paris_tz = pytz.timezone('Europe/Paris')
             st.session_state.last_save_time = datetime.now(paris_tz)
             
@@ -327,7 +322,7 @@ def save_entretien_to_gsheet(_client, sheet_url, entretien_data, show_success=Tr
             
         except Exception as e:
             if attempt < max_retries - 1:
-                time.sleep(0.5 * (attempt + 1))  # Backoff exponentiel
+                time.sleep(0.5 * (attempt + 1))
                 continue
             else:
                 if show_success:
@@ -345,7 +340,6 @@ def update_voeu_retenu(_client, sheet_url, matricule, poste):
         all_values = worksheet.get_all_values()
         headers = all_values[1]
         
-        # Trouver l'index de la colonne "Vœux Retenu"
         try:
             voeu_retenu_col = headers.index("Vœux Retenu") + 1
             matricule_col = headers.index("Matricule") + 1
@@ -353,13 +347,9 @@ def update_voeu_retenu(_client, sheet_url, matricule, poste):
             st.error("Colonnes 'Vœux Retenu' ou 'Matricule' introuvables")
             return False
         
-        # Trouver la ligne du collaborateur
         for idx, row in enumerate(all_values[2:], start=3):
             if row[matricule_col - 1] == str(matricule):
-                # Mettre à jour la cellule
                 worksheet.update_cell(idx, voeu_retenu_col, poste)
-                
-                # Vider le cache pour forcer le rechargement
                 st.cache_data.clear()
                 return True
         
@@ -368,6 +358,81 @@ def update_voeu_retenu(_client, sheet_url, matricule, poste):
         
     except Exception as e:
         st.error(f"Erreur lors de la mise à jour : {str(e)}")
+        return False
+
+# NOUVELLE FONCTION : Mise à jour du Vœu 4
+def update_voeu_4(_client, sheet_url, matricule, poste):
+    """
+    Met à jour la colonne 'Voeux 4' dans l'onglet CAP 2025
+    """
+    try:
+        spreadsheet = _client.open_by_url(sheet_url)
+        worksheet = spreadsheet.worksheet("CAP 2025")
+        
+        all_values = worksheet.get_all_values()
+        headers = all_values[1]
+        
+        # Vérifier si la colonne Voeux 4 existe, sinon la créer
+        if "Voeux 4" not in headers:
+            # Ajouter la colonne en fin de ligne d'en-têtes
+            voeux_4_col = len(headers) + 1
+            worksheet.update_cell(2, voeux_4_col, "Voeux 4")
+        else:
+            voeux_4_col = headers.index("Voeux 4") + 1
+        
+        try:
+            matricule_col = headers.index("Matricule") + 1
+        except ValueError:
+            st.error("Colonne 'Matricule' introuvable")
+            return False
+        
+        for idx, row in enumerate(all_values[2:], start=3):
+            if row[matricule_col - 1] == str(matricule):
+                worksheet.update_cell(idx, voeux_4_col, poste)
+                st.cache_data.clear()
+                return True
+        
+        st.error("Matricule introuvable")
+        return False
+        
+    except Exception as e:
+        st.error(f"Erreur lors de la mise à jour du Vœu 4 : {str(e)}")
+        return False
+
+# NOUVELLE FONCTION : Réorganiser les vœux
+def update_voeux_order(_client, sheet_url, matricule, voeu1, voeu2, voeu3):
+    """
+    Met à jour l'ordre des vœux dans l'onglet CAP 2025
+    """
+    try:
+        spreadsheet = _client.open_by_url(sheet_url)
+        worksheet = spreadsheet.worksheet("CAP 2025")
+        
+        all_values = worksheet.get_all_values()
+        headers = all_values[1]
+        
+        try:
+            voeu1_col = headers.index("Vœux 1") + 1
+            voeu2_col = headers.index("Vœux 2") + 1
+            voeu3_col = headers.index("Voeux 3") + 1
+            matricule_col = headers.index("Matricule") + 1
+        except ValueError as e:
+            st.error(f"Colonnes de vœux introuvables : {str(e)}")
+            return False
+        
+        for idx, row in enumerate(all_values[2:], start=3):
+            if row[matricule_col - 1] == str(matricule):
+                worksheet.update_cell(idx, voeu1_col, voeu1)
+                worksheet.update_cell(idx, voeu2_col, voeu2)
+                worksheet.update_cell(idx, voeu3_col, voeu3)
+                st.cache_data.clear()
+                return True
+        
+        st.error("Matricule introuvable")
+        return False
+        
+    except Exception as e:
+        st.error(f"Erreur lors de la réorganisation des vœux : {str(e)}")
         return False
 
 def update_commentaire_rh(_client, sheet_url, matricule, commentaire):
@@ -381,7 +446,6 @@ def update_commentaire_rh(_client, sheet_url, matricule, commentaire):
         all_values = worksheet.get_all_values()
         headers = all_values[1]
         
-        # Trouver l'index des colonnes
         try:
             commentaire_col = headers.index("Commentaires RH") + 1
             matricule_col = headers.index("Matricule") + 1
@@ -389,15 +453,11 @@ def update_commentaire_rh(_client, sheet_url, matricule, commentaire):
             st.error("Colonnes 'Commentaires RH' ou 'Matricule' introuvables")
             return False
         
-        # Trouver la ligne du collaborateur
         for idx, row in enumerate(all_values[2:], start=3):
             if row[matricule_col - 1] == str(matricule):
-                # Récupérer le commentaire existant et ajouter le nouveau
                 existing_comment = row[commentaire_col - 1]
                 new_comment = f"{existing_comment}\n{commentaire}" if existing_comment else commentaire
                 worksheet.update_cell(idx, commentaire_col, new_comment)
-                
-                # Vider le cache pour forcer le rechargement
                 st.cache_data.clear()
                 return True
         
@@ -458,7 +518,6 @@ def get_safe_value(value):
     except (ValueError, TypeError):
         pass
     return str(value) if value else ""
-
 
 
 # --- URL DU GOOGLE SHEET ---
@@ -861,13 +920,12 @@ elif page == "👥 Gestion des Candidatures":
                     st.rerun()
 
 # ========================================
-# PAGE 3 : ENTRETIEN RH
+# PAGE 3 : ENTRETIEN RH (CORRIGÉE + NOUVELLES FONCTIONNALITÉS)
 # ========================================
 
 elif page == "📝 Entretien RH":
     st.title("📝 Conduite d'Entretien RH - CAP 2025")
     
-    # Info box avec sauvegarde automatique
     col_info1, col_info2 = st.columns([3, 1])
     with col_info1:
         st.info("""
@@ -885,7 +943,6 @@ elif page == "📝 Entretien RH":
     # ===== SECTION 1 : SÉLECTION DU COLLABORATEUR =====
     st.subheader("1️⃣ Sélection du collaborateur")
     
-    # Création de deux colonnes pour les modes d'accès
     col_mode1, col_mode2 = st.columns(2)
     
     with col_mode1:
@@ -910,7 +967,6 @@ elif page == "📝 Entretien RH":
         )
         
         with col_collab:
-            # Vérifier s'il y a une navigation depuis une autre page
             default_index = 0
             if st.session_state.get('navigate_to_entretien') and st.session_state.get('selected_collaborateur'):
                 if st.session_state['selected_collaborateur'] in collaborateur_list:
@@ -925,20 +981,16 @@ elif page == "📝 Entretien RH":
             )
         
         if st.button("▶️ Démarrer/Reprendre l'entretien", type="primary", disabled=(selected_collab_new == "-- Sélectionner --"), use_container_width=True):
-            # Récupérer les infos du collaborateur
             collab_mask = (collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]) == selected_collab_new
             collab = collaborateurs_df[collab_mask].iloc[0]
             matricule = get_safe_value(collab.get('Matricule', ''))
             
-            # Charger l'entretien existant ou initialiser un nouveau
             existing_entretien = load_entretien_from_gsheet(gsheet_client, SHEET_URL, matricule)
             
             if existing_entretien:
-                # Charger les données existantes
                 st.session_state.entretien_data = existing_entretien
                 st.info(f"✅ Entretien existant chargé pour {selected_collab_new}")
             else:
-                # Initialiser un nouvel entretien
                 st.session_state.entretien_data = {
                     "Matricule": matricule,
                     "Nom": get_safe_value(collab.get('NOM', '')),
@@ -957,7 +1009,6 @@ elif page == "📝 Entretien RH":
     with col_mode2:
         st.markdown("#### 📂 Consulter un entretien existant")
         
-        # Charger la liste des entretiens existants
         try:
             spreadsheet = gsheet_client.open_by_url(SHEET_URL)
             worksheet = spreadsheet.worksheet("Entretien RH")
@@ -973,13 +1024,20 @@ elif page == "📝 Entretien RH":
                 )
                 
                 if st.button("📖 Ouvrir cet entretien", type="secondary", disabled=(selected_existing == "-- Sélectionner --"), use_container_width=True):
-                    # Trouver le matricule correspondant
+                    # ✅ CORRECTION CRITIQUE : Recharger complètement l'entretien
                     for record in all_records:
                         if f"{record['Nom']} {record['Prénom']}" == selected_existing:
-                            st.session_state.entretien_data = record
+                            # Vider d'abord les données actuelles
+                            st.session_state.entretien_data = {}
+                            
+                            # Charger les nouvelles données
+                            st.session_state.entretien_data = record.copy()
                             st.session_state.current_matricule = record['Matricule']
                             st.session_state.selected_collaborateur = selected_existing
+                            st.session_state.force_reload_entretien = True
+                            
                             st.success(f"✅ Entretien chargé : {selected_existing}")
+                            time.sleep(0.5)
                             st.rerun()
                             break
             else:
@@ -992,12 +1050,10 @@ elif page == "📝 Entretien RH":
     if st.session_state.current_matricule and st.session_state.selected_collaborateur:
         st.divider()
         
-        # Récupérer les infos du collaborateur depuis CAP 2025
         collab_mask = (collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]) == st.session_state.selected_collaborateur
         if collab_mask.any():
             collab = collaborateurs_df[collab_mask].iloc[0]
             
-            # Afficher les infos du collaborateur
             with st.container(border=True):
                 col_info1, col_info2, col_info3 = st.columns(3)
                 
@@ -1019,12 +1075,111 @@ elif page == "📝 Entretien RH":
             
             st.divider()
             
-            # Bouton pour changer de collaborateur
             if st.button("🔄 Sélectionner un autre collaborateur"):
                 st.session_state.current_matricule = None
                 st.session_state.selected_collaborateur = None
                 st.session_state.entretien_data = {}
                 st.rerun()
+            
+            # ===== NOUVEAU MODULE : GESTION DES VŒUX =====
+            st.subheader("🎯 Gestion des vœux du collaborateur")
+            
+            with st.expander("✏️ Modifier l'ordre des vœux", expanded=False):
+                st.markdown("Vous pouvez réorganiser les vœux du collaborateur ci-dessous :")
+                
+                voeu1_actuel = get_safe_value(collab.get('Vœux 1', ''))
+                voeu2_actuel = get_safe_value(collab.get('Vœux 2', ''))
+                voeu3_actuel = get_safe_value(collab.get('Voeux 3', ''))
+                
+                voeux_actuels = [v for v in [voeu1_actuel, voeu2_actuel, voeu3_actuel] if v and v != "Positionnement manquant"]
+                
+                if len(voeux_actuels) > 0:
+                    col_v1, col_v2, col_v3 = st.columns(3)
+                    
+                    with col_v1:
+                        new_voeu1 = st.selectbox(
+                            "Nouveau Vœu 1",
+                            options=voeux_actuels,
+                            index=0 if voeu1_actuel in voeux_actuels else 0,
+                            key="reorder_v1"
+                        )
+                    
+                    with col_v2:
+                        remaining_v2 = [v for v in voeux_actuels if v != new_voeu1]
+                        new_voeu2 = st.selectbox(
+                            "Nouveau Vœu 2",
+                            options=[""] + remaining_v2,
+                            index=0,
+                            key="reorder_v2"
+                        )
+                    
+                    with col_v3:
+                        remaining_v3 = [v for v in voeux_actuels if v != new_voeu1 and v != new_voeu2]
+                        new_voeu3 = st.selectbox(
+                            "Nouveau Vœu 3",
+                            options=[""] + remaining_v3,
+                            index=0,
+                            key="reorder_v3"
+                        )
+                    
+                    if st.button("✅ Valider le nouvel ordre", type="primary", key="validate_reorder"):
+                        success = update_voeux_order(
+                            gsheet_client, 
+                            SHEET_URL, 
+                            st.session_state.current_matricule,
+                            new_voeu1,
+                            new_voeu2 if new_voeu2 else "",
+                            new_voeu3 if new_voeu3 else ""
+                        )
+                        
+                        if success:
+                            st.success("✅ Ordre des vœux mis à jour avec succès !")
+                            time.sleep(1)
+                            st.rerun()
+                else:
+                    st.info("Aucun vœu renseigné pour ce collaborateur")
+            
+            with st.expander("➕ Ajouter un Vœu 4", expanded=False):
+                st.markdown("##### 🔍 Rechercher et ajouter un Vœu 4")
+                
+                search_voeu4 = st.text_input("Rechercher un poste", key="search_voeu4")
+                
+                if search_voeu4:
+                    postes_filtres = postes_df[postes_df["Poste"].str.contains(search_voeu4, case=False, na=False)]
+                    
+                    if not postes_filtres.empty:
+                        voeu4_selectionne = st.selectbox(
+                            "Sélectionner le Vœu 4",
+                            options=["-- Sélectionner --"] + postes_filtres["Poste"].tolist(),
+                            key="select_voeu4"
+                        )
+                        
+                        if voeu4_selectionne != "-- Sélectionner --":
+                            st.markdown(f"**Confirmez-vous l'ajout du vœu « {voeu4_selectionne} » pour {st.session_state.entretien_data.get('Prénom', '')} {st.session_state.entretien_data.get('Nom', '')} ?**")
+                            
+                            col_btn_v4_1, col_btn_v4_2 = st.columns(2)
+                            
+                            with col_btn_v4_1:
+                                if st.button("❌ Annuler", key="cancel_voeu4"):
+                                    st.info("Ajout du Vœu 4 annulé")
+                            
+                            with col_btn_v4_2:
+                                if st.button("✅ Oui, je confirme", type="primary", key="confirm_voeu4"):
+                                    success = update_voeu_4(
+                                        gsheet_client,
+                                        SHEET_URL,
+                                        st.session_state.current_matricule,
+                                        voeu4_selectionne
+                                    )
+                                    
+                                    if success:
+                                        st.success(f"✅ Vœu 4 « {voeu4_selectionne} » ajouté avec succès !")
+                                        time.sleep(2)
+                                        st.rerun()
+                    else:
+                        st.info("Aucun poste trouvé avec ce terme de recherche")
+            
+            st.divider()
             
             # Tabs pour les 3 vœux
             voeu1_label = st.session_state.entretien_data.get('Voeu_1', 'Non renseigné')
@@ -1043,7 +1198,6 @@ elif page == "📝 Entretien RH":
                 if voeu1_label and voeu1_label != "Positionnement manquant" and voeu1_label != "Non renseigné":
                     st.subheader(f"Évaluation du Vœu 1 : {voeu1_label}")
                     
-                    # Afficher un indicateur de dernière sauvegarde
                     if st.session_state.last_save_time:
                         st.caption(f"💾 Dernière sauvegarde automatique : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
                     
@@ -1260,7 +1414,6 @@ elif page == "📝 Entretien RH":
                                 st.session_state.entretien_data["V1_Type_Accompagnement"] = ""
                                 auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                     
-                    # Auto-save après chaque onglet
                     if st.button("💾 Sauvegarder Vœu 1", key="save_v1"):
                         save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
                 
@@ -1272,7 +1425,6 @@ elif page == "📝 Entretien RH":
                 if voeu2_label and voeu2_label != "Positionnement manquant" and voeu2_label != "Non renseigné":
                     st.subheader(f"Évaluation du Vœu 2 : {voeu2_label}")
                     
-                    # Afficher un indicateur de dernière sauvegarde
                     if st.session_state.last_save_time:
                         st.caption(f"💾 Dernière sauvegarde automatique : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
                     
@@ -1500,7 +1652,6 @@ elif page == "📝 Entretien RH":
                 if voeu3_label and voeu3_label != "Positionnement manquant" and voeu3_label != "Non renseigné":
                     st.subheader(f"Évaluation du Vœu 3 : {voeu3_label}")
                     
-                    # Afficher un indicateur de dernière sauvegarde
                     if st.session_state.last_save_time:
                         st.caption(f"💾 Dernière sauvegarde automatique : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
                     
@@ -1727,7 +1878,6 @@ elif page == "📝 Entretien RH":
             with tab_avis:
                 st.subheader("💬 Avis RH Final")
                 
-                # Afficher un indicateur de dernière sauvegarde
                 if st.session_state.last_save_time:
                     st.caption(f"💾 Dernière sauvegarde automatique : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
                 
@@ -1754,7 +1904,6 @@ elif page == "📝 Entretien RH":
                 st.divider()
                 st.markdown("#### 🎯 Décision RH")
                 
-                # Liste des vœux du collaborateur
                 voeux_list = []
                 if voeu1_label and voeu1_label != "Positionnement manquant" and voeu1_label != "Non renseigné":
                     voeux_list.append(voeu1_label)
@@ -1765,7 +1914,6 @@ elif page == "📝 Entretien RH":
                 
                 voeux_list.append("Autre")
                 
-                # Index de la décision actuelle
                 current_decision = st.session_state.entretien_data.get("Decision_RH_Poste", "")
                 if current_decision and current_decision in voeux_list:
                     decision_index = voeux_list.index(current_decision) + 1
@@ -1779,7 +1927,6 @@ elif page == "📝 Entretien RH":
                     key="decision_rh"
                 )
 
-                # ✅ Variable pour stocker le poste final sélectionné
                 poste_final = None
                 autre_poste_selectionne = None
 
@@ -1807,7 +1954,6 @@ elif page == "📝 Entretien RH":
                         poste_final = decision_rh
                         st.session_state.entretien_data["Decision_RH_Poste"] = decision_rh
                 
-                # Si une décision est prise, afficher la confirmation
                 if poste_final:
                     st.markdown(f"##### Validez-vous le poste **{poste_final}** pour le collaborateur **{st.session_state.entretien_data.get('Prénom', '')} {st.session_state.entretien_data.get('Nom', '')}** ?")
                     
@@ -1821,12 +1967,10 @@ elif page == "📝 Entretien RH":
                     
                     with col_btn2:
                         if st.button("🟠 Oui en option RH", key="btn_option", type="secondary", use_container_width=True):
-                            # Ajouter dans "Commentaires RH" - utiliser poste_final au lieu de decision_rh
                             commentaire = f"Option RH à l'issue entretien : {poste_final}"
                             success = update_commentaire_rh(gsheet_client, SHEET_URL, st.session_state.current_matricule, commentaire)
                             
                             if success:
-                                # Sauvegarder la décision dans l'entretien
                                 st.session_state.entretien_data["Decision_RH_Poste"] = f"Option: {poste_final}"
                                 save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=False)
                                 
@@ -1836,11 +1980,9 @@ elif page == "📝 Entretien RH":
                     
                     with col_btn3:
                         if st.button("🟢 Oui, vœu retenu", key="btn_retenu", type="primary", use_container_width=True):
-                            # Mettre à jour "Vœux Retenu" - utiliser poste_final au lieu de decision_rh
                             success = update_voeu_retenu(gsheet_client, SHEET_URL, st.session_state.current_matricule, poste_final)
                             
                             if success:
-                                # Sauvegarder la décision dans l'entretien
                                 st.session_state.entretien_data["Decision_RH_Poste"] = f"Retenu: {poste_final}"
                                 save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=False)
                                 
@@ -1848,13 +1990,188 @@ elif page == "📝 Entretien RH":
                                 time.sleep(2)
                                 st.rerun()
                 
-                # Bouton de sauvegarde final
                 st.divider()
                 if st.button("💾 Sauvegarder l'entretien complet", type="primary", use_container_width=True):
                     save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
 # ========================================
-# PAGE 4 : ANALYSE PAR POSTE
+# NOUVELLE PAGE : COMPARATIF DES CANDIDATURES PAR POSTE
 # ========================================
+
+elif page == "💻 Comparatif des candidatures par Poste":
+    st.title("💻 Comparatif des Candidatures par Poste")
+    
+    st.markdown("""
+    Cette page vous permet de comparer côte à côte tous les entretiens RH des candidats pour un poste donné.
+    Les candidats sont classés par ordre de vœu (V1 > V2 > V3) puis par ordre alphabétique.
+    """)
+    
+    st.divider()
+    
+    # Sélection du poste
+    postes_list = sorted(postes_df["Poste"].unique())
+    poste_compare = st.selectbox(
+        "🎯 Sélectionner un poste à analyser",
+        options=["-- Sélectionner --"] + postes_list,
+        key="select_poste_compare"
+    )
+    
+    if poste_compare != "-- Sélectionner --":
+        st.subheader(f"📊 Analyse comparative pour : **{poste_compare}**")
+        
+        # Charger tous les entretiens
+        try:
+            spreadsheet = gsheet_client.open_by_url(SHEET_URL)
+            worksheet_entretiens = spreadsheet.worksheet("Entretien RH")
+            all_entretiens = worksheet_entretiens.get_all_records()
+            
+            # Trouver les candidats pour ce poste
+            candidats_data = []
+            
+            for _, collab in collaborateurs_df.iterrows():
+                voeu_match = None
+                ordre_voeu = 99  # Pour le tri
+                
+                voeu1 = get_safe_value(collab.get('Vœux 1', ''))
+                voeu2 = get_safe_value(collab.get('Vœux 2', ''))
+                voeu3 = get_safe_value(collab.get('Voeux 3', ''))
+                
+                if voeu1 == poste_compare:
+                    voeu_match = "Vœu 1"
+                    ordre_voeu = 1
+                elif voeu2 == poste_compare:
+                    voeu_match = "Vœu 2"
+                    ordre_voeu = 2
+                elif voeu3 == poste_compare:
+                    voeu_match = "Vœu 3"
+                    ordre_voeu = 3
+                
+                if voeu_match:
+                    matricule = get_safe_value(collab.get('Matricule', ''))
+                    nom = get_safe_value(collab.get('NOM', ''))
+                    prenom = get_safe_value(collab.get('Prénom', ''))
+                    
+                    # Trouver l'entretien correspondant
+                    entretien = None
+                    for ent in all_entretiens:
+                        if str(ent.get('Matricule', '')) == str(matricule):
+                            entretien = ent
+                            break
+                    
+                    candidats_data.append({
+                        'ordre_voeu': ordre_voeu,
+                        'nom': nom,
+                        'prenom': prenom,
+                        'voeu_match': voeu_match,
+                        'matricule': matricule,
+                        'entretien': entretien,
+                        'poste_actuel': get_safe_value(collab.get('Poste  libellé', '')),
+                        'anciennete': calculate_anciennete(get_safe_value(collab.get("Date entrée groupe", ""))),
+                        'priorite': get_safe_value(collab.get('Priorité', ''))
+                    })
+            
+            # Trier : d'abord par ordre de vœu, puis par nom
+            candidats_data.sort(key=lambda x: (x['ordre_voeu'], x['nom'], x['prenom']))
+            
+            if len(candidats_data) == 0:
+                st.info(f"Aucun candidat n'a émis de vœu pour le poste « {poste_compare} »")
+            else:
+                st.success(f"**{len(candidats_data)} candidat(s)** trouvé(s) pour ce poste")
+                
+                # Créer le tableau comparatif
+                tableau_comparatif = []
+                
+                for cand in candidats_data:
+                    entretien = cand['entretien']
+                    
+                    # Déterminer quel vœu correspond au poste
+                    prefix = ""
+                    if cand['voeu_match'] == "Vœu 1":
+                        prefix = "V1_"
+                    elif cand['voeu_match'] == "Vœu 2":
+                        prefix = "V2_"
+                    elif cand['voeu_match'] == "Vœu 3":
+                        prefix = "V3_"
+                    
+                    row_data = {
+                        "Rang de vœu": cand['voeu_match'],
+                        "NOM": cand['nom'],
+                        "Prénom": cand['prenom'],
+                        "Poste actuel": cand['poste_actuel'],
+                        "Ancienneté": cand['anciennete'],
+                        "Priorité": cand['priorite'],
+                    }
+                    
+                    if entretien:
+                        row_data.update({
+                            "Motivations": entretien.get(f"{prefix}Motivations", ""),
+                            "Vision des enjeux": entretien.get(f"{prefix}Vision_Enjeux", ""),
+                            "Premières actions": entretien.get(f"{prefix}Premieres_Actions", ""),
+                            "Compétence 1": entretien.get(f"{prefix}Competence_1_Nom", ""),
+                            "Niveau C1": entretien.get(f"{prefix}Competence_1_Niveau", ""),
+                            "Justif. C1": entretien.get(f"{prefix}Competence_1_Justification", ""),
+                            "Compétence 2": entretien.get(f"{prefix}Competence_2_Nom", ""),
+                            "Niveau C2": entretien.get(f"{prefix}Competence_2_Niveau", ""),
+                            "Justif. C2": entretien.get(f"{prefix}Competence_2_Justification", ""),
+                            "Compétence 3": entretien.get(f"{prefix}Competence_3_Nom", ""),
+                            "Niveau C3": entretien.get(f"{prefix}Competence_3_Niveau", ""),
+                            "Justif. C3": entretien.get(f"{prefix}Competence_3_Justification", ""),
+                            "Expérience": entretien.get(f"{prefix}Experience_Niveau", ""),
+                            "Justif. Expérience": entretien.get(f"{prefix}Experience_Justification", ""),
+                            "Besoin accompagnement": entretien.get(f"{prefix}Besoin_Accompagnement", ""),
+                            "Type accompagnement": entretien.get(f"{prefix}Type_Accompagnement", ""),
+                            "Avis RH": entretien.get("Avis_RH_Synthese", ""),
+                            "Décision RH": entretien.get("Decision_RH_Poste", "")
+                        })
+                    else:
+                        row_data.update({
+                            "Motivations": "❌ Entretien non réalisé",
+                            "Vision des enjeux": "",
+                            "Premières actions": "",
+                            "Compétence 1": "",
+                            "Niveau C1": "",
+                            "Justif. C1": "",
+                            "Compétence 2": "",
+                            "Niveau C2": "",
+                            "Justif. C2": "",
+                            "Compétence 3": "",
+                            "Niveau C3": "",
+                            "Justif. C3": "",
+                            "Expérience": "",
+                            "Justif. Expérience": "",
+                            "Besoin accompagnement": "",
+                            "Type accompagnement": "",
+                            "Avis RH": "",
+                            "Décision RH": ""
+                        })
+                    
+                    tableau_comparatif.append(row_data)
+                
+                df_comparatif = pd.DataFrame(tableau_comparatif)
+                
+                # Affichage du tableau
+                st.dataframe(
+                    df_comparatif,
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                st.divider()
+                
+                # Bouton d'export CSV
+                csv_buffer = io.StringIO()
+                df_comparatif.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+                csv_data = csv_buffer.getvalue()
+                
+                st.download_button(
+                    label="📥 Télécharger le comparatif en CSV",
+                    data=csv_data,
+                    file_name=f"comparatif_candidatures_{poste_compare.replace(' ', '_')}.csv",
+                    mime="text/csv",
+                    type="primary"
+                )
+        
+        except Exception as e:
+            st.error(f"Erreur lors du chargement des entretiens : {str(e)}")
 
 # ========================================
 # PAGE 4 : ANALYSE PAR POSTE
@@ -2167,6 +2484,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
