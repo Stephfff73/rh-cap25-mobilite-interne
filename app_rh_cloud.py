@@ -542,6 +542,14 @@ except Exception as e:
 with st.spinner("Chargement des données..."):
     collaborateurs_df, postes_df = load_data_from_gsheet(gsheet_client, SHEET_URL)
 
+# ✅ VÉRIFICATION ET CRÉATION DE LA COLONNE "Vœux Retenu" SI MANQUANTE
+if not collaborateurs_df.empty:
+    collaborateurs_df.columns = collaborateurs_df.columns.str.strip()
+    
+    if "Vœux Retenu" not in collaborateurs_df.columns:
+        st.sidebar.warning("⚠️ Colonne 'Vœux Retenu' créée automatiquement")
+        collaborateurs_df["Vœux Retenu"] = ""
+
 if collaborateurs_df.empty or postes_df.empty:
     st.error("Impossible de charger les données. Vérifiez la structure du Google Sheet.")
     st.stop()
@@ -552,7 +560,14 @@ st.sidebar.divider()
 
 page = st.sidebar.radio(
     "Navigation",
-    ["📊 Tableau de Bord", "👥 Gestion des Candidatures", "📝 Entretien RH", "🎯 Analyse par Poste", "🌳 Référentiel Postes"],
+    [
+        "📊 Tableau de Bord", 
+        "👥 Gestion des Candidatures", 
+        "📝 Entretien RH", 
+        "💻 Comparatif des candidatures par Poste",  # NOUVEAU
+        "🎯 Analyse par Poste", 
+        "🌳 Référentiel Postes"
+    ],
     label_visibility="collapsed"
 )
 
@@ -560,20 +575,19 @@ page = st.sidebar.radio(
 st.sidebar.divider()
 if st.sidebar.button("🔄 Rafraîchir les données", use_container_width=True):
     st.sidebar.caption("ℹ️ Les données sont mises en cache pendant 1 minute")
-    st.sidebar.warning("⚠️ Rafraîchissement en cours... Évitez de rafraîchir trop souvent pour ne pas dépasser les quotas Google Sheets.")
-    time.sleep(1)  # Petit délai pour que l'utilisateur voie le message
+    st.sidebar.warning("⚠️ Rafraîchissement en cours...")
+    time.sleep(1)
     st.cache_data.clear()
     st.rerun()
 
 st.sidebar.divider()
-# Heure de Paris
 paris_tz = pytz.timezone('Europe/Paris')
 paris_time = datetime.now(paris_tz)
 st.sidebar.caption(f"Dernière mise à jour : {paris_time.strftime('%H:%M:%S')}")
 
-# Afficher le temps de dernière sauvegarde si disponible
 if st.session_state.last_save_time:
     st.sidebar.caption(f"💾 Dernière sauvegarde : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
+
 
 # ========================================
 # PAGE 1 : TABLEAU DE BORD
@@ -2484,6 +2498,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
