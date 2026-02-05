@@ -2412,7 +2412,7 @@ elif page == "🎯 Analyse par Poste":
                                 st.markdown(f"**Direction** : {direction if direction else '/'}")
                                 st.markdown(f"**Ancienneté** : {anciennete_display}")
 
-                        with col_info3:
+                            with col_info3:
                                 rrh = get_safe_value(collab.get('Référente RH', ''))
                                 date_rdv = get_safe_value(collab.get('Date de rdv', ''))
                                 priorite = get_safe_value(collab.get('Priorité', ''))
@@ -2498,6 +2498,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
