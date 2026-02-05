@@ -2165,7 +2165,7 @@ elif page == "💻 Comparatif des candidatures par Poste":
                 # Affichage du tableau
                 st.dataframe(
                     df_comparatif,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True
                 )
                 
@@ -2498,13 +2498,4 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
-
-
-
-
-
-
-
-
-
 
