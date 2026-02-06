@@ -177,7 +177,7 @@ def create_entretien_sheet_if_not_exists(_client, sheet_url):
             spreadsheet.worksheet("Entretien RH")
             return True
         except gspread.WorksheetNotFound:
-            worksheet = spreadsheet.add_worksheet(title="Entretien RH", rows="1000", cols="59")
+            worksheet = spreadsheet.add_worksheet(title="Entretien RH", rows="1000", cols="76")  # ← MODIFIÉ : 59 → 76 colonnes
             
             headers = [
                 "Matricule", "Nom", "Prénom", "Date_Entretien", "Referente_RH",
@@ -203,10 +203,17 @@ def create_entretien_sheet_if_not_exists(_client, sheet_url):
                 "V3_Experience_Niveau", "V3_Experience_Justification",
                 "V3_Besoin_Accompagnement", "V3_Type_Accompagnement",
                 # Avis RH
-                "Attentes_Manager", "Avis_RH_Synthese", "Decision_RH_Poste"
+                "Attentes_Manager", "Avis_RH_Synthese", "Decision_RH_Poste",
+                # ✅ NOUVEAU : Vœu 4
+                "Voeu_4", "V4_Motivations", "V4_Vision_Enjeux", "V4_Premieres_Actions",
+                "V4_Competence_1_Nom", "V4_Competence_1_Niveau", "V4_Competence_1_Justification",
+                "V4_Competence_2_Nom", "V4_Competence_2_Niveau", "V4_Competence_2_Justification",
+                "V4_Competence_3_Nom", "V4_Competence_3_Niveau", "V4_Competence_3_Justification",
+                "V4_Experience_Niveau", "V4_Experience_Justification",
+                "V4_Besoin_Accompagnement", "V4_Type_Accompagnement"
             ]
             
-            worksheet.update('A1:BG1', [headers])
+            worksheet.update('A1:BX1', [headers])  # ← MODIFIÉ : BG1 → BX1
             return True
             
     except Exception as e:
@@ -304,11 +311,29 @@ def save_entretien_to_gsheet(_client, sheet_url, entretien_data, show_success=Tr
                 # Avis RH
                 entretien_data.get("Attentes_Manager", ""),
                 entretien_data.get("Avis_RH_Synthese", ""),
-                entretien_data.get("Decision_RH_Poste", "")
+                entretien_data.get("Decision_RH_Poste", ""),
+                # ✅ NOUVEAU : Vœu 4
+                entretien_data.get("Voeu_4", ""),
+                entretien_data.get("V4_Motivations", ""),
+                entretien_data.get("V4_Vision_Enjeux", ""),
+                entretien_data.get("V4_Premieres_Actions", ""),
+                entretien_data.get("V4_Competence_1_Nom", ""),
+                entretien_data.get("V4_Competence_1_Niveau", ""),
+                entretien_data.get("V4_Competence_1_Justification", ""),
+                entretien_data.get("V4_Competence_2_Nom", ""),
+                entretien_data.get("V4_Competence_2_Niveau", ""),
+                entretien_data.get("V4_Competence_2_Justification", ""),
+                entretien_data.get("V4_Competence_3_Nom", ""),
+                entretien_data.get("V4_Competence_3_Niveau", ""),
+                entretien_data.get("V4_Competence_3_Justification", ""),
+                entretien_data.get("V4_Experience_Niveau", ""),
+                entretien_data.get("V4_Experience_Justification", ""),
+                entretien_data.get("V4_Besoin_Accompagnement", ""),
+                entretien_data.get("V4_Type_Accompagnement", "")
             ]
             
             if existing_row:
-                worksheet.update(f'A{existing_row}:BG{existing_row}', [row_data])
+                worksheet.update(f'A{existing_row}:BX{existing_row}', [row_data])  # ← MODIFIÉ : BG → BX
             else:
                 worksheet.append_row(row_data)
             
@@ -934,7 +959,7 @@ elif page == "👥 Gestion des Candidatures":
                     st.rerun()
 
 # ========================================
-# PAGE 3 : ENTRETIEN RH (VERSION DYNAMIQUE AVEC VŒUX)
+# PAGE 3 : ENTRETIEN RH (VERSION FINALE AVEC VŒUX 4)
 # ========================================
 
 elif page == "📝 Entretien RH":
@@ -972,9 +997,17 @@ elif page == "📝 Entretien RH":
             )
         
         if selected_direction == "-- Toutes --":
-            filtered_collabs_df = collaborateurs_df
+            filtered_collabs_df = collaborateurs_df.copy()
         else:
-            filtered_collabs_df = collaborateurs_df[collaborateurs_df["Direction libellé"] == selected_direction]
+            filtered_collabs_df = collaborateurs_df[collaborateurs_df["Direction libellé"] == selected_direction].copy()
+        
+        # ✅ FILTRER : uniquement les collaborateurs avec NOM et Prénom non vides
+        filtered_collabs_df = filtered_collabs_df[
+            (filtered_collabs_df["NOM"].notna()) & 
+            (filtered_collabs_df["NOM"].astype(str).str.strip() != "") &
+            (filtered_collabs_df["Prénom"].notna()) & 
+            (filtered_collabs_df["Prénom"].astype(str).str.strip() != "")
+        ]
         
         collaborateur_list = sorted(
             (filtered_collabs_df["NOM"] + " " + filtered_collabs_df["Prénom"]).tolist()
@@ -1069,13 +1102,13 @@ elif page == "📝 Entretien RH":
             voeu1_actuel_gsheet = get_safe_value(collab.get('Vœux 1', ''))
             voeu2_actuel_gsheet = get_safe_value(collab.get('Vœux 2', ''))
             voeu3_actuel_gsheet = get_safe_value(collab.get('Voeux 3', ''))
-            voeu4_actuel_gsheet = get_safe_value(collab.get('Voeux 4', ''))  # ← NOUVEAU
+            voeu4_actuel_gsheet = get_safe_value(collab.get('Voeux 4', ''))
             
             # Mettre à jour st.session_state.entretien_data avec les valeurs du Google Sheet
             st.session_state.entretien_data['Voeu_1'] = voeu1_actuel_gsheet
             st.session_state.entretien_data['Voeu_2'] = voeu2_actuel_gsheet
             st.session_state.entretien_data['Voeu_3'] = voeu3_actuel_gsheet
-            st.session_state.entretien_data['Voeu_4'] = voeu4_actuel_gsheet  # ← NOUVEAU
+            st.session_state.entretien_data['Voeu_4'] = voeu4_actuel_gsheet
             
             with st.container(border=True):
                 col_info1, col_info2, col_info3 = st.columns(3)
@@ -1152,7 +1185,6 @@ elif page == "📝 Entretien RH":
                         )
                         
                         if success:
-                            # ✅ Mettre à jour session_state
                             st.session_state.entretien_data['Voeu_1'] = new_voeu1
                             st.session_state.entretien_data['Voeu_2'] = new_voeu2 if new_voeu2 else ""
                             st.session_state.entretien_data['Voeu_3'] = new_voeu3 if new_voeu3 else ""
@@ -1197,7 +1229,6 @@ elif page == "📝 Entretien RH":
                                     )
                                     
                                     if success:
-                                        # ✅ Mettre à jour session_state
                                         st.session_state.entretien_data['Voeu_4'] = voeu4_selectionne
                                         
                                         st.success(f"✅ Vœu 4 « {voeu4_selectionne} » ajouté avec succès !")
@@ -1212,7 +1243,7 @@ elif page == "📝 Entretien RH":
             voeu1_label = st.session_state.entretien_data.get('Voeu_1', '')
             voeu2_label = st.session_state.entretien_data.get('Voeu_2', '')
             voeu3_label = st.session_state.entretien_data.get('Voeu_3', '')
-            voeu4_label = st.session_state.entretien_data.get('Voeu_4', '')  # ← NOUVEAU
+            voeu4_label = st.session_state.entretien_data.get('Voeu_4', '')
             
             # Construire la liste des onglets dynamiquement
             tab_labels = []
@@ -1230,7 +1261,7 @@ elif page == "📝 Entretien RH":
                 tab_labels.append(f"🎯 Vœu 3: {voeu3_label}")
                 tab_keys.append("V3")
             
-            if voeu4_label and voeu4_label != "Positionnement manquant":  # ← NOUVEAU
+            if voeu4_label and voeu4_label != "Positionnement manquant":
                 tab_labels.append(f"🎯 Vœu 4: {voeu4_label}")
                 tab_keys.append("V4")
             
@@ -1244,9 +1275,6 @@ elif page == "📝 Entretien RH":
             def render_voeu_tab(tab_container, voeu_num, voeu_label, prefix):
                 """
                 Fonction générique pour afficher le contenu d'un onglet vœu
-                voeu_num: 1, 2, 3 ou 4
-                voeu_label: Le libellé du poste
-                prefix: "V1_", "V2_", "V3_" ou "V4_"
                 """
                 with tab_container:
                     st.subheader(f"Évaluation du Vœu {voeu_num} : {voeu_label}")
@@ -1304,8 +1332,9 @@ elif page == "📝 Entretien RH":
                             st.session_state.entretien_data[f"{prefix}Competence_1_Nom"] = c1_nom
                             auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
-                        niveau_options = ["Débutant", "Confirmé", "Expert"]
-                        current_niveau = st.session_state.entretien_data.get(f"{prefix}Competence_1_Niveau", "Débutant")
+                        # ✅ CORRECTION : Option vide par défaut
+                        niveau_options = ["", "Débutant", "Confirmé", "Expert"]
+                        current_niveau = st.session_state.entretien_data.get(f"{prefix}Competence_1_Niveau", "")
                         niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
                         
                         c1_niv = st.selectbox(
@@ -1343,7 +1372,7 @@ elif page == "📝 Entretien RH":
                             st.session_state.entretien_data[f"{prefix}Competence_2_Nom"] = c2_nom
                             auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
-                        current_niveau = st.session_state.entretien_data.get(f"{prefix}Competence_2_Niveau", "Débutant")
+                        current_niveau = st.session_state.entretien_data.get(f"{prefix}Competence_2_Niveau", "")
                         niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
                         
                         c2_niv = st.selectbox(
@@ -1381,7 +1410,7 @@ elif page == "📝 Entretien RH":
                             st.session_state.entretien_data[f"{prefix}Competence_3_Nom"] = c3_nom
                             auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                         
-                        current_niveau = st.session_state.entretien_data.get(f"{prefix}Competence_3_Niveau", "Débutant")
+                        current_niveau = st.session_state.entretien_data.get(f"{prefix}Competence_3_Niveau", "")
                         niveau_index = niveau_options.index(current_niveau) if current_niveau in niveau_options else 0
                         
                         c3_niv = st.selectbox(
@@ -1410,8 +1439,9 @@ elif page == "📝 Entretien RH":
                     
                     col_exp1, col_exp2 = st.columns([1, 2])
                     with col_exp1:
-                        exp_options = ["Débutant (0-3 ans)", "Confirmé (3-7 ans)", "Expert (8+ ans)"]
-                        current_exp = st.session_state.entretien_data.get(f"{prefix}Experience_Niveau", "Débutant (0-3 ans)")
+                        # ✅ CORRECTION : Option vide par défaut
+                        exp_options = ["", "Débutant (0-3 ans)", "Confirmé (3-7 ans)", "Expert (8+ ans)"]
+                        current_exp = st.session_state.entretien_data.get(f"{prefix}Experience_Niveau", "")
                         exp_index = exp_options.index(current_exp) if current_exp in exp_options else 0
                         
                         exp_niv = st.selectbox(
@@ -1486,7 +1516,7 @@ elif page == "📝 Entretien RH":
                 elif key == "V3":
                     render_voeu_tab(tabs[tab_idx], 3, voeu3_label, "V3_")
                     tab_idx += 1
-                elif key == "V4":  # ← NOUVEAU
+                elif key == "V4":
                     render_voeu_tab(tabs[tab_idx], 4, voeu4_label, "V4_")
                     tab_idx += 1
                 elif key == "AVIS":
@@ -1520,7 +1550,6 @@ elif page == "📝 Entretien RH":
                         st.divider()
                         st.markdown("#### 🎯 Décision RH")
                         
-                        # Construire la liste des vœux pour la décision
                         voeux_list = []
                         if voeu1_label and voeu1_label != "Positionnement manquant":
                             voeux_list.append(voeu1_label)
@@ -1528,7 +1557,7 @@ elif page == "📝 Entretien RH":
                             voeux_list.append(voeu2_label)
                         if voeu3_label and voeu3_label != "Positionnement manquant":
                             voeux_list.append(voeu3_label)
-                        if voeu4_label and voeu4_label != "Positionnement manquant":  # ← NOUVEAU
+                        if voeu4_label and voeu4_label != "Positionnement manquant":
                             voeux_list.append(voeu4_label)
                         
                         voeux_list.append("Autre")
@@ -1547,7 +1576,6 @@ elif page == "📝 Entretien RH":
                         )
 
                         poste_final = None
-                        autre_poste_selectionne = None
 
                         if decision_rh != "-- Aucune décision --":
                             if decision_rh == "Autre":
@@ -1612,7 +1640,6 @@ elif page == "📝 Entretien RH":
                         st.divider()
                         if st.button("💾 Sauvegarder l'entretien complet", type="primary", use_container_width=True):
                             save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
-
 
 # ========================================
 # NOUVELLE PAGE : COMPARATIF DES CANDIDATURES PAR POSTE
@@ -2105,6 +2132,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
