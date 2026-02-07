@@ -1986,23 +1986,28 @@ elif page == "🗒️🔁 Tableau agrégé AM":
     
     st.markdown("""
     Ce tableau synthétise tous les vœux émis par poste avec le détail des profils métiers actuels des candidats.
+    Les postes ouverts correspondent au nombre de postes disponibles (total - attribués).
     """)
     
     st.divider()
     
-    # Construction du tableau agrégé
+    # ===== CONSTRUCTION DU TABLEAU AGRÉGÉ =====
     aggregated_data = []
     
     for _, poste_row in postes_df.iterrows():
         poste = poste_row.get("Poste", "")
         direction = poste_row.get("Direction", "")
         
-        # Postes ouverts (Nombre de postes vacants)
-        postes_ouverts = poste_row.get("Nombre de postes vacants ", 0)
-        try:
-            postes_ouverts = int(postes_ouverts) if postes_ouverts else 0
-        except:
-            postes_ouverts = 0
+        # ✅ CALCUL CORRECT DES POSTES OUVERTS (aligné sur Analyse par Poste)
+        nb_postes_total = int(poste_row.get("Nombre total de postes", 1))
+        
+        # Compter les postes attribués
+        nb_postes_attribues = len(collaborateurs_df[
+            (collaborateurs_df["Vœux Retenu"] == poste)
+        ])
+        
+        # Calculer les postes disponibles
+        postes_ouverts = nb_postes_total - nb_postes_attribues
         
         # Initialiser les compteurs
         candidatures_v1 = 0
@@ -2076,7 +2081,59 @@ elif page == "🗒️🔁 Tableau agrégé AM":
     
     df_aggregated = pd.DataFrame(aggregated_data)
     
-    # Filtres
+    # ===== STATISTIQUES RAPIDES EN HAUT =====
+    st.subheader("📈 Statistiques Rapides")
+    
+    col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+    
+    total_postes_ouverts = int(df_aggregated["POSTES OUVERTS"].sum())
+    total_candidatures = int(df_aggregated["CANDIDATURES TOTAL"].sum())
+    avg_cand = df_aggregated["CANDIDATURES TOTAL"].mean() if not df_aggregated.empty else 0
+    postes_sans_candidat = len(df_aggregated[df_aggregated["CANDIDATURES TOTAL"] == 0])
+    
+    with col_stat1:
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    padding: 20px; border-radius: 12px; color: white; text-align: center;'>
+            <h3 style='margin:0; color: white; font-size: 1rem;'>📍 Postes Ouverts</h3>
+            <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{}</h1>
+            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>disponibles</p>
+        </div>
+        """.format(total_postes_ouverts), unsafe_allow_html=True)
+    
+    with col_stat2:
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                    padding: 20px; border-radius: 12px; color: white; text-align: center;'>
+            <h3 style='margin:0; color: white; font-size: 1rem;'>📊 Candidatures</h3>
+            <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{}</h1>
+            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>total vœux</p>
+        </div>
+        """.format(total_candidatures), unsafe_allow_html=True)
+    
+    with col_stat3:
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
+                    padding: 20px; border-radius: 12px; color: white; text-align: center;'>
+            <h3 style='margin:0; color: white; font-size: 1rem;'>📈 Moyenne</h3>
+            <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{:.1f}</h1>
+            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>candidatures/poste</p>
+        </div>
+        """.format(avg_cand), unsafe_allow_html=True)
+    
+    with col_stat4:
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); 
+                    padding: 20px; border-radius: 12px; color: white; text-align: center;'>
+            <h3 style='margin:0; color: white; font-size: 1rem;'>⚠️ Sans Candidat</h3>
+            <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{}</h1>
+            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>postes</p>
+        </div>
+        """.format(postes_sans_candidat), unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # ===== FILTRES =====
     st.subheader("🔍 Filtres")
     col_f1, col_f2 = st.columns(2)
     
@@ -2088,10 +2145,11 @@ elif page == "🗒️🔁 Tableau agrégé AM":
         )
     
     with col_f2:
+        max_cand = int(df_aggregated["CANDIDATURES TOTAL"].max()) if not df_aggregated.empty else 10
         filtre_min_candidatures = st.slider(
             "Nombre minimum de candidatures totales",
             min_value=0,
-            max_value=int(df_aggregated["CANDIDATURES TOTAL"].max()) if not df_aggregated.empty else 10,
+            max_value=max_cand,
             value=0
         )
     
@@ -2108,12 +2166,12 @@ elif page == "🗒️🔁 Tableau agrégé AM":
     
     st.divider()
     
-    # Affichage du tableau
+    # ===== AFFICHAGE DU TABLEAU =====
     st.subheader(f"📊 {len(df_filtered_agg)} poste(s) affiché(s)")
     
     st.dataframe(
         df_filtered_agg,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "POSTE PROJETE": st.column_config.TextColumn(width="large"),
@@ -2133,7 +2191,7 @@ elif page == "🗒️🔁 Tableau agrégé AM":
     
     st.divider()
     
-    # Export Excel
+    # ===== EXPORT EXCEL =====
     st.subheader("📥 Export Excel")
     
     paris_tz = pytz.timezone('Europe/Paris')
@@ -2148,28 +2206,8 @@ elif page == "🗒️🔁 Tableau agrégé AM":
         file_name=filename,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary",
-        use_container_width=True
+        width="stretch"
     )
-    
-    # Statistiques rapides
-    st.divider()
-    st.subheader("📈 Statistiques rapides")
-    
-    col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-    
-    with col_stat1:
-        st.metric("Total postes ouverts", int(df_filtered_agg["POSTES OUVERTS"].sum()))
-    
-    with col_stat2:
-        st.metric("Total candidatures", int(df_filtered_agg["CANDIDATURES TOTAL"].sum()))
-    
-    with col_stat3:
-        avg_cand = df_filtered_agg["CANDIDATURES TOTAL"].mean() if not df_filtered_agg.empty else 0
-        st.metric("Moyenne candidatures/poste", f"{avg_cand:.1f}")
-    
-    with col_stat4:
-        postes_sans_candidat = len(df_filtered_agg[df_filtered_agg["CANDIDATURES TOTAL"] == 0])
-        st.metric("Postes sans candidat", postes_sans_candidat)
 
 # ========================================
 # PAGE 4 : ANALYSE PAR POSTE
@@ -2482,6 +2520,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
