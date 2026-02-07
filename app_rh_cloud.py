@@ -1999,7 +1999,7 @@ elif page == "🗒️🔁 Tableau agrégé AM":
         direction = poste_row.get("Direction", "")
         
         # ✅ CORRECTION : Postes ouverts = Nombre de postes vacants (colonne Google Sheet)
-        postes_ouverts = poste_row.get("Nombre total de postes", 0)
+        postes_ouverts = poste_row.get("Nombre de postes vacants ", 0)
         try:
             postes_ouverts = int(postes_ouverts) if postes_ouverts else 0
         except:
@@ -2593,6 +2593,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
