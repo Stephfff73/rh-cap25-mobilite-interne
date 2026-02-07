@@ -1905,7 +1905,7 @@ elif page == "💻🔍 Candidatures/Poste":
     
     st.markdown("""
     Cette page vous permet de comparer côte à côte tous les entretiens RH des candidats pour un poste donné.
-    Les candidats sont classés par ordre de vœu (V1 > V2 > V3) puis par ordre alphabétique.
+    Les candidats sont classés par ordre de vœu (V1 > V2 > V3 > V4) puis au sein de chaque voeu par ordre alphabétique.
     """)
     
     st.divider()
@@ -2683,6 +2683,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
