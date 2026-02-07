@@ -1900,7 +1900,7 @@ elif page == "📝 Entretien RH":
 # NOUVELLE PAGE : COMPARATIF DES CANDIDATURES PAR POSTE
 # ========================================
 
-elif page == "💻 Comparatif des candidatures par Poste":
+elif page == ""💻🔍 Candidatures/Poste"
     st.title("💻 Comparatif des Candidatures par Poste")
     
     st.markdown("""
@@ -2683,6 +2683,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
