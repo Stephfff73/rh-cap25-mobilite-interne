@@ -1987,6 +1987,7 @@ elif page == "🗒️🔁 Tableau agrégé AM":
     st.markdown("""
     Ce tableau synthétise tous les vœux émis par poste Cap 25 avec le détail des profils métiers actuels des candidats.
     Les postes ouverts correspondent au nombre de postes vacants disponibles pour la mobilité interne.
+    **Note : Seuls les postes ayant un nombre de vacances défini sont affichés.**
     """)
     
     st.divider()
@@ -1995,14 +1996,22 @@ elif page == "🗒️🔁 Tableau agrégé AM":
     aggregated_data = []
     
     for _, poste_row in postes_df.iterrows():
+        # --- FILTRAGE : On ignore si "Nombre de postes vacants" est vide ---
+        raw_vacants = poste_row.get("Nombre de postes vacants ", "")
+        
+        # Vérification robuste : si c'est null, NaN, ou une chaîne vide/espaces
+        if pd.isna(raw_vacants) or str(raw_vacants).strip() == "":
+            continue  # On passe au poste suivant immédiatement
+            
         poste = poste_row.get("Poste", "")
         direction = poste_row.get("Direction", "")
         
-        # ✅ CORRECTION : Postes ouverts = Nombre de postes vacants (colonne Google Sheet)
-        postes_ouverts = poste_row.get("Nombre de postes vacants ", 0)
+        # Conversion sécurisée en int maintenant qu'on sait que ce n'est pas vide
         try:
-            postes_ouverts = int(postes_ouverts) if postes_ouverts else 0
-        except:
+            postes_ouverts = int(float(raw_vacants)) # float permet de gérer le cas "3.0" issu d'Excel
+        except (ValueError, TypeError):
+            # Si la valeur est "Inconnu" ou du texte, on décide soit de mettre 0, soit de sauter.
+            # Ici, je mets 0 par sécurité, mais vous pouvez mettre 'continue' si vous voulez exclure les erreurs de format.
             postes_ouverts = 0
         
         # Initialiser les compteurs
@@ -2023,34 +2032,22 @@ elif page == "🗒️🔁 Tableau agrégé AM":
             # Vœu 1
             if get_safe_value(collab.get("Vœux 1", "")) == poste:
                 candidatures_v1 += 1
-                if poste_actuel in profils_v1:
-                    profils_v1[poste_actuel] += 1
-                else:
-                    profils_v1[poste_actuel] = 1
+                profils_v1[poste_actuel] = profils_v1.get(poste_actuel, 0) + 1
             
             # Vœu 2
             if get_safe_value(collab.get("Vœux 2", "")) == poste:
                 candidatures_v2 += 1
-                if poste_actuel in profils_v2:
-                    profils_v2[poste_actuel] += 1
-                else:
-                    profils_v2[poste_actuel] = 1
+                profils_v2[poste_actuel] = profils_v2.get(poste_actuel, 0) + 1
             
             # Vœu 3
             if get_safe_value(collab.get("Voeux 3", "")) == poste:
                 candidatures_v3 += 1
-                if poste_actuel in profils_v3:
-                    profils_v3[poste_actuel] += 1
-                else:
-                    profils_v3[poste_actuel] = 1
+                profils_v3[poste_actuel] = profils_v3.get(poste_actuel, 0) + 1
             
             # Vœu 4
             if get_safe_value(collab.get("Voeux 4", "")) == poste:
                 candidatures_v4 += 1
-                if poste_actuel in profils_v4:
-                    profils_v4[poste_actuel] += 1
-                else:
-                    profils_v4[poste_actuel] = 1
+                profils_v4[poste_actuel] = profils_v4.get(poste_actuel, 0) + 1
         
         # Formater les profils métiers
         def format_profils(profils_dict):
@@ -2077,213 +2074,204 @@ elif page == "🗒️🔁 Tableau agrégé AM":
     
     df_aggregated = pd.DataFrame(aggregated_data)
     
-    # ===== FILTRES =====
-    st.subheader("🔍 Filtres")
-    col_f1, col_f2 = st.columns(2)
-    
-    with col_f1:
-        filtre_direction_agg = st.multiselect(
-            "Filtrer par Direction",
-            options=sorted(df_aggregated["DIRECTION"].unique()),
-            default=[]
+    # Gestion du cas où le dataframe est vide après filtrage
+    if df_aggregated.empty:
+        st.warning("Aucun poste avec des vacances déclarées n'a été trouvé.")
+    else:
+        # ===== FILTRES =====
+        st.subheader("🔍 Filtres")
+        col_f1, col_f2 = st.columns(2)
+        
+        with col_f1:
+            filtre_direction_agg = st.multiselect(
+                "Filtrer par Direction",
+                options=sorted(df_aggregated["DIRECTION"].unique()),
+                default=[]
+            )
+        
+        with col_f2:
+            max_cand = int(df_aggregated["CANDIDATURES TOTAL"].max()) if not df_aggregated.empty else 10
+            filtre_min_candidatures = st.slider(
+                "Nombre minimum de candidatures totales",
+                min_value=0,
+                max_value=max_cand,
+                value=0
+            )
+        
+        # Appliquer les filtres
+        df_filtered_agg = df_aggregated.copy()
+        
+        if filtre_direction_agg:
+            df_filtered_agg = df_filtered_agg[df_filtered_agg["DIRECTION"].isin(filtre_direction_agg)]
+        
+        df_filtered_agg = df_filtered_agg[df_filtered_agg["CANDIDATURES TOTAL"] >= filtre_min_candidatures]
+        
+        # Tri par nombre de candidatures décroissant
+        df_filtered_agg = df_filtered_agg.sort_values("CANDIDATURES TOTAL", ascending=False)
+        
+        # Déterminer si des filtres sont actifs
+        filtres_actifs = bool(filtre_direction_agg) or filtre_min_candidatures > 0
+        
+        st.divider()
+        
+        # ===== STATISTIQUES RAPIDES =====
+        st.subheader("📈 Statistiques Rapides")
+        
+        # Calculs statistiques GLOBALES
+        total_postes_ouverts_global = int(df_aggregated["POSTES OUVERTS"].sum())
+        total_candidatures_global = int(df_aggregated["CANDIDATURES TOTAL"].sum())
+        avg_cand_global = df_aggregated["CANDIDATURES TOTAL"].mean() if not df_aggregated.empty else 0
+        postes_sans_candidat_global = len(df_aggregated[df_aggregated["CANDIDATURES TOTAL"] == 0])
+        
+        # Calculs statistiques FILTRÉES
+        total_postes_ouverts_filtre = int(df_filtered_agg["POSTES OUVERTS"].sum())
+        total_candidatures_filtre = int(df_filtered_agg["CANDIDATURES TOTAL"].sum())
+        avg_cand_filtre = df_filtered_agg["CANDIDATURES TOTAL"].mean() if not df_filtered_agg.empty else 0
+        postes_sans_candidat_filtre = len(df_filtered_agg[df_filtered_agg["CANDIDATURES TOTAL"] == 0])
+        
+        # Affichage des cartes
+        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+        
+        # ===== CARTE 1 : POSTES OUVERTS =====
+        with col_stat1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
+                <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>📍 Postes Ouverts</h4>
+                <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{total_postes_ouverts_global}</h1>
+                <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if filtres_actifs:
+                delta_pct = (total_postes_ouverts_filtre / total_postes_ouverts_global * 100) if total_postes_ouverts_global > 0 else 0
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
+                            padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #667eea;'>
+                    <h4 style='margin:0; color: #667eea; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
+                    <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{total_postes_ouverts_filtre}</h2>
+                    <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{delta_pct:.1f}% du total</p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # ===== CARTE 2 : CANDIDATURES TOTAL =====
+        with col_stat2:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                        padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
+                <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>📊 Candidatures</h4>
+                <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{total_candidatures_global}</h1>
+                <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if filtres_actifs:
+                delta_pct = (total_candidatures_filtre / total_candidatures_global * 100) if total_candidatures_global > 0 else 0
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
+                            padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #f093fb;'>
+                    <h4 style='margin:0; color: #f5576c; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
+                    <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{total_candidatures_filtre}</h2>
+                    <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{delta_pct:.1f}% du total</p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # ===== CARTE 3 : MOYENNE =====
+        with col_stat3:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
+                        padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
+                <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>📈 Moyenne</h4>
+                <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{avg_cand_global:.1f}</h1>
+                <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if filtres_actifs:
+                delta_avg = avg_cand_filtre - avg_cand_global
+                delta_sign = "+" if delta_avg > 0 else ""
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
+                            padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #4facfe;'>
+                    <h4 style='margin:0; color: #00f2fe; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
+                    <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{avg_cand_filtre:.1f}</h2>
+                    <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{delta_sign}{delta_avg:.1f} vs global</p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # ===== CARTE 4 : SANS CANDIDAT =====
+        with col_stat4:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); 
+                        padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
+                <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>⚠️ Sans Candidat</h4>
+                <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{postes_sans_candidat_global}</h1>
+                <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if filtres_actifs:
+                delta_pct = (postes_sans_candidat_filtre / postes_sans_candidat_global * 100) if postes_sans_candidat_global > 0 else 0
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
+                            padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #fa709a;'>
+                    <h4 style='margin:0; color: #fa709a; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
+                    <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{postes_sans_candidat_filtre}</h2>
+                    <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{delta_pct:.1f}% du total</p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # ===== AFFICHAGE DU TABLEAU =====
+        st.subheader(f"📊 {len(df_filtered_agg)} poste(s) affiché(s)")
+        
+        st.dataframe(
+            df_filtered_agg,
+            width=None, # Remplacement de "stretch" par None ou use_container_width=True pour compatibilité
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "POSTE PROJETE": st.column_config.TextColumn("Poste Projeté", width="large"),
+                "DIRECTION": st.column_config.TextColumn("Direction", width="medium"),
+                "POSTES OUVERTS": st.column_config.NumberColumn("Postes Ouverts", width="small", format="%d"),
+                "CANDIDATURES TOTAL": st.column_config.NumberColumn("Candidatures Total", width="small", format="%d"),
+                "CANDIDATURES VŒUX 1": st.column_config.NumberColumn("Vœux 1", width="small", format="%d"),
+                "PROFILS DE METIER / CANDIDAT (Vœux 1)": st.column_config.TextColumn("Détail Vœux 1", width="large"),
+                "CANDIDATURES VŒUX 2": st.column_config.NumberColumn("Vœux 2", width="small", format="%d"),
+                "PROFILS DE METIER / CANDIDAT (Vœux 2)": st.column_config.TextColumn("Détail Vœux 2", width="large"),
+                # ... vous pouvez continuer la config pour 3 et 4 si besoin
+            }
         )
-    
-    with col_f2:
-        max_cand = int(df_aggregated["CANDIDATURES TOTAL"].max()) if not df_aggregated.empty else 10
-        filtre_min_candidatures = st.slider(
-            "Nombre minimum de candidatures totales",
-            min_value=0,
-            max_value=max_cand,
-            value=0
-        )
-    
-    # Appliquer les filtres
-    df_filtered_agg = df_aggregated.copy()
-    
-    if filtre_direction_agg:
-        df_filtered_agg = df_filtered_agg[df_filtered_agg["DIRECTION"].isin(filtre_direction_agg)]
-    
-    df_filtered_agg = df_filtered_agg[df_filtered_agg["CANDIDATURES TOTAL"] >= filtre_min_candidatures]
-    
-    # Tri par nombre de candidatures décroissant
-    df_filtered_agg = df_filtered_agg.sort_values("CANDIDATURES TOTAL", ascending=False)
-    
-    # Déterminer si des filtres sont actifs
-    filtres_actifs = bool(filtre_direction_agg) or filtre_min_candidatures > 0
-    
-    st.divider()
-    
-    # ===== STATISTIQUES RAPIDES =====
-    st.subheader("📈 Statistiques Rapides")
-    
-    # Calculs statistiques GLOBALES
-    total_postes_ouverts_global = int(df_aggregated["POSTES OUVERTS"].sum())
-    total_candidatures_global = int(df_aggregated["CANDIDATURES TOTAL"].sum())
-    avg_cand_global = df_aggregated["CANDIDATURES TOTAL"].mean() if not df_aggregated.empty else 0
-    postes_sans_candidat_global = len(df_aggregated[df_aggregated["CANDIDATURES TOTAL"] == 0])
-    
-    # Calculs statistiques FILTRÉES
-    total_postes_ouverts_filtre = int(df_filtered_agg["POSTES OUVERTS"].sum())
-    total_candidatures_filtre = int(df_filtered_agg["CANDIDATURES TOTAL"].sum())
-    avg_cand_filtre = df_filtered_agg["CANDIDATURES TOTAL"].mean() if not df_filtered_agg.empty else 0
-    postes_sans_candidat_filtre = len(df_filtered_agg[df_filtered_agg["CANDIDATURES TOTAL"] == 0])
-    
-    # Affichage des cartes
-    col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-    
-    # ===== CARTE 1 : POSTES OUVERTS =====
-    with col_stat1:
-        # Carte globale
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
-            <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>📍 Postes Ouverts</h4>
-            <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{}</h1>
-            <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
-        </div>
-        """.format(total_postes_ouverts_global), unsafe_allow_html=True)
         
-        # Carte filtrée (si filtres actifs)
-        if filtres_actifs:
-            delta_pct = (total_postes_ouverts_filtre / total_postes_ouverts_global * 100) if total_postes_ouverts_global > 0 else 0
+        st.divider()
+        
+        # ===== EXPORT EXCEL =====
+        st.subheader("📥 Export Excel")
+        
+        col_export1, col_export2 = st.columns([3, 1])
+        
+        with col_export1:
+            st.info("💡 Le fichier exporté contiendra les données **filtrées** affichées dans le tableau ci-dessus.")
+        
+        with col_export2:
+            paris_tz = pytz.timezone('Europe/Paris')
+            export_time = datetime.now(paris_tz)
+            filename = f"EDL voeux CAP25 - {export_time.strftime('%d-%m-%Y %Hh%M')}.xlsx"
             
-            st.markdown("""
-            <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
-                        padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #667eea;'>
-                <h4 style='margin:0; color: #667eea; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
-                <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{}</h2>
-                <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{:.1f}% du total</p>
-            </div>
-            """.format(total_postes_ouverts_filtre, delta_pct), unsafe_allow_html=True)
-    
-    # ===== CARTE 2 : CANDIDATURES TOTAL =====
-    with col_stat2:
-        # Carte globale
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
-                    padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
-            <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>📊 Candidatures</h4>
-            <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{}</h1>
-            <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
-        </div>
-        """.format(total_candidatures_global), unsafe_allow_html=True)
-        
-        # Carte filtrée
-        if filtres_actifs:
-            delta_pct = (total_candidatures_filtre / total_candidatures_global * 100) if total_candidatures_global > 0 else 0
+            excel_data = to_excel(df_filtered_agg)
             
-            st.markdown("""
-            <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
-                        padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #f093fb;'>
-                <h4 style='margin:0; color: #f5576c; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
-                <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{}</h2>
-                <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{:.1f}% du total</p>
-            </div>
-            """.format(total_candidatures_filtre, delta_pct), unsafe_allow_html=True)
-    
-    # ===== CARTE 3 : MOYENNE CANDIDATURES/POSTE =====
-    with col_stat3:
-        # Carte globale
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
-                    padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
-            <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>📈 Moyenne</h4>
-            <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{:.1f}</h1>
-            <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
-        </div>
-        """.format(avg_cand_global), unsafe_allow_html=True)
-        
-        # Carte filtrée
-        if filtres_actifs:
-            delta_avg = avg_cand_filtre - avg_cand_global
-            delta_sign = "+" if delta_avg > 0 else ""
+            st.download_button(
+                label="📥 Télécharger en Excel",
+                data=excel_data,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                use_container_width=True
+            )
             
-            st.markdown("""
-            <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
-                        padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #4facfe;'>
-                <h4 style='margin:0; color: #00f2fe; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
-                <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{:.1f}</h2>
-                <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{}{:.1f} vs global</p>
-            </div>
-            """.format(avg_cand_filtre, delta_sign, delta_avg), unsafe_allow_html=True)
-    
-    # ===== CARTE 4 : POSTES SANS CANDIDAT =====
-    with col_stat4:
-        # Carte globale
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); 
-                    padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
-            <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>⚠️ Sans Candidat</h4>
-            <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{}</h1>
-            <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
-        </div>
-        """.format(postes_sans_candidat_global), unsafe_allow_html=True)
-        
-        # Carte filtrée
-        if filtres_actifs:
-            delta_pct = (postes_sans_candidat_filtre / postes_sans_candidat_global * 100) if postes_sans_candidat_global > 0 else 0
-            
-            st.markdown("""
-            <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
-                        padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #fa709a;'>
-                <h4 style='margin:0; color: #fa709a; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
-                <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{}</h2>
-                <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{:.1f}% du total</p>
-            </div>
-            """.format(postes_sans_candidat_filtre, delta_pct), unsafe_allow_html=True)
-    
-    st.divider()
-    
-    # ===== AFFICHAGE DU TABLEAU =====
-    st.subheader(f"📊 {len(df_filtered_agg)} poste(s) affiché(s)")
-    
-    st.dataframe(
-        df_filtered_agg,
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "POSTE PROJETE": st.column_config.TextColumn(width="large"),
-            "DIRECTION": st.column_config.TextColumn(width="medium"),
-            "POSTES OUVERTS": st.column_config.NumberColumn(width="small", format="%d"),
-            "CANDIDATURES TOTAL": st.column_config.NumberColumn(width="small", format="%d"),
-            "CANDIDATURES VŒUX 1": st.column_config.NumberColumn(width="small", format="%d"),
-            "PROFILS DE METIER / CANDIDAT (Vœux 1)": st.column_config.TextColumn(width="large"),
-            "CANDIDATURES VŒUX 2": st.column_config.NumberColumn(width="small", format="%d"),
-            "PROFILS DE METIER / CANDIDAT (Vœux 2)": st.column_config.TextColumn(width="large"),
-            "CANDIDATURES VŒUX 3": st.column_config.NumberColumn(width="small", format="%d"),
-            "PROFILS DE METIER / CANDIDAT (Vœux 3)": st.column_config.TextColumn(width="large"),
-            "CANDIDATURES VŒUX 4": st.column_config.NumberColumn(width="small", format="%d"),
-            "PROFILS DE METIER / CANDIDAT (Vœux 4)": st.column_config.TextColumn(width="large")
-        }
-    )
-    
-    st.divider()
-    
-    # ===== EXPORT EXCEL =====
-    st.subheader("📥 Export Excel")
-    
-    col_export1, col_export2 = st.columns([3, 1])
-    
-    with col_export1:
-        st.info("💡 Le fichier exporté contiendra les données **filtrées** affichées dans le tableau ci-dessus.")
-    
-    with col_export2:
-        paris_tz = pytz.timezone('Europe/Paris')
-        export_time = datetime.now(paris_tz)
-        filename = f"EDL voeux CAP25 - {export_time.strftime('%d-%m-%Y %Hh%M')}.xlsx"
-        
-        excel_data = to_excel(df_filtered_agg)
-        
-        st.download_button(
-            label="📥 Télécharger en Excel",
-            data=excel_data,
-            file_name=filename,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="primary",
-            width="stretch"
-        )
 # ========================================
-# PAGE 4 : ANALYSE PAR POSTE
+# PAGE 5 : ANALYSE PAR POSTE
 # ========================================
 
 elif page == "🎯 Analyse par Poste":
@@ -2543,7 +2531,7 @@ elif page == "🎯 Analyse par Poste":
         st.info("Aucun poste ne correspond aux filtres sélectionnés")
 
 # ========================================
-# PAGE 5 : RÉFÉRENTIEL POSTES
+# PAGE 6 : RÉFÉRENTIEL POSTES
 # ========================================
 
 elif page == "🌳 Référentiel Postes":
@@ -2593,6 +2581,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
