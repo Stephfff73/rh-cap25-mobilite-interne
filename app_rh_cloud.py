@@ -1,3 +1,4 @@
+pip install xlsxwriter
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
@@ -732,7 +733,7 @@ if page == "📊 Tableau de Bord":
             st.metric(
                 label="📢 Postes ouverts",
                 value=nb_postes_ouverts,
-                help="Postes disponibles pour la mobilité"
+                help="Postes disponibles pour la mobilité interne Cap 25"
             )
 
     with c3:
@@ -2228,6 +2229,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
