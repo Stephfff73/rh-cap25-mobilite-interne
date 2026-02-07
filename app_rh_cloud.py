@@ -9,6 +9,165 @@ import json
 import altair as alt
 import io
 
+@st.cache_data(ttl=600)
+def prepare_aggregated_data(df_postes, df_collabs):
+    """
+    Version CORRIGÉE : Gère les espaces invisibles et les colonnes dupliquées.
+    """
+    # =========================================================
+    # 0. NETTOYAGE PRÉALABLE DES DATAFRAMES (CRITIQUE)
+    # =========================================================
+    
+    # On travaille sur des copies pour ne pas casser le reste de l'app
+    df_p = df_postes.copy()
+    df_c = df_collabs.copy()
+
+    # 1. Nettoyage des noms de colonnes (supprime les espaces avant/après)
+    df_p.columns = df_p.columns.str.strip()
+    df_c.columns = df_c.columns.str.strip()
+    
+    # 2. Suppression des colonnes dupliquées (cause probable de votre crash)
+    # Si "Poste libellé" apparaît 2 fois dans Excel, cela faisait planter melt
+    df_c = df_c.loc[:, ~df_c.columns.duplicated()]
+
+    # =========================================================
+    # 1. GESTION DES POSTES (DATA CLEANING)
+    # =========================================================
+    
+    # Recherche floue de la colonne "Nombre de postes vacants"
+    col_vacants = next((c for c in df_p.columns if "vacants" in c.lower()), None)
+    
+    if not col_vacants:
+        st.error("Colonne 'vacants' introuvable dans le fichier Postes.")
+        return pd.DataFrame()
+
+    # Nettoyage des valeurs numériques
+    df_p["_vacants_clean"] = pd.to_numeric(df_p[col_vacants], errors='coerce')
+    df_p_clean = df_p[df_p["_vacants_clean"] > 0].copy()
+    
+    if df_p_clean.empty:
+        return pd.DataFrame()
+
+    # =========================================================
+    # 2. GESTION DES COLLABORATEURS (MELT INTELLIGENT)
+    # =========================================================
+
+    # A. Trouver la colonne "Poste Actuel" quel que soit son orthographe exacte
+    # On cherche une colonne qui contient "Poste" ET "libellé" (insensible à la casse)
+    col_poste_actuel = next((c for c in df_c.columns if "poste" in c.lower() and "libellé" in c.lower()), None)
+
+    if not col_poste_actuel:
+        st.error("Colonne 'Poste libellé' introuvable dans le fichier Collaborateurs.")
+        return pd.DataFrame()
+
+    # B. Trouver les colonnes de Vœux (Vœux 1, Voeux 2, Vœu 3...)
+    # On scanne toutes les colonnes pour trouver celles qui ressemblent à des vœux
+    voeux_map = {} # {Nom_Colonne_Reelle : Numero_Voeu}
+    
+    for col in df_c.columns:
+        # On nettoie le nom pour la détection (minuscule, sans accent pour le match)
+        c_norm = col.lower().replace("œ", "oe")
+        if "voeu" in c_norm or "vœu" in c_norm:
+            # On cherche le chiffre dans le nom de la colonne
+            match = re.search(r'\d+', col)
+            if match:
+                rank = int(match.group())
+                if 1 <= rank <= 4: # On ne garde que 1 à 4
+                    voeux_map[col] = rank
+
+    if not voeux_map:
+        st.warning("Aucune colonne de 'Vœux' (1, 2, 3 ou 4) trouvée.")
+        return pd.DataFrame()
+
+    # C. Renommage temporaire pour éviter les erreurs de syntaxe Pandas
+    # On renomme la colonne poste actuel en une clé simple et sûre
+    df_c = df_c.rename(columns={col_poste_actuel: "CURRENT_POST"})
+    
+    # D. Le MELT (Transformation des colonnes en lignes)
+    df_melted = df_c.melt(
+        id_vars=["CURRENT_POST"],      # La colonne sûre qu'on vient de renommer
+        value_vars=list(voeux_map.keys()), # La liste des colonnes de vœux détectées
+        var_name="Source_Voeu_Raw",
+        value_name="Poste_Vise"
+    )
+
+    # Nettoyage des vœux vides (NaN ou vides)
+    df_melted = df_melted.dropna(subset=["Poste_Vise"])
+    df_melted = df_melted[df_melted["Poste_Vise"].astype(str).str.strip() != ""]
+
+    # Récupération du rang (1, 2, 3, 4) depuis notre map
+    df_melted["Rang"] = df_melted["Source_Voeu_Raw"].map(voeux_map)
+
+    # =========================================================
+    # 3. AGGRÉGATION ET FUSION
+    # =========================================================
+
+    # Compte total par poste visé
+    counts = df_melted.groupby("Poste_Vise").size().reset_index(name="CANDIDATURES TOTAL")
+    
+    # Pivot pour avoir les colonnes Voeu 1, Voeu 2...
+    pivot_ranks = df_melted.pivot_table(
+        index="Poste_Vise", 
+        columns="Rang", 
+        aggfunc='size', 
+        fill_value=0
+    ).add_prefix("Vœu ")
+    
+    # Fonction pour créer le résumé des profils (qui vient d'où ?) pour le Voeu 1
+    v1_only = df_melted[df_melted["Rang"] == 1]
+    
+    def get_profiles_summary(sub_df):
+        if sub_df.empty: return ""
+        # On compte les métiers d'origine
+        counts = sub_df["CURRENT_POST"].value_counts()
+        return "; ".join([f"{metier} ({nb})" for metier, nb in counts.items()])
+
+    if not v1_only.empty:
+        profiles_summary = v1_only.groupby("Poste_Vise").apply(get_profiles_summary).reset_index(name="PROFILS (V1)")
+    else:
+        profiles_summary = pd.DataFrame(columns=["Poste_Vise", "PROFILS (V1)"])
+
+    # Recherche de la bonne colonne "Poste" ou "Libellé Poste" dans le fichier Postes
+    col_nom_poste = next((c for c in df_p_clean.columns if "poste" in c.lower()), None)
+    
+    # Fusion finale
+    df_final = df_p_clean.merge(counts, left_on=col_nom_poste, right_on="Poste_Vise", how="left")
+    df_final = df_final.merge(pivot_ranks, left_on=col_nom_poste, right_index=True, how="left")
+    df_final = df_final.merge(profiles_summary, left_on=col_nom_poste, right_on="Poste_Vise", how="left")
+    
+    # Remplissage des 0
+    numeric_cols = ["CANDIDATURES TOTAL"] + [c for c in df_final.columns if c.startswith("Vœu ")]
+    df_final[numeric_cols] = df_final[numeric_cols].fillna(0)
+    
+    # Calcul Tension
+    df_final["Tension"] = df_final["CANDIDATURES TOTAL"] / df_final["_vacants_clean"]
+    
+    # Nettoyage final des colonnes pour l'affichage
+    col_direction = next((c for c in df_p_clean.columns if "direction" in c.lower()), "Direction") # Fallback
+    
+    display_cols = {
+        col_nom_poste: "POSTE PROJETE",
+        col_direction: "DIRECTION",
+        "_vacants_clean": "POSTES OUVERTS",
+        "CANDIDATURES TOTAL": "TOTAL CANDIDATS",
+        "Tension": "TENSION",
+        "PROFILS (V1)": "ORIGINE CANDIDATS (V1)"
+    }
+    
+    # Ajouter dynamiquement les colonnes de vœux existantes
+    for col in df_final.columns:
+        if str(col).startswith("Vœu "): # cast str par sécurité
+            display_cols[col] = str(col).upper()
+
+    df_final = df_final.rename(columns=display_cols)
+    
+    # On ne garde que les colonnes qui existent vraiment dans display_cols
+    final_columns = [c for c in display_cols.values() if c in df_final.columns]
+    
+    return df_final[final_columns]
+
+
+
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
     page_title="CAP25 - Pilotage Mobilité v.05/02/26",  # ← Changer la version
@@ -2530,6 +2689,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
