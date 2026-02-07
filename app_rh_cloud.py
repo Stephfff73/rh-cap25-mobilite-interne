@@ -670,9 +670,9 @@ page = st.sidebar.radio(
         "📊 Tableau de Bord", 
         "👥 Gestion des Candidatures", 
         "📝 Entretien RH", 
-        "💻 Comparatif des candidatures par Poste",  # NOUVEAU
+        "💻 Comparatif Candidatures/Poste",  # NOUVEAU
         "🎯 Analyse par Poste", 
-        "🗒️🔁 Tableau agrégé pour Alice",  # ← NOUVEA
+        "🗒️🔁 Tableau agrégé AM",  # ← NOUVEA
         "🌳 Référentiel Postes"
     ],
     label_visibility="collapsed"
@@ -2482,6 +2482,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
