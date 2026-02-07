@@ -672,6 +672,7 @@ page = st.sidebar.radio(
         "📝 Entretien RH", 
         "💻 Comparatif des candidatures par Poste",  # NOUVEAU
         "🎯 Analyse par Poste", 
+        "🗒️🔁 Tableau agrégé pour Alice",  # ← NOUVEA
         "🌳 Référentiel Postes"
     ],
     label_visibility="collapsed"
@@ -1975,6 +1976,201 @@ elif page == "💻 Comparatif des candidatures par Poste":
         except Exception as e:
             st.error(f"Erreur lors du chargement des entretiens : {str(e)}")
 
+
+# ========================================
+# NOUVELLE PAGE : TABLEAU AGRÉGÉ POUR ALICE
+# ========================================
+
+elif page == "🗒️🔁 Tableau agrégé pour Alice":
+    st.title("🗒️🔁 Tableau Agrégé des Vœux - Vue Direction")
+    
+    st.markdown("""
+    Ce tableau synthétise tous les vœux émis par poste avec le détail des profils métiers actuels des candidats.
+    """)
+    
+    st.divider()
+    
+    # Construction du tableau agrégé
+    aggregated_data = []
+    
+    for _, poste_row in postes_df.iterrows():
+        poste = poste_row.get("Poste", "")
+        direction = poste_row.get("Direction", "")
+        
+        # Postes ouverts (Nombre de postes vacants)
+        postes_ouverts = poste_row.get("Nombre de postes vacants", 0)
+        try:
+            postes_ouverts = int(postes_ouverts) if postes_ouverts else 0
+        except:
+            postes_ouverts = 0
+        
+        # Initialiser les compteurs
+        candidatures_v1 = 0
+        candidatures_v2 = 0
+        candidatures_v3 = 0
+        candidatures_v4 = 0
+        
+        profils_v1 = {}
+        profils_v2 = {}
+        profils_v3 = {}
+        profils_v4 = {}
+        
+        # Parcourir les collaborateurs
+        for _, collab in collaborateurs_df.iterrows():
+            poste_actuel = get_safe_value(collab.get("Poste  libellé", "N/A"))
+            
+            # Vœu 1
+            if get_safe_value(collab.get("Vœux 1", "")) == poste:
+                candidatures_v1 += 1
+                if poste_actuel in profils_v1:
+                    profils_v1[poste_actuel] += 1
+                else:
+                    profils_v1[poste_actuel] = 1
+            
+            # Vœu 2
+            if get_safe_value(collab.get("Vœux 2", "")) == poste:
+                candidatures_v2 += 1
+                if poste_actuel in profils_v2:
+                    profils_v2[poste_actuel] += 1
+                else:
+                    profils_v2[poste_actuel] = 1
+            
+            # Vœu 3
+            if get_safe_value(collab.get("Voeux 3", "")) == poste:
+                candidatures_v3 += 1
+                if poste_actuel in profils_v3:
+                    profils_v3[poste_actuel] += 1
+                else:
+                    profils_v3[poste_actuel] = 1
+            
+            # Vœu 4
+            if get_safe_value(collab.get("Voeux 4", "")) == poste:
+                candidatures_v4 += 1
+                if poste_actuel in profils_v4:
+                    profils_v4[poste_actuel] += 1
+                else:
+                    profils_v4[poste_actuel] = 1
+        
+        # Formater les profils métiers
+        def format_profils(profils_dict):
+            if not profils_dict:
+                return ""
+            return "; ".join([f"{prof} ({count})" for prof, count in profils_dict.items()])
+        
+        candidatures_total = candidatures_v1 + candidatures_v2 + candidatures_v3 + candidatures_v4
+        
+        aggregated_data.append({
+            "POSTE PROJETE": poste,
+            "DIRECTION": direction,
+            "POSTES OUVERTS": postes_ouverts,
+            "CANDIDATURES TOTAL": candidatures_total,
+            "CANDIDATURES VŒUX 1": candidatures_v1,
+            "PROFILS DE METIER / CANDIDAT (Vœux 1)": format_profils(profils_v1),
+            "CANDIDATURES VŒUX 2": candidatures_v2,
+            "PROFILS DE METIER / CANDIDAT (Vœux 2)": format_profils(profils_v2),
+            "CANDIDATURES VŒUX 3": candidatures_v3,
+            "PROFILS DE METIER / CANDIDAT (Vœux 3)": format_profils(profils_v3),
+            "CANDIDATURES VŒUX 4": candidatures_v4,
+            "PROFILS DE METIER / CANDIDAT (Vœux 4)": format_profils(profils_v4)
+        })
+    
+    df_aggregated = pd.DataFrame(aggregated_data)
+    
+    # Filtres
+    st.subheader("🔍 Filtres")
+    col_f1, col_f2 = st.columns(2)
+    
+    with col_f1:
+        filtre_direction_agg = st.multiselect(
+            "Filtrer par Direction",
+            options=sorted(df_aggregated["DIRECTION"].unique()),
+            default=[]
+        )
+    
+    with col_f2:
+        filtre_min_candidatures = st.slider(
+            "Nombre minimum de candidatures totales",
+            min_value=0,
+            max_value=int(df_aggregated["CANDIDATURES TOTAL"].max()) if not df_aggregated.empty else 10,
+            value=0
+        )
+    
+    # Appliquer les filtres
+    df_filtered_agg = df_aggregated.copy()
+    
+    if filtre_direction_agg:
+        df_filtered_agg = df_filtered_agg[df_filtered_agg["DIRECTION"].isin(filtre_direction_agg)]
+    
+    df_filtered_agg = df_filtered_agg[df_filtered_agg["CANDIDATURES TOTAL"] >= filtre_min_candidatures]
+    
+    # Tri par nombre de candidatures décroissant
+    df_filtered_agg = df_filtered_agg.sort_values("CANDIDATURES TOTAL", ascending=False)
+    
+    st.divider()
+    
+    # Affichage du tableau
+    st.subheader(f"📊 {len(df_filtered_agg)} poste(s) affiché(s)")
+    
+    st.dataframe(
+        df_filtered_agg,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "POSTE PROJETE": st.column_config.TextColumn(width="large"),
+            "DIRECTION": st.column_config.TextColumn(width="medium"),
+            "POSTES OUVERTS": st.column_config.NumberColumn(width="small", format="%d"),
+            "CANDIDATURES TOTAL": st.column_config.NumberColumn(width="small", format="%d"),
+            "CANDIDATURES VŒUX 1": st.column_config.NumberColumn(width="small", format="%d"),
+            "PROFILS DE METIER / CANDIDAT (Vœux 1)": st.column_config.TextColumn(width="large"),
+            "CANDIDATURES VŒUX 2": st.column_config.NumberColumn(width="small", format="%d"),
+            "PROFILS DE METIER / CANDIDAT (Vœux 2)": st.column_config.TextColumn(width="large"),
+            "CANDIDATURES VŒUX 3": st.column_config.NumberColumn(width="small", format="%d"),
+            "PROFILS DE METIER / CANDIDAT (Vœux 3)": st.column_config.TextColumn(width="large"),
+            "CANDIDATURES VŒUX 4": st.column_config.NumberColumn(width="small", format="%d"),
+            "PROFILS DE METIER / CANDIDAT (Vœux 4)": st.column_config.TextColumn(width="large")
+        }
+    )
+    
+    st.divider()
+    
+    # Export Excel
+    st.subheader("📥 Export Excel")
+    
+    paris_tz = pytz.timezone('Europe/Paris')
+    export_time = datetime.now(paris_tz)
+    filename = f"EDL voeux CAP25 - {export_time.strftime('%d-%m-%Y %Hh%M')}.xlsx"
+    
+    excel_data = to_excel(df_filtered_agg)
+    
+    st.download_button(
+        label="📥 Télécharger le tableau agrégé en Excel",
+        data=excel_data,
+        file_name=filename,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        type="primary",
+        use_container_width=True
+    )
+    
+    # Statistiques rapides
+    st.divider()
+    st.subheader("📈 Statistiques rapides")
+    
+    col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+    
+    with col_stat1:
+        st.metric("Total postes ouverts", int(df_filtered_agg["POSTES OUVERTS"].sum()))
+    
+    with col_stat2:
+        st.metric("Total candidatures", int(df_filtered_agg["CANDIDATURES TOTAL"].sum()))
+    
+    with col_stat3:
+        avg_cand = df_filtered_agg["CANDIDATURES TOTAL"].mean() if not df_filtered_agg.empty else 0
+        st.metric("Moyenne candidatures/poste", f"{avg_cand:.1f}")
+    
+    with col_stat4:
+        postes_sans_candidat = len(df_filtered_agg[df_filtered_agg["CANDIDATURES TOTAL"] == 0])
+        st.metric("Postes sans candidat", postes_sans_candidat)
+
 # ========================================
 # PAGE 4 : ANALYSE PAR POSTE
 # ========================================
@@ -2286,6 +2482,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
