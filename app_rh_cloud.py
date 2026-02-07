@@ -651,7 +651,7 @@ if collaborateurs_df.empty or postes_df.empty:
     st.stop()
 
 # --- SIDEBAR : NAVIGATION AVEC LOGO ---
-st.sidebar.image("https://github.com/Stephfff73/rh-cap25-mobilite-interne/blob/main/Logo-%20in'li.png", width=200)
+st.sidebar.image("https://drive.google.com/file/d/1xPR0o9VAdiy6LWVYCiKuS1w6-QmcHyCK/view?usp=sharing", width=200)
 st.sidebar.markdown("### 🏢 CAP25 - Mobilité Interne")
 st.sidebar.divider()
 
@@ -2229,6 +2229,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
