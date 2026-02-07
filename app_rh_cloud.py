@@ -544,6 +544,45 @@ def get_safe_value(value):
         pass
     return str(value) if value else ""
 
+# --- FONCTION UTILITAIRE EXCEL ---
+def to_excel(df):
+    """Convertit un DataFrame en fichier Excel en mémoire avec formatage"""
+    output = io.BytesIO()
+    # Utilisation de XlsxWriter comme moteur
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+        workbook = writer.book
+        worksheet = writer.sheets['Sheet1']
+        
+        # Formatage : En-têtes en gras et fond gris clair, colonnes ajustées
+        header_format = workbook.add_format({
+            'bold': True,
+            'text_wrap': True,
+            'valign': 'top',
+            'fg_color': '#008080', # Vert foncé charte graph in'li
+            'border': 1
+        })
+        
+        # Appliquer le format aux en-têtes
+        for col_num, value in enumerate(df.columns.values):
+            worksheet.write(0, col_num, value, header_format)
+            
+            # Ajuster la largeur des colonnes (auto-ajustement basique)
+            column_len = max(df[value].astype(str).map(len).max(), len(str(value))) + 2
+            worksheet.set_column(col_num, col_num, min(column_len, 50)) # Max 50 de large
+
+    return output.getvalue()
+
+
+def badge_priorite(p):
+    colors = {
+        "Priorité 1": "🔴",
+        "Priorité 2": "🟠",
+        "Priorité 3": "🟡",
+        "Priorité 4": "🟢"
+    }
+    return f"{colors.get(p, '⚪')} {p}"
+
 
 # --- URL DU GOOGLE SHEET ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1BXez24VFNhb470PrCjwNIFx6GdJFqLnVh8nFf3gGGvw/edit?usp=sharing"
@@ -623,7 +662,7 @@ if page == "📊 Tableau de Bord":
     
     # Première ligne de métriques
     st.subheader("📌 Avancement global de la mobilité")
-    kpi_main1, kpi_main2, kpi_main3 = st.columns(3)
+    c1, c2, c3 = st.columns(3)
 
     
     # Collaborateurs à repositionner (avec filtre "Rencontre RH / Positionnement" = "OUI")
@@ -646,25 +685,36 @@ if page == "📊 Tableau de Bord":
     # Pourcentage d'attribution
     pct_attribution = (nb_postes_attribues / nb_postes_ouverts * 100) if nb_postes_ouverts > 0 else 0
     
-    kpi_main1.metric(
-        "👥 Collaborateurs concernés",
-        nb_collaborateurs,
-        help="Collaborateurs identifiés comme nécessitant un repositionnement"
-    )
 
-    kpi_main2.metric(
-        "📍Postes ouverts à la mobilité",
-        nb_postes_ouverts,
-        help="Inclut les postes créés et rendus vacants par mobilité"
-    )
+    with c1:
+        with st.container(border=True):
+            st.metric(
+                label="👥 Collaborateurs à repositionner",
+                value=nb_collaborateurs,
+                delta="Vivier Actif", # Ajoute une petite info couleur verte
+                delta_color="normal"
+            )
 
-    kpi_main3.metric(
-        "👩🏻‍💻✅ Taux d'affectation",
-        f"{pct_attribution:.1f}%",
-        delta=f"{nb_postes_attribues} postes attribués"
-    )
+    with c2:
+        with st.container(border=True):
+            st.metric(
+                label="📢 Postes ouverts",
+                value=nb_postes_ouverts,
+                help="Postes disponibles pour la mobilité"
+            )
 
-    st.progress(min(pct_attribution / 100, 1.0))
+    with c3:
+        with st.container(border=True):
+            st.metric(
+                label="🎯 Taux d'affectation",
+                value=f"{pct_attribution:.1f}%",
+                delta=f"{nb_postes_attribues} pourvus"
+            )
+            # Barre de progression plus discrète
+            st.progress(min(pct_attribution / 100, 1.0))
+
+    st.divider()
+
 
     
     # Deuxième ligne de métriques
@@ -908,6 +958,18 @@ elif page == "👥 Gestion des Candidatures":
         )
         
         st.divider()
+
+        st.subheader("📤 Exporter les données")
+
+        excel_file = export_to_excel(display_df.drop(columns=["Matricule"]), sheet_name="Candidatures")
+
+        st.download_button(
+            label="📥 Télécharger en Excel",
+            data=excel_file,
+            file_name=f"CAP25_Candidatures_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
         
         # Sélection d'un collaborateur pour accéder à l'entretien
         st.subheader("🔍 Accès rapide à un entretien RH")
@@ -1808,15 +1870,17 @@ elif page == "💻 Comparatif des candidatures par Poste":
                 # Bouton d'export CSV
                 csv_buffer = io.StringIO()
                 df_comparatif.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
-                csv_data = csv_buffer.getvalue()
-                
+                excel_data = to_excel(df_comparatif)
+
                 st.download_button(
-                    label="📥 Télécharger le comparatif en CSV",
-                    data=csv_data,
-                    file_name=f"comparatif_candidatures_{poste_compare.replace(' ', '_')}.csv",
-                    mime="text/csv",
-                    type="primary"
+                    label="📥 Télécharger le comparatif en Excel (.xlsx)",
+                    data=excel_data,
+                    file_name=f"comparatif_candidatures_{poste_compare.replace(' ', '_')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary", 
+                    use_container_width=True # Rend le bouton plus imposant et moderne
                 )
+
         
         except Exception as e:
             st.error(f"Erreur lors du chargement des entretiens : {str(e)}")
@@ -2132,6 +2196,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
