@@ -576,33 +576,42 @@ def get_safe_value(value):
         pass
     return str(value) if value else ""
 
-# --- FONCTION UTILITAIRE EXCEL ---
 def to_excel(df):
     """Convertit un DataFrame en fichier Excel en mémoire avec formatage"""
     output = io.BytesIO()
-    # Utilisation de XlsxWriter comme moteur
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Sheet1')
+    
+    # ✅ CORRECTION : Utiliser openpyxl au lieu de xlsxwriter
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Données')
+        
+        # Accéder au workbook et à la feuille
         workbook = writer.book
-        worksheet = writer.sheets['Sheet1']
+        worksheet = writer.sheets['Données']
         
-        # Formatage : En-têtes en gras et fond gris clair, colonnes ajustées
-        header_format = workbook.add_format({
-            'bold': True,
-            'text_wrap': True,
-            'valign': 'top',
-            'fg_color': '#008080', # Vert foncé charte graph in'li
-            'border': 1
-        })
+        # Formatage des en-têtes
+        from openpyxl.styles import Font, PatternFill, Alignment
         
-        # Appliquer le format aux en-têtes
-        for col_num, value in enumerate(df.columns.values):
-            worksheet.write(0, col_num, value, header_format)
-            
-            # Ajuster la largeur des colonnes (auto-ajustement basique)
-            column_len = max(df[value].astype(str).map(len).max(), len(str(value))) + 2
-            worksheet.set_column(col_num, col_num, min(column_len, 50)) # Max 50 de large
-
+        header_fill = PatternFill(start_color="008080", end_color="008080", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF")
+        
+        for cell in worksheet[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Auto-ajuster la largeur des colonnes
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+    
     return output.getvalue()
 
 
@@ -687,72 +696,93 @@ if st.session_state.last_save_time:
 
 
 # ========================================
-# PAGE 1 : TABLEAU DE BORD
+# PAGE 1 : TABLEAU DE BORD AMÉLIORÉ
 # ========================================
 
 if page == "📊 Tableau de Bord":
+    # Titre avec date et heure actuelles
+    paris_tz = pytz.timezone('Europe/Paris')
+    now = datetime.now(paris_tz)
+    
     st.title("📊 Tableau de Bord - Vue d'ensemble")
+    st.markdown(f"**📌 Avancement global de la mobilité au {now.strftime('%d/%m/%Y')} à {now.strftime('%H:%M')}**")
+    st.divider()
     
-    # Première ligne de métriques
-    st.subheader("📌 Avancement global de la mobilité")
-    c1, c2, c3 = st.columns(3)
-
+    # ===== PREMIÈRE LIGNE : MÉTRIQUES PRINCIPALES =====
+    st.subheader("🎯 Indicateurs clés")
     
-    # Collaborateurs à repositionner (avec filtre "Rencontre RH / Positionnement" = "OUI")
+    # Calculs
     nb_collaborateurs = len(collaborateurs_df[
         (collaborateurs_df["Matricule"].notna()) & 
         (collaborateurs_df["Matricule"] != "") &
         (collaborateurs_df["Rencontre RH / Positionnement"].str.upper() == "OUI")
     ])
     
-    # Postes ouverts
     postes_ouverts_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
     nb_postes_ouverts = int(postes_ouverts_df["Nombre total de postes"].sum()) if "Nombre total de postes" in postes_df.columns else len(postes_ouverts_df)
     
-    # Postes attribués (Vœux Retenu non vide)
     nb_postes_attribues = len(collaborateurs_df[
         (collaborateurs_df["Vœux Retenu"].notna()) & 
         (collaborateurs_df["Vœux Retenu"].astype(str).str.strip() != "")
     ])
     
-    # Pourcentage d'attribution
     pct_attribution = (nb_postes_attribues / nb_postes_ouverts * 100) if nb_postes_ouverts > 0 else 0
     
-
-    with c1:
-        with st.container(border=True):
-            st.metric(
-                label="👥 Collaborateurs à repositionner",
-                value=nb_collaborateurs,
-                delta="Vivier Actif", # Ajoute une petite info couleur verte
-                delta_color="normal"
-            )
-
-    with c2:
-        with st.container(border=True):
-            st.metric(
-                label="📢 Postes ouverts",
-                value=nb_postes_ouverts,
-                help="Postes disponibles pour la mobilité interne Cap 25"
-            )
-
-    with c3:
-        with st.container(border=True):
-            st.metric(
-                label="🎯 Taux d'affectation",
-                value=f"{pct_attribution:.1f}%",
-                delta=f"{nb_postes_attribues} pourvus"
-            )
-            # Barre de progression plus discrète
-            st.progress(min(pct_attribution / 100, 1.0))
-
-    st.divider()
-
-
+    c1, c2, c3 = st.columns(3)
     
-    # Deuxième ligne de métriques
-    st.subheader("⭐ Ventilation des Priorités 1 à 4")
-    col5, col6, col7 = st.columns(3)
+    with c1:
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    padding: 20px; border-radius: 12px; color: white;'>
+            <h3 style='margin:0; color: white;'>👥 Collaborateurs</h3>
+            <h1 style='margin:10px 0; color: white;'>{}</h1>
+            <p style='margin:0; opacity: 0.9;'>à repositionner</p>
+        </div>
+        """.format(nb_collaborateurs), unsafe_allow_html=True)
+    
+    with c2:
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                    padding: 20px; border-radius: 12px; color: white;'>
+            <h3 style='margin:0; color: white;'>📢 Postes ouverts</h3>
+            <h1 style='margin:10px 0; color: white;'>{}</h1>
+            <p style='margin:0; opacity: 0.9;'>mobilité interne</p>
+        </div>
+        """.format(nb_postes_ouverts), unsafe_allow_html=True)
+    
+    with c3:
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
+                    padding: 20px; border-radius: 12px; color: white;'>
+            <h3 style='margin:0; color: white;'>🎯 Taux d'affectation</h3>
+            <h1 style='margin:10px 0; color: white;'>{:.1f}%</h1>
+            <p style='margin:0; opacity: 0.9;'>{} postes pourvus</p>
+        </div>
+        """.format(pct_attribution, nb_postes_attribues), unsafe_allow_html=True)
+        
+        # Barre de progression améliorée
+        st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+        col_prog1, col_prog2 = st.columns([pct_attribution, 100 - pct_attribution] if pct_attribution < 100 else [100, 0.1])
+        with col_prog1:
+            st.markdown(f"""
+            <div style='background: #10b981; height: 25px; border-radius: 12px; 
+                        display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;'>
+                {pct_attribution:.1f}%
+            </div>
+            """, unsafe_allow_html=True)
+        if pct_attribution < 100:
+            with col_prog2:
+                st.markdown(f"""
+                <div style='background: #e5e7eb; height: 25px; border-radius: 12px; 
+                            display: flex; align-items: center; justify-content: center; color: #6b7280;'>
+                    {100 - pct_attribution:.1f}%
+                </div>
+                """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # ===== DEUXIÈME LIGNE : PRIORITÉS =====
+    st.subheader("⭐ Ventilation des Priorités")
     
     nb_priorite_1 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 1"])
     nb_priorite_2 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 2"])
@@ -761,16 +791,30 @@ if page == "📊 Tableau de Bord":
         (collaborateurs_df["Priorité"] == "Priorité 4")
     ])
     
-    col5.metric("⭐ Priorité 1", nb_priorite_1)
-    col6.metric("⭐ Priorité 2", nb_priorite_2)
-    col7.metric("⭐ Priorité 3 et 4", nb_priorite_3_4)
-
+    total_priorites = nb_priorite_1 + nb_priorite_2 + nb_priorite_3_4
+    pct_p1 = (nb_priorite_1 / total_priorites * 100) if total_priorites > 0 else 0
+    pct_p2 = (nb_priorite_2 / total_priorites * 100) if total_priorites > 0 else 0
+    pct_p3_4 = (nb_priorite_3_4 / total_priorites * 100) if total_priorites > 0 else 0
     
-    # Troisième ligne de métriques
+    col5, col6, col7 = st.columns(3)
+    
+    with col5:
+        st.metric("🔴 Priorité 1", nb_priorite_1, delta=f"{int(pct_p1)}%", delta_color="off")
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_p1)}% du total</p>", unsafe_allow_html=True)
+    
+    with col6:
+        st.metric("🟠 Priorité 2", nb_priorite_2, delta=f"{int(pct_p2)}%", delta_color="off")
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_p2)}% du total</p>", unsafe_allow_html=True)
+    
+    with col7:
+        st.metric("🟡 Priorité 3 et 4", nb_priorite_3_4, delta=f"{int(pct_p3_4)}%", delta_color="off")
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_p3_4)}% du total</p>", unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # ===== TROISIÈME LIGNE : ENTRETIENS =====
     st.subheader("🗓️ Pilotage des entretiens RH")
-    col9, col10, col11 = st.columns(3)
     
-    # Entretiens planifiés, aujourd'hui et réalisés
     today = date.today()
     entretiens_planifies = 0
     entretiens_aujourd_hui = 0
@@ -785,16 +829,29 @@ if page == "📊 Tableau de Bord":
                 entretiens_aujourd_hui += 1
             elif date_rdv < today:
                 entretiens_realises += 1
-
-
-    col9.metric("📅 Entretiens planifiés", entretiens_planifies)
-    col10.metric("✅ Entretiens réalisés", entretiens_realises)
-    col11.metric("⌛ Entretiens prévus aujourd'hui", entretiens_aujourd_hui)
-
+    
+    total_entretiens = entretiens_planifies + entretiens_aujourd_hui + entretiens_realises
+    pct_planifies = (entretiens_planifies / total_entretiens * 100) if total_entretiens > 0 else 0
+    pct_aujourd_hui = (entretiens_aujourd_hui / total_entretiens * 100) if total_entretiens > 0 else 0
+    pct_realises = (entretiens_realises / total_entretiens * 100) if total_entretiens > 0 else 0
+    
+    col9, col10, col11 = st.columns(3)
+    
+    with col9:
+        st.metric("📅 Entretiens planifiés", entretiens_planifies)
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_planifies)}% du total</p>", unsafe_allow_html=True)
+    
+    with col10:
+        st.metric("✅ Entretiens réalisés", entretiens_realises)
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_realises)}% du total</p>", unsafe_allow_html=True)
+    
+    with col11:
+        st.metric("⌛ Aujourd'hui", entretiens_aujourd_hui)
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_aujourd_hui)}% du total</p>", unsafe_allow_html=True)
     
     st.divider()
     
-    # Graphiques
+    # ===== GRAPHIQUES =====
     col_chart1, col_chart2 = st.columns(2)
     
     with col_chart1:
@@ -834,7 +891,7 @@ if page == "📊 Tableau de Bord":
             st.info("Aucun vœu enregistré pour le moment")
     
     with col_chart2:
-        st.subheader("⚠️ Postes en tension d’attractivité")
+        st.subheader("⚠️ Postes en tension d'attractivité")
         
         if len(all_voeux) > 0:
             flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
@@ -994,8 +1051,8 @@ elif page == "👥 Gestion des Candidatures":
 
         st.subheader("📤 Exporter les données")
 
-        excel_file = export_to_excel(display_df.drop(columns=["Matricule"]), sheet_name="Candidatures")
-
+        excel_file = to_excel(display_df.drop(columns=["Matricule"]))
+        
         st.download_button(
             label="📥 Télécharger en Excel",
             data=excel_file,
@@ -2229,6 +2286,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
