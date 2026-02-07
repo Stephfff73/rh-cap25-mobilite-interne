@@ -9,164 +9,6 @@ import json
 import altair as alt
 import io
 
-@st.cache_data(ttl=600)
-def prepare_aggregated_data(df_postes, df_collabs):
-    """
-    Version CORRIGÉE : Gère les espaces invisibles et les colonnes dupliquées.
-    """
-    # =========================================================
-    # 0. NETTOYAGE PRÉALABLE DES DATAFRAMES (CRITIQUE)
-    # =========================================================
-    
-    # On travaille sur des copies pour ne pas casser le reste de l'app
-    df_p = df_postes.copy()
-    df_c = df_collabs.copy()
-
-    # 1. Nettoyage des noms de colonnes (supprime les espaces avant/après)
-    df_p.columns = df_p.columns.str.strip()
-    df_c.columns = df_c.columns.str.strip()
-    
-    # 2. Suppression des colonnes dupliquées (cause probable de votre crash)
-    # Si "Poste libellé" apparaît 2 fois dans Excel, cela faisait planter melt
-    df_c = df_c.loc[:, ~df_c.columns.duplicated()]
-
-    # =========================================================
-    # 1. GESTION DES POSTES (DATA CLEANING)
-    # =========================================================
-    
-    # Recherche floue de la colonne "Nombre de postes vacants"
-    col_vacants = next((c for c in df_p.columns if "vacants" in c.lower()), None)
-    
-    if not col_vacants:
-        st.error("Colonne 'vacants' introuvable dans le fichier Postes.")
-        return pd.DataFrame()
-
-    # Nettoyage des valeurs numériques
-    df_p["_vacants_clean"] = pd.to_numeric(df_p[col_vacants], errors='coerce')
-    df_p_clean = df_p[df_p["_vacants_clean"] > 0].copy()
-    
-    if df_p_clean.empty:
-        return pd.DataFrame()
-
-    # =========================================================
-    # 2. GESTION DES COLLABORATEURS (MELT INTELLIGENT)
-    # =========================================================
-
-    # A. Trouver la colonne "Poste Actuel" quel que soit son orthographe exacte
-    # On cherche une colonne qui contient "Poste" ET "libellé" (insensible à la casse)
-    col_poste_actuel = next((c for c in df_c.columns if "poste" in c.lower() and "libellé" in c.lower()), None)
-
-    if not col_poste_actuel:
-        st.error("Colonne 'Poste libellé' introuvable dans le fichier Collaborateurs.")
-        return pd.DataFrame()
-
-    # B. Trouver les colonnes de Vœux (Vœux 1, Voeux 2, Vœu 3...)
-    # On scanne toutes les colonnes pour trouver celles qui ressemblent à des vœux
-    voeux_map = {} # {Nom_Colonne_Reelle : Numero_Voeu}
-    
-    for col in df_c.columns:
-        # On nettoie le nom pour la détection (minuscule, sans accent pour le match)
-        c_norm = col.lower().replace("œ", "oe")
-        if "voeu" in c_norm or "vœu" in c_norm:
-            # On cherche le chiffre dans le nom de la colonne
-            match = re.search(r'\d+', col)
-            if match:
-                rank = int(match.group())
-                if 1 <= rank <= 4: # On ne garde que 1 à 4
-                    voeux_map[col] = rank
-
-    if not voeux_map:
-        st.warning("Aucune colonne de 'Vœux' (1, 2, 3 ou 4) trouvée.")
-        return pd.DataFrame()
-
-    # C. Renommage temporaire pour éviter les erreurs de syntaxe Pandas
-    # On renomme la colonne poste actuel en une clé simple et sûre
-    df_c = df_c.rename(columns={col_poste_actuel: "CURRENT_POST"})
-    
-    # D. Le MELT (Transformation des colonnes en lignes)
-    df_melted = df_c.melt(
-        id_vars=["CURRENT_POST"],      # La colonne sûre qu'on vient de renommer
-        value_vars=list(voeux_map.keys()), # La liste des colonnes de vœux détectées
-        var_name="Source_Voeu_Raw",
-        value_name="Poste_Vise"
-    )
-
-    # Nettoyage des vœux vides (NaN ou vides)
-    df_melted = df_melted.dropna(subset=["Poste_Vise"])
-    df_melted = df_melted[df_melted["Poste_Vise"].astype(str).str.strip() != ""]
-
-    # Récupération du rang (1, 2, 3, 4) depuis notre map
-    df_melted["Rang"] = df_melted["Source_Voeu_Raw"].map(voeux_map)
-
-    # =========================================================
-    # 3. AGGRÉGATION ET FUSION
-    # =========================================================
-
-    # Compte total par poste visé
-    counts = df_melted.groupby("Poste_Vise").size().reset_index(name="CANDIDATURES TOTAL")
-    
-    # Pivot pour avoir les colonnes Voeu 1, Voeu 2...
-    pivot_ranks = df_melted.pivot_table(
-        index="Poste_Vise", 
-        columns="Rang", 
-        aggfunc='size', 
-        fill_value=0
-    ).add_prefix("Vœu ")
-    
-    # Fonction pour créer le résumé des profils (qui vient d'où ?) pour le Voeu 1
-    v1_only = df_melted[df_melted["Rang"] == 1]
-    
-    def get_profiles_summary(sub_df):
-        if sub_df.empty: return ""
-        # On compte les métiers d'origine
-        counts = sub_df["CURRENT_POST"].value_counts()
-        return "; ".join([f"{metier} ({nb})" for metier, nb in counts.items()])
-
-    if not v1_only.empty:
-        profiles_summary = v1_only.groupby("Poste_Vise").apply(get_profiles_summary).reset_index(name="PROFILS (V1)")
-    else:
-        profiles_summary = pd.DataFrame(columns=["Poste_Vise", "PROFILS (V1)"])
-
-    # Recherche de la bonne colonne "Poste" ou "Libellé Poste" dans le fichier Postes
-    col_nom_poste = next((c for c in df_p_clean.columns if "poste" in c.lower()), None)
-    
-    # Fusion finale
-    df_final = df_p_clean.merge(counts, left_on=col_nom_poste, right_on="Poste_Vise", how="left")
-    df_final = df_final.merge(pivot_ranks, left_on=col_nom_poste, right_index=True, how="left")
-    df_final = df_final.merge(profiles_summary, left_on=col_nom_poste, right_on="Poste_Vise", how="left")
-    
-    # Remplissage des 0
-    numeric_cols = ["CANDIDATURES TOTAL"] + [c for c in df_final.columns if c.startswith("Vœu ")]
-    df_final[numeric_cols] = df_final[numeric_cols].fillna(0)
-    
-    # Calcul Tension
-    df_final["Tension"] = df_final["CANDIDATURES TOTAL"] / df_final["_vacants_clean"]
-    
-    # Nettoyage final des colonnes pour l'affichage
-    col_direction = next((c for c in df_p_clean.columns if "direction" in c.lower()), "Direction") # Fallback
-    
-    display_cols = {
-        col_nom_poste: "POSTE PROJETE",
-        col_direction: "DIRECTION",
-        "_vacants_clean": "POSTES OUVERTS",
-        "CANDIDATURES TOTAL": "TOTAL CANDIDATS",
-        "Tension": "TENSION",
-        "PROFILS (V1)": "ORIGINE CANDIDATS (V1)"
-    }
-    
-    # Ajouter dynamiquement les colonnes de vœux existantes
-    for col in df_final.columns:
-        if str(col).startswith("Vœu "): # cast str par sécurité
-            display_cols[col] = str(col).upper()
-
-    df_final = df_final.rename(columns=display_cols)
-    
-    # On ne garde que les colonnes qui existent vraiment dans display_cols
-    final_columns = [c for c in display_cols.values() if c in df_final.columns]
-    
-    return df_final[final_columns]
-
-
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -966,7 +808,7 @@ if page == "📊 Tableau de Bord":
     now = datetime.now(paris_tz)
     
     st.title("📊 Tableau de Bord - Vue d'ensemble")
-    st.markdown(f"**📌 Avancement global de la mobilité au {now.strftime('%d/%m/%Y')} à {now.strftime('%H:%M')}**")
+    st.subheader(f"**📌 Avancement global de la mobilité au {now.strftime('%d/%m/%Y')} à {now.strftime('%H:%M')}**")
     st.divider()
     
     # ===== PREMIÈRE LIGNE : MÉTRIQUES PRINCIPALES =====
@@ -2242,141 +2084,293 @@ elif page == "💻 Comparatif des candidatures par Poste":
 # ========================================
 
 elif page == "🗒️🔁 Tableau agrégé AM":
-    st.title("🗒️🔁 Tableau de Bord - Tensions & Mobilités")
+    st.title("🗒️🔁 Tableau Agrégé des Vœux - Vue Direction")
     
     st.markdown("""
-    Cette vue consolidée permet d'analyser l'adéquation entre l'offre (postes vacants) et la demande (vœux collaborateurs).
-    > **Note :** Seuls les postes ayant un nombre de vacances déclaré (>0) sont affichés.
+    Ce tableau synthétise tous les vœux émis par poste Cap 25 avec le détail des profils métiers actuels des candidats.
+    Les postes ouverts correspondent au nombre de postes vacants disponibles pour la mobilité interne.
+    **Note : Seuls les postes ouverts à la mobilité sont affichés.**
     """)
     
-    # --- CHARGEMENT DES DONNÉES (Optimisé) ---
-    with st.spinner('Analyse des correspondances en cours...'):
-        # On suppose que postes_df et collaborateurs_df sont déjà chargés dans le scope global
-        df_agg = prepare_aggregated_data(postes_df, collaborateurs_df)
+    st.divider()
     
-    if df_agg.empty:
-        st.warning("⚠️ Aucun poste vacant n'a été trouvé dans le fichier source ou les données sont mal formatées.")
+    # ===== CONSTRUCTION DU TABLEAU AGRÉGÉ =====
+    aggregated_data = []
+    
+    for _, poste_row in postes_df.iterrows():
+        # --- FILTRAGE : On ignore si "Nombre de postes vacants" est vide ---
+        raw_vacants = poste_row.get("Nombre de postes vacants ", "")
+        
+        # Vérification robuste : si c'est null, NaN, ou une chaîne vide/espaces
+        if pd.isna(raw_vacants) or str(raw_vacants).strip() == "":
+            continue  # On passe au poste suivant immédiatement
+            
+        poste = poste_row.get("Poste", "")
+        direction = poste_row.get("Direction", "")
+        
+        # Conversion sécurisée en int maintenant qu'on sait que ce n'est pas vide
+        try:
+            postes_ouverts = int(float(raw_vacants)) # float permet de gérer le cas "3.0" issu d'Excel
+        except (ValueError, TypeError):
+            # Si la valeur est "Inconnu" ou du texte, on décide soit de mettre 0, soit de sauter.
+            # Ici, je mets 0 par sécurité, mais vous pouvez mettre 'continue' si vous voulez exclure les erreurs de format.
+            postes_ouverts = 0
+        
+        # Initialiser les compteurs
+        candidatures_v1 = 0
+        candidatures_v2 = 0
+        candidatures_v3 = 0
+        candidatures_v4 = 0
+        
+        profils_v1 = {}
+        profils_v2 = {}
+        profils_v3 = {}
+        profils_v4 = {}
+        
+        # Parcourir les collaborateurs
+        for _, collab in collaborateurs_df.iterrows():
+            poste_actuel = get_safe_value(collab.get("Poste  libellé", "N/A"))
+            
+            # Vœu 1
+            if get_safe_value(collab.get("Vœux 1", "")) == poste:
+                candidatures_v1 += 1
+                profils_v1[poste_actuel] = profils_v1.get(poste_actuel, 0) + 1
+            
+            # Vœu 2
+            if get_safe_value(collab.get("Vœux 2", "")) == poste:
+                candidatures_v2 += 1
+                profils_v2[poste_actuel] = profils_v2.get(poste_actuel, 0) + 1
+            
+            # Vœu 3
+            if get_safe_value(collab.get("Voeux 3", "")) == poste:
+                candidatures_v3 += 1
+                profils_v3[poste_actuel] = profils_v3.get(poste_actuel, 0) + 1
+            
+            # Vœu 4
+            if get_safe_value(collab.get("Voeux 4", "")) == poste:
+                candidatures_v4 += 1
+                profils_v4[poste_actuel] = profils_v4.get(poste_actuel, 0) + 1
+        
+        # Formater les profils métiers
+        def format_profils(profils_dict):
+            if not profils_dict:
+                return ""
+            return "; ".join([f"{prof} ({count})" for prof, count in profils_dict.items()])
+        
+        candidatures_total = candidatures_v1 + candidatures_v2 + candidatures_v3 + candidatures_v4
+        
+        aggregated_data.append({
+            "POSTE PROJETE": poste,
+            "DIRECTION": direction,
+            "POSTES OUVERTS": postes_ouverts,
+            "CANDIDATURES TOTAL": candidatures_total,
+            "CANDIDATURES VŒUX 1": candidatures_v1,
+            "PROFILS DE METIER / CANDIDAT (Vœux 1)": format_profils(profils_v1),
+            "CANDIDATURES VŒUX 2": candidatures_v2,
+            "PROFILS DE METIER / CANDIDAT (Vœux 2)": format_profils(profils_v2),
+            "CANDIDATURES VŒUX 3": candidatures_v3,
+            "PROFILS DE METIER / CANDIDAT (Vœux 3)": format_profils(profils_v3),
+            "CANDIDATURES VŒUX 4": candidatures_v4,
+            "PROFILS DE METIER / CANDIDAT (Vœux 4)": format_profils(profils_v4)
+        })
+    
+    df_aggregated = pd.DataFrame(aggregated_data)
+    
+    # Gestion du cas où le dataframe est vide après filtrage
+    if df_aggregated.empty:
+        st.warning("Aucun poste avec des vacances déclarées n'a été trouvé.")
     else:
-        # --- FILTRES LATÉRAUX (UX) ---
-        with st.expander("🔍 Filtres Avancés", expanded=False):
-            col_f1, col_f2 = st.columns(2)
-            with col_f1:
-                dirs = sorted(df_agg["DIRECTION"].astype(str).unique())
-                sel_dir = st.multiselect("Filtrer par Direction", dirs)
-            with col_f2:
-                min_cand = st.slider("Min. Candidatures", 0, int(df_agg["TOTAL CANDIDATS"].max()), 0)
-
-        # Application des filtres
-        df_view = df_agg.copy()
-        if sel_dir:
-            df_view = df_view[df_view["DIRECTION"].isin(sel_dir)]
-        df_view = df_view[df_view["TOTAL CANDIDATS"] >= min_cand]
-
-        st.divider()
-
-        # --- KPI STRATÉGIQUES (Mise en page "Metrics") ---
-        # Calculs
-        total_postes = int(df_view["POSTES OUVERTS"].sum())
-        total_candidats = int(df_view["TOTAL CANDIDATS"].sum())
+        # ===== FILTRES =====
+        st.subheader("🔍 Filtres")
+        col_f1, col_f2 = st.columns(2)
         
-        # Ratio global
-        ratio_global = total_candidats / total_postes if total_postes > 0 else 0
-        delta_color = "normal" if 0.8 <= ratio_global <= 2 else "inverse" # Rouge si déséquilibré
-
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        kpi1.metric("Postes Ouverts", total_postes, help="Somme des vacances sur les postes filtrés")
-        kpi2.metric("Candidatures", total_candidats, help="Somme de tous les vœux (1 à 4)")
-        kpi3.metric("Ratio Global", f"{ratio_global:.2f}", delta="Candidats / Poste", delta_color="off")
-        kpi4.metric("Postes en pénurie", len(df_view[df_view["TOTAL CANDIDATS"] == 0]), delta="Sans candidat", delta_color="inverse")
-
-        # --- VISUALISATION (Altair Chart) ---
-        st.subheader("📊 Top 10 des Tensions")
-        st.caption("Postes avec le plus fort ratio (Candidats / Offres)")
-        
-        # Préparation chart
-        chart_data = df_view.nlargest(10, "TENSION")
-        
-        chart = alt.Chart(chart_data).mark_bar().encode(
-            x=alt.X('TENSION', title='Ratio Candidats/Poste'),
-            y=alt.Y('POSTE PROJETE', sort='-x', title=None),
-            color=alt.condition(
-                alt.datum.TENSION > 3,
-                alt.value('#FF4B4B'),  # Rouge si > 3 candidats/poste
-                alt.value('#4facfe')   # Bleu sinon
-            ),
-            tooltip=['POSTE PROJETE', 'POSTES OUVERTS', 'TOTAL CANDIDATS', 'TENSION']
-        ).properties(height=300)
-        
-        st.altair_chart(chart, use_container_width=True)
-
-        st.divider()
-
-        # --- TABLEAU PRINCIPAL (Data Editor) ---
-        st.subheader("Détail des Postes")
-        
-        # Configuration des colonnes pour un rendu visuel impactant
-        column_config = {
-            "TENSION": st.column_config.ProgressColumn(
-                "Tension (Ratio)",
-                help="Barre pleine = Beaucoup de candidats pour peu de postes",
-                format="%.1f",
-                min_value=0,
-                max_value=max(5.0, df_view["TENSION"].max()), # Plafond visuel à 5
-            ),
-            "POSTES OUVERTS": st.column_config.NumberColumn("Postes", format="%d"),
-            "TOTAL CANDIDATS": st.column_config.NumberColumn("Candidats", format="%d"),
-            "ORIGINE CANDIDATS (V1)": st.column_config.TextColumn("Origine (Voeu 1)", width="large"),
-        }
-        
-        # Affichage interactif
-        st.dataframe(
-            df_view,
-            column_config=column_config,
-            use_container_width=True,
-            hide_index=True,
-            height=400
-        )
-
-        # --- SECTION "DRILL-DOWN" (Détails) ---
-        st.info("💡 Sélectionnez un poste ci-dessous pour voir le détail des profils.")
-        
-        col_sel, col_det = st.columns([1, 2])
-        with col_sel:
-            # Sélecteur intelligent (trié par nom)
-            selected_poste = st.selectbox(
-                "Choisir un poste à analyser :", 
-                options=["-- Sélectionner --"] + sorted(df_view["POSTE PROJETE"].unique().tolist())
+        with col_f1:
+            filtre_direction_agg = st.multiselect(
+                "Filtrer par Direction",
+                options=sorted(df_aggregated["DIRECTION"].unique()),
+                default=[]
             )
         
-        with col_det:
-            if selected_poste != "-- Sélectionner --":
-                row = df_view[df_view["POSTE PROJETE"] == selected_poste].iloc[0]
-                st.markdown(f"### 🔎 Focus : {selected_poste}")
-                st.write(f"**Direction :** {row['DIRECTION']} | **Vacances :** {int(row['POSTES OUVERTS'])}")
-                
-                # Petit tableau des profils pour ce poste précis
-                # On recupère le détail texte brut et on l'affiche proprement
-                if row["ORIGINE CANDIDATS (V1)"]:
-                    st.success(f"**Profils entrants (Vœu 1) :** {row['ORIGINE CANDIDATS (V1)']}")
-                else:
-                    st.warning("Aucun candidat en Vœu 1.")
-            else:
-                st.markdown("*(En attente de sélection)*")
-
+        with col_f2:
+            max_cand = int(df_aggregated["CANDIDATURES TOTAL"].max()) if not df_aggregated.empty else 10
+            filtre_min_candidatures = st.slider(
+                "Nombre minimum de candidatures totales",
+                min_value=0,
+                max_value=max_cand,
+                value=0
+            )
+        
+        # Appliquer les filtres
+        df_filtered_agg = df_aggregated.copy()
+        
+        if filtre_direction_agg:
+            df_filtered_agg = df_filtered_agg[df_filtered_agg["DIRECTION"].isin(filtre_direction_agg)]
+        
+        df_filtered_agg = df_filtered_agg[df_filtered_agg["CANDIDATURES TOTAL"] >= filtre_min_candidatures]
+        
+        # Tri par nombre de candidatures décroissant
+        df_filtered_agg = df_filtered_agg.sort_values("CANDIDATURES TOTAL", ascending=False)
+        
+        # Déterminer si des filtres sont actifs
+        filtres_actifs = bool(filtre_direction_agg) or filtre_min_candidatures > 0
+        
         st.divider()
         
-        # --- EXPORT ---
-        paris_tz = pytz.timezone('Europe/Paris')
-        filename = f"Analyse_Voeux_CAP25_{datetime.now(paris_tz).strftime('%d-%m_%Hh%M')}.xlsx"
+        # ===== STATISTIQUES RAPIDES =====
+        st.subheader("📈 Statistiques Rapides")
         
-        st.download_button(
-            label="📥 Télécharger le tableau complet (Excel)",
-            data=to_excel(df_view),
-            file_name=filename,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="primary",
-            use_container_width=True
+        # Calculs statistiques GLOBALES
+        total_postes_ouverts_global = int(df_aggregated["POSTES OUVERTS"].sum())
+        total_candidatures_global = int(df_aggregated["CANDIDATURES TOTAL"].sum())
+        avg_cand_global = df_aggregated["CANDIDATURES TOTAL"].mean() if not df_aggregated.empty else 0
+        postes_sans_candidat_global = len(df_aggregated[df_aggregated["CANDIDATURES TOTAL"] == 0])
+        
+        # Calculs statistiques FILTRÉES
+        total_postes_ouverts_filtre = int(df_filtered_agg["POSTES OUVERTS"].sum())
+        total_candidatures_filtre = int(df_filtered_agg["CANDIDATURES TOTAL"].sum())
+        avg_cand_filtre = df_filtered_agg["CANDIDATURES TOTAL"].mean() if not df_filtered_agg.empty else 0
+        postes_sans_candidat_filtre = len(df_filtered_agg[df_filtered_agg["CANDIDATURES TOTAL"] == 0])
+        
+        # Affichage des cartes
+        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+        
+        # ===== CARTE 1 : POSTES OUVERTS =====
+        with col_stat1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
+                <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>📍 Postes Ouverts</h4>
+                <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{total_postes_ouverts_global}</h1>
+                <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if filtres_actifs:
+                delta_pct = (total_postes_ouverts_filtre / total_postes_ouverts_global * 100) if total_postes_ouverts_global > 0 else 0
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
+                            padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #667eea;'>
+                    <h4 style='margin:0; color: #667eea; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
+                    <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{total_postes_ouverts_filtre}</h2>
+                    <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{delta_pct:.1f}% du total</p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # ===== CARTE 2 : CANDIDATURES TOTAL =====
+        with col_stat2:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                        padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
+                <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>📊 Candidatures</h4>
+                <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{total_candidatures_global}</h1>
+                <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if filtres_actifs:
+                delta_pct = (total_candidatures_filtre / total_candidatures_global * 100) if total_candidatures_global > 0 else 0
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
+                            padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #f093fb;'>
+                    <h4 style='margin:0; color: #f5576c; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
+                    <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{total_candidatures_filtre}</h2>
+                    <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{delta_pct:.1f}% du total</p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # ===== CARTE 3 : MOYENNE =====
+        with col_stat3:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
+                        padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
+                <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>📈 Moyenne</h4>
+                <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{avg_cand_global:.1f}</h1>
+                <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if filtres_actifs:
+                delta_avg = avg_cand_filtre - avg_cand_global
+                delta_sign = "+" if delta_avg > 0 else ""
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
+                            padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #4facfe;'>
+                    <h4 style='margin:0; color: #00f2fe; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
+                    <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{avg_cand_filtre:.1f}</h2>
+                    <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{delta_sign}{delta_avg:.1f} vs global</p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # ===== CARTE 4 : SANS CANDIDAT =====
+        with col_stat4:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); 
+                        padding: 20px; border-radius: 12px; color: white; text-align: center; margin-bottom: 10px;'>
+                <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.9;'>⚠️ Sans Candidat</h4>
+                <h1 style='margin:10px 0; color: white; font-size: 2.5rem;'>{postes_sans_candidat_global}</h1>
+                <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>📊 Vue globale</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if filtres_actifs:
+                delta_pct = (postes_sans_candidat_filtre / postes_sans_candidat_global * 100) if postes_sans_candidat_global > 0 else 0
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%); 
+                            padding: 15px; border-radius: 12px; color: #1F2937; text-align: center; border: 2px solid #fa709a;'>
+                    <h4 style='margin:0; color: #fa709a; font-size: 0.85rem; font-weight: bold;'>🔍 Vue filtrée</h4>
+                    <h2 style='margin:10px 0; color: #1F2937; font-size: 1.8rem;'>{postes_sans_candidat_filtre}</h2>
+                    <p style='margin:0; color: #6B7280; font-size: 0.8rem;'>{delta_pct:.1f}% du total</p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # ===== AFFICHAGE DU TABLEAU =====
+        st.subheader(f"📊 {len(df_filtered_agg)} poste(s) affiché(s)")
+        
+        st.dataframe(
+            df_filtered_agg,
+            width=None, # Remplacement de "stretch" par None ou use_container_width=True pour compatibilité
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "POSTE PROJETE": st.column_config.TextColumn("Poste Projeté", width="large"),
+                "DIRECTION": st.column_config.TextColumn("Direction", width="medium"),
+                "POSTES OUVERTS": st.column_config.NumberColumn("Postes Ouverts", width="small", format="%d"),
+                "CANDIDATURES TOTAL": st.column_config.NumberColumn("Candidatures Total", width="small", format="%d"),
+                "CANDIDATURES VŒUX 1": st.column_config.NumberColumn("Vœux 1", width="small", format="%d"),
+                "PROFILS DE METIER / CANDIDAT (Vœux 1)": st.column_config.TextColumn("Détail Vœux 1", width="large"),
+                "CANDIDATURES VŒUX 2": st.column_config.NumberColumn("Vœux 2", width="small", format="%d"),
+                "PROFILS DE METIER / CANDIDAT (Vœux 2)": st.column_config.TextColumn("Détail Vœux 2", width="large"),
+                # ... vous pouvez continuer la config pour 3 et 4 si besoin
+            }
         )
+        
+        st.divider()
+        
+        # ===== EXPORT EXCEL =====
+        st.subheader("📥 Export Excel")
+        
+        col_export1, col_export2 = st.columns([3, 1])
+        
+        with col_export1:
+            st.info("💡 Le fichier exporté contiendra les données **filtrées** affichées dans le tableau ci-dessus.")
+        
+        with col_export2:
+            paris_tz = pytz.timezone('Europe/Paris')
+            export_time = datetime.now(paris_tz)
+            filename = f"EDL voeux CAP25 - {export_time.strftime('%d-%m-%Y %Hh%M')}.xlsx"
+            
+            excel_data = to_excel(df_filtered_agg)
+            
+            st.download_button(
+                label="📥 Télécharger en Excel",
+                data=excel_data,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                use_container_width=True
+            )
             
 # ========================================
 # PAGE 5 : ANALYSE PAR POSTE
@@ -2689,6 +2683,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
