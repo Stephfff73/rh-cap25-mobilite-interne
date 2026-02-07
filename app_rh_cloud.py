@@ -2087,7 +2087,7 @@ elif page == "🗒️🔁 Tableau agrégé AM":
     st.title("🗒️🔁 Tableau Agrégé des Vœux - Vue Direction")
     
     st.markdown("""
-    Ce tableau synthétise tous les vœux émis par poste Cap 25 avec le détail des profils métiers actuels des candidats./n
+    Ce tableau synthétise tous les vœux émis par poste Cap 25 avec le détail des profils métiers actuels des candidats.
    
     **Note : Seuls les postes ouverts à la mobilité sont affichés.**
     """)
@@ -2683,6 +2683,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
