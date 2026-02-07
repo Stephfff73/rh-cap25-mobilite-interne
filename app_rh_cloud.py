@@ -660,7 +660,7 @@ if collaborateurs_df.empty or postes_df.empty:
     st.stop()
 
 # --- SIDEBAR : NAVIGATION AVEC LOGO ---
-st.sidebar.image("https://imgur.com/a/FpVa5a9", width=400)
+st.sidebar.image("https://imgur.com/a/FpVa5a9.png", width=400)
 st.sidebar.markdown("### 🏢 CAP25 - Mobilité Interne")
 st.sidebar.divider()
 
@@ -2482,6 +2482,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
