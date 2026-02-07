@@ -650,8 +650,9 @@ if collaborateurs_df.empty or postes_df.empty:
     st.error("Impossible de charger les données. Vérifiez la structure du Google Sheet.")
     st.stop()
 
-# --- SIDEBAR : NAVIGATION ---
-st.sidebar.title("🏢 CAP25 - Mobilité Interne")
+# --- SIDEBAR : NAVIGATION AVEC LOGO ---
+st.sidebar.image("https://github.com/Stephfff73/rh-cap25-mobilite-interne/commit/e1684790e5d153f8f9bf3bb848f566e7d2ffc6c4", width=200)
+st.sidebar.markdown("### 🏢 CAP25 - Mobilité Interne")
 st.sidebar.divider()
 
 page = st.sidebar.radio(
@@ -2228,6 +2229,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
