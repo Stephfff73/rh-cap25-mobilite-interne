@@ -17,6 +17,38 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+st.markdown("""
+<style>
+html, body, [class*="css"]  {
+    font-family: 'Inter', sans-serif;
+    background-color: #F8FAFC;
+    color: #1F2937;
+}
+
+h1, h2, h3 {
+    font-weight: 600;
+    color: #0F2A44;
+}
+
+section[data-testid="stMetric"] {
+    background: white;
+    padding: 16px;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.stDataFrame {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+div[data-testid="stHorizontalBlock"] {
+    gap: 1.2rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 # --- INITIALISATION DE SESSION STATE ---
 def init_session_state():
     """Initialise toutes les variables de session nécessaires"""
@@ -2196,6 +2228,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
