@@ -1985,8 +1985,8 @@ elif page == "🗒️🔁 Tableau agrégé AM":
     st.title("🗒️🔁 Tableau Agrégé des Vœux - Vue Direction")
     
     st.markdown("""
-    Ce tableau synthétise tous les vœux émis par poste avec le détail des profils métiers actuels des candidats.
-    Les postes ouverts correspondent au nombre de postes disponibles (total - attribués).
+    Ce tableau synthétise tous les vœux émis par poste Cap 25 avec le détail des profils métiers actuels des candidats.
+    Les postes ouverts correspondent au nombre de postes vacants disponibles pour la mobilité interne.
     """)
     
     st.divider()
@@ -1998,16 +1998,12 @@ elif page == "🗒️🔁 Tableau agrégé AM":
         poste = poste_row.get("Poste", "")
         direction = poste_row.get("Direction", "")
         
-        # ✅ CALCUL CORRECT DES POSTES OUVERTS (aligné sur Analyse par Poste)
-        nb_postes_total = int(poste_row.get("Nombre total de postes", 1))
-        
-        # Compter les postes attribués
-        nb_postes_attribues = len(collaborateurs_df[
-            (collaborateurs_df["Vœux Retenu"] == poste)
-        ])
-        
-        # Calculer les postes disponibles
-        postes_ouverts = nb_postes_total - nb_postes_attribues
+        # ✅ CORRECTION : Postes ouverts = Nombre de postes vacants (colonne Google Sheet)
+        postes_ouverts = poste_row.get("Nombre de postes vacants", 0)
+        try:
+            postes_ouverts = int(postes_ouverts) if postes_ouverts else 0
+        except:
+            postes_ouverts = 0
         
         # Initialiser les compteurs
         candidatures_v1 = 0
@@ -2149,7 +2145,6 @@ elif page == "🗒️🔁 Tableau agrégé AM":
         
         # Carte filtrée (si filtres actifs)
         if filtres_actifs:
-            delta = total_postes_ouverts_filtre - total_postes_ouverts_global
             delta_pct = (total_postes_ouverts_filtre / total_postes_ouverts_global * 100) if total_postes_ouverts_global > 0 else 0
             
             st.markdown("""
@@ -2287,7 +2282,6 @@ elif page == "🗒️🔁 Tableau agrégé AM":
             type="primary",
             width="stretch"
         )
-
 # ========================================
 # PAGE 4 : ANALYSE PAR POSTE
 # ========================================
@@ -2599,28 +2593,6 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
