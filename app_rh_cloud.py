@@ -680,7 +680,7 @@ page = st.sidebar.radio(
 
 # Bouton de rafraîchissement
 st.sidebar.divider()
-if st.sidebar.button("🔄 Rafraîchir les données", use_container_width=True):
+if st.sidebar.button("🔄 Rafraîchir les données", width="stretch"):
     st.sidebar.caption("ℹ️ Les données sont mises en cache pendant 1 minute")
     st.sidebar.warning("⚠️ Rafraîchissement en cours...")
     time.sleep(1)
@@ -880,7 +880,7 @@ if page == "📊 Tableau de Bord":
             
             st.dataframe(
                 top_df,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "Classement": st.column_config.NumberColumn(width="small"),
@@ -905,7 +905,7 @@ if page == "📊 Tableau de Bord":
             
             st.dataframe(
                 flop_df,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "Classement": st.column_config.NumberColumn(width="small"),
@@ -1044,7 +1044,7 @@ elif page == "👥 Gestion des Candidatures":
     if not display_df.empty:
         st.dataframe(
             display_df.drop(columns=["Matricule"]),
-            use_container_width=True,
+            width="stretch",
             hide_index=True
         )
         
@@ -1126,7 +1126,7 @@ elif page == "📝 Entretien RH":
         """)
     
     with col_info2:
-        if st.button("💾 Sauvegarder maintenant", type="secondary", use_container_width=True):
+        if st.button("💾 Sauvegarder maintenant", type="secondary", width="stretch"):
             if st.session_state.entretien_data and st.session_state.current_matricule:
                 save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
     
@@ -1180,7 +1180,7 @@ elif page == "📝 Entretien RH":
                 key="select_collab_new"
             )
         
-        if st.button("▶️ Démarrer/Reprendre l'entretien", type="primary", disabled=(selected_collab_new == "-- Sélectionner --"), use_container_width=True):
+        if st.button("▶️ Démarrer/Reprendre l'entretien", type="primary", disabled=(selected_collab_new == "-- Sélectionner --"), width="stretch"):
             collab_mask = (collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]) == selected_collab_new
             collab = collaborateurs_df[collab_mask].iloc[0]
             matricule = get_safe_value(collab.get('Matricule', ''))
@@ -1223,7 +1223,7 @@ elif page == "📝 Entretien RH":
                     key="select_existing_entretien"
                 )
                 
-                if st.button("📖 Ouvrir cet entretien", type="secondary", disabled=(selected_existing == "-- Sélectionner --"), use_container_width=True):
+                if st.button("📖 Ouvrir cet entretien", type="secondary", disabled=(selected_existing == "-- Sélectionner --"), width="stretch"):
                     for record in all_records:
                         if f"{record['Nom']} {record['Prénom']}" == selected_existing:
                             st.session_state.entretien_data = {}
@@ -1760,13 +1760,13 @@ elif page == "📝 Entretien RH":
                             col_btn1, col_btn2, col_btn3 = st.columns(3)
                             
                             with col_btn1:
-                                if st.button("❌ Non", key="btn_non", use_container_width=True):
+                                if st.button("❌ Non", key="btn_non", width="stretch"):
                                     st.session_state.entretien_data["Decision_RH_Poste"] = ""
                                     st.info("Décision annulée")
                                     auto_save_entretien(gsheet_client, SHEET_URL, st.session_state.entretien_data)
                             
                             with col_btn2:
-                                if st.button("🟠 Oui en option RH", key="btn_option", type="secondary", use_container_width=True):
+                                if st.button("🟠 Oui en option RH", key="btn_option", type="secondary", width="stretch"):
                                     commentaire = f"Option RH à l'issue entretien : {poste_final}"
                                     success = update_commentaire_rh(gsheet_client, SHEET_URL, st.session_state.current_matricule, commentaire)
                                     
@@ -1779,7 +1779,7 @@ elif page == "📝 Entretien RH":
                                         st.rerun()
                             
                             with col_btn3:
-                                if st.button("🟢 Oui, vœu retenu", key="btn_retenu", type="primary", use_container_width=True):
+                                if st.button("🟢 Oui, vœu retenu", key="btn_retenu", type="primary", width="stretch"):
                                     success = update_voeu_retenu(gsheet_client, SHEET_URL, st.session_state.current_matricule, poste_final)
                                     
                                     if success:
@@ -1791,7 +1791,7 @@ elif page == "📝 Entretien RH":
                                         st.rerun()
                         
                         st.divider()
-                        if st.button("💾 Sauvegarder l'entretien complet", type="primary", use_container_width=True):
+                        if st.button("💾 Sauvegarder l'entretien complet", type="primary", width="stretch"):
                             save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
 
 # ========================================
@@ -1969,7 +1969,7 @@ elif page == "💻 Comparatif des candidatures par Poste":
                     file_name=f"comparatif_candidatures_{poste_compare.replace(' ', '_')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary", 
-                    use_container_width=True # Rend le bouton plus imposant et moderne
+                    width="stretch" # Rend le bouton plus imposant et moderne
                 )
 
         
@@ -2352,7 +2352,7 @@ elif page == "🎯 Analyse par Poste":
     if not df_filtered_analysis.empty:
         st.dataframe(
             df_filtered_analysis.drop(columns=["Candidats_Data"]),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "Nb_Candidats": st.column_config.NumberColumn(
@@ -2509,7 +2509,7 @@ elif page == "🌳 Référentiel Postes":
     # Affichage
     st.dataframe(
         df_postes,
-        use_container_width=True,
+        width="stretch",
         hide_index=True
     )
 
@@ -2520,6 +2520,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
