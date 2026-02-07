@@ -1981,7 +1981,7 @@ elif page == "💻 Comparatif des candidatures par Poste":
 # NOUVELLE PAGE : TABLEAU AGRÉGÉ POUR ALICE
 # ========================================
 
-elif page == "🗒️🔁 Tableau agrégé pour Alice":
+elif page == "🗒️🔁 Tableau agrégé AM":
     st.title("🗒️🔁 Tableau Agrégé des Vœux - Vue Direction")
     
     st.markdown("""
@@ -2482,6 +2482,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
