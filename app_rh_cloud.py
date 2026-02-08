@@ -2699,11 +2699,18 @@ elif page == "🌳 Référentiel Postes":
 
 # --- FOOTER ---
 st.divider()
+
+# On crée 3 colonnes pour centrer l'image (la colonne du milieu contient le logo)
+col_left, col_logo, col_right = st.columns([2, 1, 2])
+
+with col_logo:
+    # Streamlit trouve directement l'image à la racine de ton dossier GitHub
+    st.image("Logo- in'li.png", width=120)
+
+# On affiche le texte centré juste en dessous
 st.markdown("""
-<div style='text-align: center; color: #999; font-size: 0.9em;'>
+<div style='text-align: center; color: #999; font-size: 0.85em; margin-top: -10px;'>
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
-    st.sidebar.image("Logo- in'li.png", width=150)
 </div>
 """, unsafe_allow_html=True)
-
 
