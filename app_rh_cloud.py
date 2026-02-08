@@ -762,7 +762,7 @@ if collaborateurs_df.empty or postes_df.empty:
     st.stop()
 
 # --- SIDEBAR : NAVIGATION AVEC LOGO ---
-st.sidebar.markdown("<h3 style='color: #ea2b5e; margin-bottom: 1px; margin-top: -10px;'>🏢 CAP25 - Mobilité Interne</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("<h3 style='color: #ea2b5e; margin-bottom: 1px; margin-top: -1px;'>🏢 CAP25 - Mobilité Interne</h3>", unsafe_allow_html=True)
 st.sidebar.markdown("<div style='margin-bottom: 1px;'></div>", unsafe_allow_html=True)
 st.sidebar.image("Logo - BO RH in'li.png", width=220)
 st.sidebar.markdown("<div style='margin-bottom: 1px;'></div>", unsafe_allow_html=True)
@@ -2791,6 +2791,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
