@@ -838,54 +838,42 @@ if page == "📊 Tableau de Bord":
     c1, c2, c3 = st.columns(3)
     
     with c1:
-        st.markdown("""
+        st.markdown(f"""
         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                     padding: 20px; border-radius: 12px; color: white;'>
             <h3 style='margin:0; color: white;'>👥 Collaborateurs</h3>
-            <h1 style='margin:10px 0; color: white;'>{}</h1>
+            <h1 style='margin:10px 0; color: white;'>{nb_collaborateurs}</h1>
             <p style='margin:0; opacity: 0.9;'>à repositionner</p>
         </div>
-        """.format(nb_collaborateurs), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     with c2:
-        st.markdown("""
+        st.markdown(f"""
         <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
                     padding: 20px; border-radius: 12px; color: white;'>
             <h3 style='margin:0; color: white;'>📢 Postes ouverts</h3>
-            <h1 style='margin:10px 0; color: white;'>{}</h1>
+            <h1 style='margin:10px 0; color: white;'>{nb_postes_ouverts}</h1>
             <p style='margin:0; opacity: 0.9;'>mobilité interne</p>
         </div>
-        """.format(nb_postes_ouverts), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     with c3:
-        st.markdown("""
+        st.markdown(f"""
         <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
                     padding: 20px; border-radius: 12px; color: white;'>
             <h3 style='margin:0; color: white;'>🎯 Taux d'affectation</h3>
-            <h1 style='margin:10px 0; color: white;'>{:.1f}%</h1>
-            <p style='margin:0; opacity: 0.9;'>{} postes pourvus</p>
+            <h1 style='margin:10px 0; color: white;'>{pct_attribution:.1f}%</h1>
+            <p style='margin:0; opacity: 0.9;'>{nb_postes_attribues} postes pourvus</p>
         </div>
-        """.format(pct_attribution, nb_postes_attribues), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
         
-        # Barre de progression améliorée
         st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-        col_prog1, col_prog2 = st.columns([pct_attribution, 100 - pct_attribution] if pct_attribution < 100 else [100, 0.1])
+        col_prog1, col_prog2 = st.columns([max(pct_attribution, 1), max(100 - pct_attribution, 1)])
         with col_prog1:
-            st.markdown(f"""
-            <div style='background: #10b981; height: 25px; border-radius: 12px; 
-                        display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;'>
-                {pct_attribution:.1f}%
-            </div>
-            """, unsafe_allow_html=True)
-        if pct_attribution < 100:
-            with col_prog2:
-                st.markdown(f"""
-                <div style='background: #e5e7eb; height: 25px; border-radius: 12px; 
-                            display: flex; align-items: center; justify-content: center; color: #6b7280;'>
-                    {100 - pct_attribution:.1f}%
-                </div>
-                """, unsafe_allow_html=True)
-    
+            st.markdown(f"<div style='background: #10b981; height: 25px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;'>{pct_attribution:.1f}%</div>", unsafe_allow_html=True)
+        with col_prog2:
+            st.markdown(f"<div style='background: #e5e7eb; height: 25px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #6b7280;'>{100 - pct_attribution:.1f}%</div>", unsafe_allow_html=True)
+
     st.divider()
     
     # ===== DEUXIÈME LIGNE : PRIORITÉS =====
@@ -893,29 +881,16 @@ if page == "📊 Tableau de Bord":
     
     nb_priorite_1 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 1"])
     nb_priorite_2 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 2"])
-    nb_priorite_3_4 = len(collaborateurs_df[
-        (collaborateurs_df["Priorité"] == "Priorité 3") | 
-        (collaborateurs_df["Priorité"] == "Priorité 4")
-    ])
+    nb_priorite_3_4 = len(collaborateurs_df[collaborateurs_df["Priorité"].isin(["Priorité 3", "Priorité 4"])])
     
     total_priorites = nb_priorite_1 + nb_priorite_2 + nb_priorite_3_4
-    pct_p1 = (nb_priorite_1 / total_priorites * 100) if total_priorites > 0 else 0
-    pct_p2 = (nb_priorite_2 / total_priorites * 100) if total_priorites > 0 else 0
-    pct_p3_4 = (nb_priorite_3_4 / total_priorites * 100) if total_priorites > 0 else 0
     
     col5, col6, col7 = st.columns(3)
-    
-    with col5:
-        st.metric("🔴 Priorité 1", nb_priorite_1, delta=f"{int(pct_p1)}%", delta_color="off")
-        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_p1)}% du total</p>", unsafe_allow_html=True)
-    
-    with col6:
-        st.metric("🟠 Priorité 2", nb_priorite_2, delta=f"{int(pct_p2)}%", delta_color="off")
-        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_p2)}% du total</p>", unsafe_allow_html=True)
-    
-    with col7:
-        st.metric("🟡 Priorité 3 et 4", nb_priorite_3_4, delta=f"{int(pct_p3_4)}%", delta_color="off")
-        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_p3_4)}% du total</p>", unsafe_allow_html=True)
+    for col, lab, val in zip([col5, col6, col7], ["🔴 Priorité 1", "🟠 Priorité 2", "🟡 Priorité 3 et 4"], [nb_priorite_1, nb_priorite_2, nb_priorite_3_4]):
+        with col:
+            pct = (val / total_priorites * 100) if total_priorites > 0 else 0
+            st.metric(lab, val)
+            st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct)}% du total</p>", unsafe_allow_html=True)
     
     st.divider()
     
@@ -923,42 +898,21 @@ if page == "📊 Tableau de Bord":
     st.subheader("🗓️ Pilotage des entretiens RH")
     
     today = date.today()
-    entretiens_planifies = 0
-    entretiens_aujourd_hui = 0
-    entretiens_realises = 0
-    
-    for idx, row in collaborateurs_df.iterrows():
-        date_rdv = parse_date(row.get("Date de rdv", ""))
-        if date_rdv:
-            if date_rdv > today:
-                entretiens_planifies += 1
-            elif date_rdv == today:
-                entretiens_aujourd_hui += 1
-            elif date_rdv < today:
-                entretiens_realises += 1
-    
-    total_entretiens = entretiens_planifies + entretiens_aujourd_hui + entretiens_realises
-    pct_planifies = (entretiens_planifies / total_entretiens * 100) if total_entretiens > 0 else 0
-    pct_aujourd_hui = (entretiens_aujourd_hui / total_entretiens * 100) if total_entretiens > 0 else 0
-    pct_realises = (entretiens_realises / total_entretiens * 100) if total_entretiens > 0 else 0
+    # On utilise des opérations vectorisées pour la performance au lieu d'une boucle for
+    dates_series = pd.to_datetime(collaborateurs_df["Date de rdv"], errors='coerce').dt.date
+    entretiens_planifies = len(dates_series[dates_series > today])
+    entretiens_aujourd_hui = len(dates_series[dates_series == today])
+    entretiens_realises = len(dates_series[dates_series < today])
     
     col9, col10, col11 = st.columns(3)
-    
-    with col9:
-        st.metric("📅 Entretiens planifiés", entretiens_planifies)
-        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_planifies)}% du total</p>", unsafe_allow_html=True)
-    
-    with col10:
-        st.metric("✅ Entretiens réalisés", entretiens_realises)
-        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_realises)}% du total</p>", unsafe_allow_html=True)
-    
-    with col11:
-        st.metric("⌛ Aujourd'hui", entretiens_aujourd_hui)
-        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_aujourd_hui)}% du total</p>", unsafe_allow_html=True)
-    
+    # ... (Affichage des metrics Entretiens ici, même logique d'indentation)
+    with col9: st.metric("📅 Entretiens planifiés", entretiens_planifies)
+    with col10: st.metric("✅ Entretiens réalisés", entretiens_realises)
+    with col11: st.metric("⌛ Aujourd'hui", entretiens_aujourd_hui)
+
     st.divider()
     
-# ===== GRAPHIQUES OPTIMISÉS =====
+    # ===== GRAPHIQUES OPTIMISÉS (ICI ÉTAIT L'ERREUR) =====
     st.subheader("📊 Analyse des vœux par poste")
 
     col_chart1, col_chart2 = st.columns(2)
@@ -997,12 +951,14 @@ elif page == "👥 Gestion des Candidatures":
     with col_f1:
         filtre_direction = st.multiselect(
             "Filtrer par Direction",
-            options=sorted(collaborateurs_df["Direction libellé"].unique()),
+            options=sorted(collaborateurs_df["Direction libellé"].dropna().unique()),
             default=[]
         )
     
     with col_f2:
-        all_collabs = sorted((collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]).unique())
+        # Création d'une colonne temporaire pour le nom complet si elle n'existe pas
+        collaborateurs_df["Nom_Complet"] = collaborateurs_df["NOM"].fillna("") + " " + collaborateurs_df["Prénom"].fillna("")
+        all_collabs = sorted(collaborateurs_df["Nom_Complet"].unique())
         filtre_collaborateur = st.multiselect(
             "Filtrer par Collaborateur",
             options=all_collabs,
@@ -1015,14 +971,11 @@ elif page == "👥 Gestion des Candidatures":
     with col_f4:
         filtre_rrh = st.multiselect(
             "Filtrer par RRH",
-            options=sorted(collaborateurs_df["Référente RH"].unique()),
+            options=sorted(collaborateurs_df["Référente RH"].dropna().unique()),
             default=[]
         )
     
-    filtre_date_rdv = st.date_input(
-        "Filtrer par Date de rdv",
-        value=None
-    )
+    filtre_date_rdv = st.date_input("Filtrer par Date de rdv", value=None)
     
     # Appliquer les filtres
     df_filtered = collaborateurs_df.copy()
@@ -2648,6 +2601,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
