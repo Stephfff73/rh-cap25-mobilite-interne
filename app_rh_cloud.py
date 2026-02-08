@@ -759,32 +759,46 @@ if collaborateurs_df.empty or postes_df.empty:
     st.error("Impossible de charger les données. Vérifiez la structure du Google Sheet.")
     st.stop()
 
-# --- CSS POUR SIDEBAR COMPACTE (SANS MODIFIER L'ESPACEMENT DU MENU) ---
+# --- CSS POUR SIDEBAR ULTRA-COMPACTE ---
 st.sidebar.markdown("""
     <style>
-        /* Supprime le padding énorme en haut de la sidebar */
+        /* Supprime TOUT le padding en haut */
         [data-testid="stSidebarUserContent"] {
-            padding-top: 0.5rem !important;
+            padding-top: 0rem !important;
         }
-        /* Réduit l'espace au-dessus du menu de navigation */
         [data-testid="stSidebarNav"] {
             padding-top: 0px !important;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- CONNEXION (Version ultra-compacte) ---
-st.sidebar.markdown("<p style='font-size: 0.75em; color: #10b981; margin: 2px 0; padding: 0;'>✅ Connexion établie avec Google Sheet</p>", unsafe_allow_html=True)
+# --- BANDEAU CONNEXION EN HAUT (FOND VERT) ---
+st.sidebar.markdown("""
+<div style='background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
+            padding: 8px 12px; 
+            border-radius: 0px; 
+            margin: 0; 
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+    <p style='color: white; 
+              font-size: 0.85em; 
+              font-weight: 600; 
+              margin: 0; 
+              text-align: center;
+              letter-spacing: 0.5px;'>
+        ✅ Connexion établie avec Google Sheets
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
-# --- SIDEBAR : NAVIGATION AVEC LOGO ---
-st.sidebar.markdown("<h3 style='color: #ea2b5e; margin: 8px 0 6px 0; padding: 0; line-height: 1.1; font-size: 1.4rem;'>🏢 CAP25 - Mobilité interne</h3>", unsafe_allow_html=True)
+# --- TITRE + LOGO (PLUS COMPACTS) ---
+st.sidebar.markdown("<h3 style='color: #ea2b5e; margin: 0px 0 8px 0; padding: 0; line-height: 1.1; font-size: 1.35rem;'>🏢 CAP25 - Mobilité interne</h3>", unsafe_allow_html=True)
 
-# Logo légèrement réduit
-st.sidebar.image("Logo - BO RH in'li.png", width=250)
+st.sidebar.image("Logo - BO RH in'li.png", width=240)
 
-# Divider HTML très fin avec espacement contrôlé
-st.sidebar.markdown("<hr style='margin: 10px 0px 12px 0px; border: none; border-top: 1px solid #e5e7eb;'>", unsafe_allow_html=True)
+st.sidebar.markdown("<hr style='margin: 8px 0px 10px 0px; border: none; border-top: 1px solid #e5e7eb;'>", unsafe_allow_html=True)
 
+# --- MENU NAVIGATION ---
 page = st.sidebar.radio(
     "Navigation",
     [
@@ -799,8 +813,7 @@ page = st.sidebar.radio(
     label_visibility="collapsed"
 )
 
-# Divider avec espacement
-st.sidebar.markdown("<div style='margin: 12px 0;'></div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='margin: 10px 0;'></div>", unsafe_allow_html=True)
 
 if st.sidebar.button("🔄 Rafraîchir les données", use_container_width=True):
     st.sidebar.caption("ℹ️ Les données sont mises en cache pendant 1 minute")
@@ -809,7 +822,7 @@ if st.sidebar.button("🔄 Rafraîchir les données", use_container_width=True):
     st.cache_data.clear()
     st.rerun()
 
-st.sidebar.markdown("<div style='margin: 10px 0;'></div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='margin: 8px 0;'></div>", unsafe_allow_html=True)
 
 paris_tz = pytz.timezone('Europe/Paris')
 paris_time = datetime.now(paris_tz)
@@ -818,20 +831,18 @@ st.sidebar.caption(f"Dernière MAJ : {paris_time.strftime('%H:%M:%S')}")
 if st.session_state.last_save_time:
     st.sidebar.caption(f"💾 Sauvegarde : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
 
-# Espacement avant le logo du bas
-st.sidebar.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='margin: 18px 0;'></div>", unsafe_allow_html=True)
 
-# Logo en bas de la barre latérale
+# Logo en bas
 col_logo = st.sidebar.columns([1, 2, 1])
 with col_logo[1]:
-    st.sidebar.image("Logo- in'li.png", width=210)
+    st.sidebar.image("Logo- in'li.png", width=200)
     
 # ========================================
-# PAGE 1 : TABLEAU DE BORD OPTIMISÉ
+# PAGE 1 : TABLEAU DE BORD - VERSION PRO
 # ========================================
 
 if page == "📊 Tableau de Bord":
-    # Titre avec date et heure actuelles
     paris_tz = pytz.timezone('Europe/Paris')
     now = datetime.now(paris_tz)
     
@@ -839,10 +850,9 @@ if page == "📊 Tableau de Bord":
     st.markdown(f"<p style='font-style: italic; color: #ea2b5e; font-size: 1.1em; font-weight: 500;'>📌 Avancement global de la mobilité interne au {now.strftime('%d/%m/%Y')} à {now.strftime('%H:%M')}</p>", unsafe_allow_html=True)
     st.divider()
     
-    # ===== PREMIÈRE LIGNE : MÉTRIQUES PRINCIPALES =====
+    # ===== MÉTRIQUES PRINCIPALES =====
     st.subheader("🎯 Indicateurs clés")
     
-    # Calculs
     nb_collaborateurs = len(collaborateurs_df[
         (collaborateurs_df["Matricule"].notna()) & 
         (collaborateurs_df["Matricule"] != "") &
@@ -891,7 +901,6 @@ if page == "📊 Tableau de Bord":
         </div>
         """.format(pct_attribution, nb_postes_attribues), unsafe_allow_html=True)
         
-        # Barre de progression améliorée
         st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
         col_prog1, col_prog2 = st.columns([pct_attribution, 100 - pct_attribution] if pct_attribution < 100 else [100, 0.1])
         with col_prog1:
@@ -912,7 +921,7 @@ if page == "📊 Tableau de Bord":
     
     st.divider()
     
-    # ===== DEUXIÈME LIGNE : PRIORITÉS =====
+    # ===== PRIORITÉS =====
     st.subheader("⭐ Ventilation des Priorités")
     
     nb_priorite_1 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 1"])
@@ -943,7 +952,7 @@ if page == "📊 Tableau de Bord":
     
     st.divider()
     
-    # ===== TROISIÈME LIGNE : ENTRETIENS =====
+    # ===== ENTRETIENS =====
     st.subheader("🗓️ Pilotage des entretiens RH")
     
     today = date.today()
@@ -982,10 +991,9 @@ if page == "📊 Tableau de Bord":
     
     st.divider()
     
-    # ===== GRAPHIQUES OPTIMISÉS PROFESSIONNELS =====
+    # ===== TABLEAUX OPTIMISÉS VERSION PRO =====
     st.subheader("📊 Analyse des vœux par poste")
     
-    # Collecte des vœux
     all_voeux = pd.concat([
         collaborateurs_df["Vœux 1"],
         collaborateurs_df["Vœux 2"],
@@ -1005,57 +1013,89 @@ if page == "📊 Tableau de Bord":
         with col_chart1:
             st.markdown("#### 🔥 Top 10 des postes les plus demandés")
             
-            top_postes = all_voeux.value_counts().head(10)
+            top_postes = all_voeux.value_counts().head(10)  # ✅ LIMITE À 10 (pas de ligne 11 vide)
             
-            # ✅ TABLEAU OPTIMISÉ - RANG + NOMBRE VISIBLE
             top_df = pd.DataFrame({
-                "Rang": [f"#{i}" for i in range(1, len(top_postes) + 1)],
-                "Vœux": top_postes.values,  # ← EN 2ÈME POSITION POUR VISIBILITÉ
+                "🏆": [f"#{i}" for i in range(1, len(top_postes) + 1)],
+                "📊": top_postes.values,
                 "Intitulé du poste": top_postes.index
             })
             
-            # CSS pour bordures et couleurs alternées professionnelles
+            # ✅ CSS OPTIMISÉ - COULEURS VIBRANTES + COLONNES ÉTROITES
             st.markdown("""
             <style>
-            /* Tableau 1 - Style professionnel */
-            div[data-testid="column"]:nth-child(1) table {
-                border-collapse: collapse;
-                width: 100%;
+            /* Réduction largeur colonnes Rang et Vœux */
+            div[data-testid="column"]:nth-child(1) table th:nth-child(1),
+            div[data-testid="column"]:nth-child(1) table td:nth-child(1) {
+                width: 50px !important;
+                max-width: 50px !important;
             }
+            div[data-testid="column"]:nth-child(1) table th:nth-child(2),
+            div[data-testid="column"]:nth-child(1) table td:nth-child(2) {
+                width: 70px !important;
+                max-width: 70px !important;
+            }
+            
+            /* En-tête avec gradient orange vif */
             div[data-testid="column"]:nth-child(1) th {
-                background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
+                background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%) !important;
                 color: white !important;
-                font-weight: 600 !important;
-                padding: 12px 8px !important;
+                font-weight: 700 !important;
+                padding: 14px 8px !important;
                 text-align: center !important;
-                border: 1px solid #ea580c !important;
+                font-size: 0.95em !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.5px !important;
+                border: none !important;
             }
+            
+            /* Lignes alternées avec couleurs chaudes */
             div[data-testid="column"]:nth-child(1) tbody tr:nth-child(odd) {
-                background-color: #fff7ed !important;
+                background: linear-gradient(90deg, #fff4e6 0%, #ffffff 100%) !important;
             }
             div[data-testid="column"]:nth-child(1) tbody tr:nth-child(even) {
-                background-color: #ffffff !important;
+                background: linear-gradient(90deg, #ffe8cc 0%, #fff9f0 100%) !important;
             }
+            
+            /* Hover dynamique */
             div[data-testid="column"]:nth-child(1) tbody tr:hover {
-                background-color: #fed7aa !important;
+                background: linear-gradient(90deg, #ffd8a8 0%, #ffe5c2 100%) !important;
+                transform: translateX(3px);
                 transition: all 0.2s ease;
+                box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
             }
+            
+            /* Cellules */
             div[data-testid="column"]:nth-child(1) td {
-                padding: 10px 8px !important;
-                border: 1px solid #fed7aa !important;
+                padding: 12px 8px !important;
+                border-bottom: 1px solid #ffe0b2 !important;
+                border-right: 1px solid #ffe0b2 !important;
             }
-            /* Colonne Vœux en gras et centrée */
-            div[data-testid="column"]:nth-child(1) td:nth-child(2) {
-                font-weight: 700 !important;
-                font-size: 1.1em !important;
-                color: #ea580c !important;
-                text-align: center !important;
-                background-color: #ffedd5 !important;
-            }
-            /* Colonne Rang centrée */
+            
+            /* Colonne Rang - Badge style */
             div[data-testid="column"]:nth-child(1) td:nth-child(1) {
                 text-align: center !important;
-                font-weight: 600 !important;
+                font-weight: 700 !important;
+                font-size: 1em !important;
+                color: #e65100 !important;
+            }
+            
+            /* Colonne Vœux - Mise en avant MAXIMALE */
+            div[data-testid="column"]:nth-child(1) td:nth-child(2) {
+                font-weight: 800 !important;
+                font-size: 1.3em !important;
+                color: #ffffff !important;
+                text-align: center !important;
+                background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%) !important;
+                border-radius: 8px !important;
+                box-shadow: 0 2px 6px rgba(255, 107, 53, 0.3) !important;
+            }
+            
+            /* Colonne Intitulé */
+            div[data-testid="column"]:nth-child(1) td:nth-child(3) {
+                font-size: 0.9em !important;
+                color: #424242 !important;
+                font-weight: 500 !important;
             }
             </style>
             """, unsafe_allow_html=True)
@@ -1065,81 +1105,115 @@ if page == "📊 Tableau de Bord":
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "Rang": st.column_config.TextColumn("Rang", width="small"),
-                    "Vœux": st.column_config.NumberColumn(
-                        "Vœux", 
-                        width="small",
-                        help="Nombre de vœux émis pour ce poste"
-                    ),
+                    "🏆": st.column_config.TextColumn("Rang", width="small"),
+                    "📊": st.column_config.NumberColumn("Vœux", width="small"),
                     "Intitulé du poste": st.column_config.TextColumn("Intitulé du poste", width="large")
                 },
-                height=435  # Hauteur fixe pour alignement
+                height=438
             )
         
         with col_chart2:
             st.markdown("#### ⚠️ Postes en tension d'attractivité")
             
-            flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
+            flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)  # ✅ LIMITE À 10
             
             flop_df = pd.DataFrame({
-                "Rang": [f"#{i}" for i in range(1, len(flop_postes) + 1)],
-                "Vœux": flop_postes.values,  # ← EN 2ÈME POSITION POUR VISIBILITÉ
+                "⚠️": [f"#{i}" for i in range(1, len(flop_postes) + 1)],
+                "📊": flop_postes.values,
                 "Intitulé du poste": flop_postes.index
             })
             
-            # CSS pour tableau 2 avec dégradé de rouge
+            # ✅ CSS OPTIMISÉ - ROUGE VIF + CODE COULEUR
             st.markdown("""
             <style>
-            /* Tableau 2 - Style tension */
-            div[data-testid="column"]:nth-child(2) table {
-                border-collapse: collapse;
-                width: 100%;
+            /* Réduction largeur colonnes */
+            div[data-testid="column"]:nth-child(2) table th:nth-child(1),
+            div[data-testid="column"]:nth-child(2) table td:nth-child(1) {
+                width: 50px !important;
+                max-width: 50px !important;
             }
+            div[data-testid="column"]:nth-child(2) table th:nth-child(2),
+            div[data-testid="column"]:nth-child(2) table td:nth-child(2) {
+                width: 70px !important;
+                max-width: 70px !important;
+            }
+            
+            /* En-tête rouge vif */
             div[data-testid="column"]:nth-child(2) th {
-                background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important;
+                background: linear-gradient(135deg, #e53935 0%, #c62828 100%) !important;
                 color: white !important;
-                font-weight: 600 !important;
-                padding: 12px 8px !important;
+                font-weight: 700 !important;
+                padding: 14px 8px !important;
                 text-align: center !important;
-                border: 1px solid #991b1b !important;
+                font-size: 0.95em !important;
+                text-transform: uppercase !important;
+                letter-spacing: 0.5px !important;
+                border: none !important;
             }
+            
+            /* Lignes alternées rouges */
             div[data-testid="column"]:nth-child(2) tbody tr:nth-child(odd) {
-                background-color: #fef2f2 !important;
+                background: linear-gradient(90deg, #ffebee 0%, #ffffff 100%) !important;
             }
             div[data-testid="column"]:nth-child(2) tbody tr:nth-child(even) {
-                background-color: #ffffff !important;
+                background: linear-gradient(90deg, #ffcdd2 0%, #fff5f5 100%) !important;
             }
+            
+            /* Hover rouge */
             div[data-testid="column"]:nth-child(2) tbody tr:hover {
-                background-color: #fecaca !important;
+                background: linear-gradient(90deg, #ef9a9a 0%, #ffcdd2 100%) !important;
+                transform: translateX(3px);
                 transition: all 0.2s ease;
+                box-shadow: 0 2px 8px rgba(229, 57, 53, 0.3);
             }
+            
+            /* Cellules */
             div[data-testid="column"]:nth-child(2) td {
-                padding: 10px 8px !important;
-                border: 1px solid #fecaca !important;
+                padding: 12px 8px !important;
+                border-bottom: 1px solid #ffcdd2 !important;
+                border-right: 1px solid #ffcdd2 !important;
             }
-            /* Colonne Vœux en gras et centrée avec code couleur */
-            div[data-testid="column"]:nth-child(2) td:nth-child(2) {
-                font-weight: 700 !important;
-                font-size: 1.1em !important;
-                text-align: center !important;
-            }
-            /* Code couleur automatique selon valeur */
-            div[data-testid="column"]:nth-child(2) tbody tr:has(td:nth-child(2):is([data-value="0"], :contains("0"))) td:nth-child(2) {
-                background-color: #fee2e2 !important;
-                color: #991b1b !important;
-            }
-            div[data-testid="column"]:nth-child(2) tbody tr:has(td:nth-child(2):is([data-value="1"], :contains("1"))) td:nth-child(2) {
-                background-color: #fecaca !important;
-                color: #dc2626 !important;
-            }
-            div[data-testid="column"]:nth-child(2) tbody tr:has(td:nth-child(2):is([data-value="2"], :contains("2"))) td:nth-child(2) {
-                background-color: #fca5a5 !important;
-                color: #dc2626 !important;
-            }
-            /* Colonne Rang centrée */
+            
+            /* Colonne Rang */
             div[data-testid="column"]:nth-child(2) td:nth-child(1) {
                 text-align: center !important;
-                font-weight: 600 !important;
+                font-weight: 700 !important;
+                font-size: 1em !important;
+                color: #b71c1c !important;
+            }
+            
+            /* Colonne Vœux - CODE COULEUR DYNAMIQUE */
+            div[data-testid="column"]:nth-child(2) td:nth-child(2) {
+                font-weight: 800 !important;
+                font-size: 1.3em !important;
+                text-align: center !important;
+                border-radius: 8px !important;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
+            }
+            
+            /* Si valeur = 0 : Rouge foncé */
+            div[data-testid="column"]:nth-child(2) tbody tr:has(td:nth-child(2):contains("0")) td:nth-child(2):contains("0") {
+                background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%) !important;
+                color: white !important;
+            }
+            
+            /* Si valeur = 1 : Rouge moyen */
+            div[data-testid="column"]:nth-child(2) tbody tr:has(td:nth-child(2):contains("1")) td:nth-child(2):contains("1") {
+                background: linear-gradient(135deg, #e53935 0%, #d32f2f 100%) !important;
+                color: white !important;
+            }
+            
+            /* Si valeur >= 2 : Orange d'alerte */
+            div[data-testid="column"]:nth-child(2) tbody tr td:nth-child(2):not(:contains("0")):not(:contains("1")) {
+                background: linear-gradient(135deg, #ff6f00 0%, #f57c00 100%) !important;
+                color: white !important;
+            }
+            
+            /* Colonne Intitulé */
+            div[data-testid="column"]:nth-child(2) td:nth-child(3) {
+                font-size: 0.9em !important;
+                color: #424242 !important;
+                font-weight: 500 !important;
             }
             </style>
             """, unsafe_allow_html=True)
@@ -1149,17 +1223,12 @@ if page == "📊 Tableau de Bord":
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "Rang": st.column_config.TextColumn("Rang", width="small"),
-                    "Vœux": st.column_config.NumberColumn(
-                        "Vœux", 
-                        width="small",
-                        help="Nombre de vœux (faible = tension élevée)"
-                    ),
+                    "⚠️": st.column_config.TextColumn("Rang", width="small"),
+                    "📊": st.column_config.NumberColumn("Vœux", width="small"),
                     "Intitulé du poste": st.column_config.TextColumn("Intitulé du poste", width="large")
                 },
-                height=435  # Hauteur identique pour alignement
+                height=438
             )
-
 # ========================================
 # PAGE 2 : GESTION DES CANDIDATURES
 # ========================================
@@ -2923,6 +2992,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
