@@ -1021,7 +1021,7 @@ if page == "📊 Tableau de Bord":
                         help="Intitulé officiel du poste"
                     ),
                     "Demandes": st.column_config.ProgressColumn(
-                        "Volume",
+                        "Nombre de voeux",
                         help="Nombre de vœux cumulés",
                         format="%d",
                         min_value=0,
@@ -1034,7 +1034,7 @@ if page == "📊 Tableau de Bord":
 
         # --- TABLEAU DROITE : FLOP 10 (Attention) ---
         with col_flop:
-            st.markdown("##### ⚠️ Attention : En manque d'attractivité")
+            st.markdown("##### ⚠️ Postes : En manque d'attractivité")
             # On prend ceux qui ont des voeux mais le moins (tail), ou 0 si on avait la liste complète
             flop_data = all_voeux.value_counts().tail(10).sort_values().reset_index()
             flop_data.columns = ["Poste", "Demandes"]
@@ -1049,7 +1049,7 @@ if page == "📊 Tableau de Bord":
                         width="medium"
                     ),
                     "Demandes": st.column_config.ProgressColumn(
-                        "Volume",
+                        "Nombre de voeux",
                         format="%d",
                         min_value=0,
                         max_value=int(top_max), # On garde la même échelle que le TOP pour comparer visuellement !
@@ -2864,6 +2864,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
