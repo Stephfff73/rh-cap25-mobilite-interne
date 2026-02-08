@@ -1032,7 +1032,7 @@ with col_chart2:
 # PAGE 2 : GESTION DES CANDIDATURES
 # ========================================
 
-elif page == "👥 Gestion des Candidatures":
+    elif page == "👥 Gestion des Candidatures":
     st.title("👥 Gestion des Candidatures")
     
     # Filtres
@@ -2692,6 +2692,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
