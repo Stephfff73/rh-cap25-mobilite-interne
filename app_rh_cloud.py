@@ -812,7 +812,7 @@ if page == "📊 Tableau de Bord":
     now = datetime.now(paris_tz)
     
     st.title("📊 Tableau de Bord - Vue d'ensemble")
-    st.markdown(f"<p style='font-style: italic; color: #ea2b5e; font-size: 1.1em; font-weight: 500;'>📌 Avancement global de la mobilité au {now.strftime('%d/%m/%Y')} à {now.strftime('%H:%M')}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='font-style: italic; color: #ea2b5e; font-size: 1.1em; font-weight: 500;'>📌 Avancement global de la mobilité interne au {now.strftime('%d/%m/%Y')} à {now.strftime('%H:%M')}</p>", unsafe_allow_html=True)
     st.divider()
     
     # ===== PREMIÈRE LIGNE : MÉTRIQUES PRINCIPALES =====
@@ -1159,10 +1159,18 @@ elif page == "👥 Gestion des Candidatures":
         
         st.divider()
 
+
+
         st.subheader("📤 Exporter les données")
 
+        # Déterminer si des filtres sont actifs
+        filtres_actifs_candidatures = bool(filtre_direction) or bool(filtre_collaborateur) or bool(search_nom) or bool(filtre_rrh) or (filtre_date_rdv is not None)
+
+        if filtres_actifs_candidatures:
+            st.info("💡 Le fichier exporté contiendra les données **filtrées** affichées dans le tableau ci-dessus.")
+
         excel_file = to_excel(display_df.drop(columns=["Matricule"]))
-        
+
         st.download_button(
             label="📥 Télécharger en Excel",
             data=excel_file,
@@ -1315,41 +1323,47 @@ elif page == "📝 Entretien RH":
             st.session_state.selected_collaborateur = selected_collab_new
             st.rerun()
     
+
+
     with col_mode2:
         st.markdown("#### 📂 Consulter un entretien existant")
-        
-        try:
-            spreadsheet = gsheet_client.open_by_url(SHEET_URL)
-            worksheet = spreadsheet.worksheet("Entretien RH")
-            all_records = worksheet.get_all_records()
+    
+        # ✅ SI UN ENTRETIEN EST DÉJÀ OUVERT, VERROUILLER LA SÉLECTION
+        if st.session_state.current_matricule:
+            st.warning(f"📌 Entretien en cours : **{st.session_state.selected_collaborateur}**")
+            st.caption("Utilisez le bouton '🔄 Sélectionner un autre collaborateur' pour changer.")
+        else:
+            try:
+                spreadsheet = gsheet_client.open_by_url(SHEET_URL)
+                worksheet = spreadsheet.worksheet("Entretien RH")
+                all_records = worksheet.get_all_records()
             
-            entretiens_existants = [f"{record['Nom']} {record['Prénom']}" for record in all_records if record.get('Matricule')]
+                entretiens_existants = [f"{record['Nom']} {record['Prénom']}" for record in all_records if record.get('Matricule')]
             
-            if entretiens_existants:
-                selected_existing = st.selectbox(
-                    "Entretiens déjà sauvegardés",
-                    options=["-- Sélectionner --"] + sorted(entretiens_existants),
-                    key="select_existing_entretien"
-                )
+                if entretiens_existants:
+                    selected_existing = st.selectbox(
+                        "Entretiens déjà sauvegardés",
+                        options=["-- Sélectionner --"] + sorted(entretiens_existants),
+                        key="select_existing_entretien"
+                    )
                 
-                if st.button("📖 Ouvrir cet entretien", type="secondary", disabled=(selected_existing == "-- Sélectionner --"), width="stretch"):
-                    for record in all_records:
-                        if f"{record['Nom']} {record['Prénom']}" == selected_existing:
-                            st.session_state.entretien_data = {}
-                            st.session_state.entretien_data = record.copy()
-                            st.session_state.current_matricule = record['Matricule']
-                            st.session_state.selected_collaborateur = selected_existing
-                            st.session_state.force_reload_entretien = True
+                    if st.button("📖 Ouvrir cet entretien", type="secondary", disabled=(selected_existing == "-- Sélectionner --"), width="stretch"):
+                        for record in all_records:
+                            if f"{record['Nom']} {record['Prénom']}" == selected_existing:
+                                st.session_state.entretien_data = record.copy()
+                                st.session_state.current_matricule = record['Matricule']
+                                st.session_state.selected_collaborateur = selected_existing
+                                st.session_state.force_reload_entretien = True
                             
-                            st.success(f"✅ Entretien chargé : {selected_existing}")
-                            time.sleep(0.5)
-                            st.rerun()
-                            break
-            else:
-                st.info("Aucun entretien sauvegardé pour le moment")
-                
-        except Exception as e:
-            st.warning("Impossible de charger les entretiens existants")
+                                st.success(f"✅ Entretien chargé : {selected_existing}")
+                                time.sleep(0.5)
+                                st.rerun()
+                                break
+                else:
+                    st.info("Aucun entretien sauvegardé pour le moment")
+                    
+            except Exception as e:
+                st.warning("Impossible de charger les entretiens existants")
     
     # ===== SECTION 2 : FORMULAIRE D'ENTRETIEN =====
     if st.session_state.current_matricule and st.session_state.selected_collaborateur:
@@ -2688,6 +2702,8 @@ st.divider()
 st.markdown("""
 <div style='text-align: center; color: #999; font-size: 0.9em;'>
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
+    st.sidebar.image("Logo- in'li.png", width=150)
 </div>
 """, unsafe_allow_html=True)
+
 
