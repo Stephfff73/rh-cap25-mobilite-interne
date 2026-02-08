@@ -733,10 +733,29 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1BXez24VFNhb470PrCjwNIFx6GdJ
 # --- INITIALISATION ---
 init_session_state()
 
+# --- CSS POUR COMPACTER LA SIDEBAR (À placer en premier) ---
+st.sidebar.markdown("""
+    <style>
+        /* Supprime le padding énorme en haut de la sidebar */
+        [data-testid="stSidebarUserContent"] {
+            padding-top: 0.5rem !important;
+        }
+        /* Réduit l'espace entre chaque élément de la sidebar */
+        [data-testid="stSidebarNav"] {
+            padding-top: 0px !important;
+        }
+        .element-container {
+            margin-bottom: -5px !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- CONNEXION (Version ultra-compacte) ---
 try:
     gsheet_client = get_gsheet_connection()
     if gsheet_client:
-        st.sidebar.success("✅ Connexion Google Sheets établie")
+        # On remplace st.sidebar.success par un petit texte discret
+        st.sidebar.markdown("<p style='font-size: 0.7em; color: #10b981; margin: 0; padding: 0;'>✅ Connexion Google Sheets établie</p>", unsafe_allow_html=True)
         create_entretien_sheet_if_not_exists(gsheet_client, SHEET_URL)
     else:
         st.sidebar.error("❌ Erreur de connexion")
@@ -745,45 +764,14 @@ except Exception as e:
     st.sidebar.error(f"❌ Erreur : {str(e)}")
     st.stop()
 
-# --- CHARGEMENT DES DONNÉES ---
-with st.spinner("Chargement des données..."):
-    collaborateurs_df, postes_df = load_data_from_gsheet(gsheet_client, SHEET_URL)
-
-# ✅ VÉRIFICATION ET CRÉATION DE LA COLONNE "Vœux Retenu" SI MANQUANTE
-if not collaborateurs_df.empty:
-    collaborateurs_df.columns = collaborateurs_df.columns.str.strip()
-    
-    if "Vœux Retenu" not in collaborateurs_df.columns:
-        st.sidebar.warning("⚠️ Colonne 'Vœux Retenu' créée automatiquement")
-        collaborateurs_df["Vœux Retenu"] = ""
-
-if collaborateurs_df.empty or postes_df.empty:
-    st.error("Impossible de charger les données. Vérifiez la structure du Google Sheet.")
-    st.stop()
-
-# --- CSS POUR COMPACTER LA SIDEBAR ---
-st.sidebar.markdown("""
-    <style>
-        /* Réduit l'espace en haut de la sidebar */
-        [data-testid="stSidebarUserContent"] {
-            padding-top: 1rem !important;
-        }
-        /* Supprime les marges par défaut des blocs markdown */
-        .element-container {
-            margin-bottom: 0px !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
 # --- SIDEBAR : NAVIGATION AVEC LOGO ---
-# Utilisation de margin-top négatif pour coller le titre au haut de la page
-st.sidebar.markdown("<h2 style='color: #ea2b5e; margin: -10px 0px 5px 0px; padding: 0;'>🏢 CAP25 - Mobilité Interne</h2>", unsafe_allow_html=True)
+st.sidebar.markdown("<h2 style='color: #ea2b5e; margin: 0px; padding: 0; line-height: 1.2;'>🏢 CAP25 - Mobilité</h2>", unsafe_allow_html=True)
 
-# Affichage du logo sans conteneur intermédiaire pour gagner de la place
+# Logo légèrement réduit
 st.sidebar.image("Logo - BO RH in'li.png", width=250)
 
-# Un petit divider fin avec une marge réduite
-st.sidebar.markdown("<hr style='margin: 10px 0px 10px 0px; border-top: 1px solid #ccc;'>", unsafe_allow_html=True)
+# Divider HTML très fin
+st.sidebar.markdown("<hr style='margin: 5px 0px; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
 
 page = st.sidebar.radio(
     "Navigation",
@@ -977,9 +965,10 @@ if page == "📊 Tableau de Bord":
     
     st.divider()
     
-    # ===== GRAPHIQUES =====
-    col_chart1, col_chart2 = st.columns(2)
+    # ===== GRAPHIQUES OPTIMISÉS AVEC COULEURS =====
+    st.subheader("📊 Analyse des vœux par poste")
 
+    col_chart1, col_chart2 = st.columns(2)
 
     with col_chart1:
         st.markdown("#### 🔥 Top 10 des postes les plus demandés")
@@ -998,23 +987,37 @@ if page == "📊 Tableau de Bord":
         if len(all_voeux) > 0:
             top_postes = all_voeux.value_counts().head(10)
         
-            # Tableau avec tooltips pour les noms longs
+            # ✅ TABLEAU OPTIMISÉ AVEC COULEURS ALTERNÉES
             top_df = pd.DataFrame({
-                "#": range(1, len(top_postes) + 1),
+                "🏆": [f"#{i}" for i in range(1, len(top_postes) + 1)],
                 "Poste": top_postes.index,
-                "Vœux": top_postes.values
+                "🔢": top_postes.values  # Icône pour attirer l'œil sur le chiffre clé
             })
+            
+            # Styling avec HTML pour couleurs alternées
+            def highlight_rows(row):
+                if int(row["🏆"].replace("#", "")) % 2 == 0:
+                    return ['background-color: #f0f9ff'] * len(row)
+                else:
+                    return ['background-color: #ffffff'] * len(row)
+            
+            styled_df = top_df.style.apply(highlight_rows, axis=1)
         
             st.dataframe(
-                top_df,
-                width="stretch",
+                styled_df,
+                use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "#": st.column_config.NumberColumn("Rang", width="small"),
-                    "Vœux": st.column_config.NumberColumn("Nombre", width="small", help="Nombre total de vœux émis"),
-                    "Poste": st.column_config.TextColumn("Intitulé du poste", width="large")
+                    "🏆": st.column_config.TextColumn("Rang", width="small"),
+                    "🔢": st.column_config.NumberColumn(
+                        "Vœux", 
+                        width="small", 
+                        help="Nombre de vœux émis",
+                        format="%d ⭐"  # Ajoute une étoile pour visibilité
+                    ),
+                    "Poste": st.column_config.TextColumn("Intitulé", width="large")
                 },
-                height=400
+                height=420
             )
         else:
             st.info("Aucun vœu enregistré pour le moment")
@@ -1026,21 +1029,41 @@ if page == "📊 Tableau de Bord":
             flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
         
             flop_df = pd.DataFrame({
-                "#": range(1, len(flop_postes) + 1),
+                "⚠️": [f"#{i}" for i in range(1, len(flop_postes) + 1)],
                 "Poste": flop_postes.index,
-                "Vœux": flop_postes.values
+                "🔢": flop_postes.values
             })
+            
+            # Styling avec dégradé de rouge selon le niveau de tension
+            def color_tension(row):
+                val = int(row["🔢"])
+                if val == 0:
+                    color = '#fee2e2'  # Rouge très pâle
+                elif val <= 2:
+                    color = '#fecaca'  # Rouge pâle
+                elif val <= 4:
+                    color = '#fca5a5'  # Rouge moyen
+                else:
+                    color = '#ffffff'  # Blanc (pas vraiment en tension)
+                return [f'background-color: {color}'] * len(row)
+            
+            styled_flop = flop_df.style.apply(color_tension, axis=1)
         
             st.dataframe(
-                flop_df,
-                width="stretch",
+                styled_flop,
+                use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "#": st.column_config.NumberColumn("Rang", width="small"),
-                    "Vœux": st.column_config.NumberColumn("Nombre", width="small", help="Nombre total de vœux émis"),
-                    "Poste": st.column_config.TextColumn("Intitulé du poste", width="large")
+                    "⚠️": st.column_config.TextColumn("Rang", width="small"),
+                    "🔢": st.column_config.NumberColumn(
+                        "Vœux", 
+                        width="small", 
+                        help="Nombre de vœux émis (faible = tension)",
+                        format="%d ⚡"
+                    ),
+                    "Poste": st.column_config.TextColumn("Intitulé", width="large")
                 },
-                height=400
+                height=420
             )
         else:
             st.info("Aucun vœu enregistré pour le moment")
@@ -2808,6 +2831,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
