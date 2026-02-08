@@ -1937,23 +1937,23 @@ elif page == "📝 Entretien RH":
                                         time.sleep(2)
                                         st.rerun()
                             
-# --- Fin de la section précédente (Entretien RH) ---
-        with col_btn3:
-            if st.button("🟢 Oui, vœu retenu", key="btn_retenu", type="primary", use_container_width=True):
-                success = update_voeu_retenu(gsheet_client, SHEET_URL, st.session_state.current_matricule, poste_final)
+
+                        with col_btn3:
+                            if st.button("🟢 Oui, vœu retenu", key="btn_retenu", type="primary", use_container_width=True):
+                            success = update_voeu_retenu(gsheet_client, SHEET_URL, st.session_state.current_matricule, poste_final)
                 
-                if success:
-                    st.session_state.entretien_data["Decision_RH_Poste"] = f"Retenu: {poste_final}"
-                    save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=False)
+                                if success:
+                                    st.session_state.entretien_data["Decision_RH_Poste"] = f"Retenu: {poste_final}"
+                                    save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=False)
                     
-                    st.success("✅ Vœu retenu enregistré avec succès !")
-                    time.sleep(2)
-                    st.rerun()
+                                    st.success("✅ Vœu retenu enregistré avec succès !")
+                                    time.sleep(2)
+                                    st.rerun()
         
-        st.divider()
+                                    st.divider()
         
-        if st.button("💾 Sauvegarder l'entretien complet", type="primary", use_container_width=True):
-            save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
+                    if st.button("💾 Sauvegarder l'entretien complet", type="primary", use_container_width=True):
+                    save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
 
 # ========================================
 # NOUVELLE PAGE : COMPARATIF DES CANDIDATURES PAR POSTE
@@ -2864,6 +2864,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
