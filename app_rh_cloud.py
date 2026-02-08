@@ -958,7 +958,7 @@ if page == "📊 Tableau de Bord":
     
     st.divider()
     
-# ===== GRAPHIQUES OPTIMISÉS =====
+    # ===== GRAPHIQUES OPTIMISÉS =====
 st.subheader("📊 Analyse des vœux par poste")
 
 col_chart1, col_chart2 = st.columns(2)
@@ -1027,13 +1027,12 @@ with col_chart2:
     else:
         st.info("Aucun vœu enregistré pour le moment")
 
-
 # ========================================
 # PAGE 2 : GESTION DES CANDIDATURES
 # ========================================
 
-    elif page == "👥 Gestion des Candidatures":
-    st.title("👥 Gestion des Candidatures")
+elif page == "👥 Gestion des Candidatures":
+st.title("👥 Gestion des Candidatures")
     
     # Filtres
     col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -2692,6 +2691,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
