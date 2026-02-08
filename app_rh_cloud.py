@@ -1930,9 +1930,37 @@ elif page == "💻🔍 Candidatures/Poste":
     """)
     
     st.divider()
-    
+
+
+    # ===== FILTRES =====
+    st.subheader("🔍 Filtres")
+    col_filtre1, col_filtre2 = st.columns(2)
+
+    with col_filtre1:
+        # Filtre : Mobilité interne uniquement
+        only_mobilite = st.checkbox("📌 Afficher uniquement les postes ouverts à la mobilité interne", value=True)
+
+    with col_filtre2:
+        # Filtre par Direction
+        directions_postes = sorted(postes_df["Direction"].unique())
+        filtre_direction_poste = st.multiselect(
+            "Filtrer par Direction",
+            options=directions_postes,
+            default=[]
+        )
+
+    # Appliquer les filtres
+    postes_filtres_df = postes_df.copy()
+
+    if only_mobilite:
+        postes_filtres_df = postes_filtres_df[postes_filtres_df["Mobilité interne"].str.lower() == "oui"]
+
+    if filtre_direction_poste:
+        postes_filtres_df = postes_filtres_df[postes_filtres_df["Direction"].isin(filtre_direction_poste)]
+
+  
     # Sélection du poste
-    postes_list = sorted(postes_df["Poste"].unique())
+    postes_list = sorted(postes_filtres_df["Poste"].unique())
     poste_compare = st.selectbox(
         "🎯 Sélectionner un poste à analyser",
         options=["-- Sélectionner --"] + postes_list,
@@ -1958,6 +1986,7 @@ elif page == "💻🔍 Candidatures/Poste":
                 voeu1 = get_safe_value(collab.get('Vœux 1', ''))
                 voeu2 = get_safe_value(collab.get('Vœux 2', ''))
                 voeu3 = get_safe_value(collab.get('Voeux 3', ''))
+                voeu4 = get_safe_value(collab.get('Voeux 4', '')) 
                 
                 if voeu1 == poste_compare:
                     voeu_match = "Vœu 1"
@@ -1968,6 +1997,9 @@ elif page == "💻🔍 Candidatures/Poste":
                 elif voeu3 == poste_compare:
                     voeu_match = "Vœu 3"
                     ordre_voeu = 3
+                elif voeu4 == poste_compare:
+                    voeu_match = "Vœu 4"
+                    ordre_voeu = 4                   
                 
                 if voeu_match:
                     matricule = get_safe_value(collab.get('Matricule', ''))
@@ -2000,6 +2032,23 @@ elif page == "💻🔍 Candidatures/Poste":
                 st.info(f"Aucun candidat n'a émis de vœu pour le poste « {poste_compare} »")
             else:
                 st.success(f"**{len(candidats_data)} candidat(s)** trouvé(s) pour ce poste")
+
+                # Calcul des statistiques par vœu
+                nb_v1 = sum(1 for c in candidats_data if c['voeu_match'] == "Vœu 1")
+                nb_v2 = sum(1 for c in candidats_data if c['voeu_match'] == "Vœu 2")
+                nb_v3 = sum(1 for c in candidats_data if c['voeu_match'] == "Vœu 3")
+                nb_v4 = sum(1 for c in candidats_data if c['voeu_match'] == "Vœu 4")
+                total_cand = len(candidats_data)
+
+                pct_v1 = (nb_v1 / total_cand * 100) if total_cand > 0 else 0
+                pct_v2 = (nb_v2 / total_cand * 100) if total_cand > 0 else 0
+                pct_v3 = (nb_v3 / total_cand * 100) if total_cand > 0 else 0
+                pct_v4 = (nb_v4 / total_cand * 100) if total_cand > 0 else 0
+
+                st.markdown(f"""
+                **Ventilation détaillée :**  
+                Vœu 1 : **{nb_v1}** soit {pct_v1:.0f}% — Vœu 2 : **{nb_v2}** soit {pct_v2:.0f}% — Vœu 3 : **{nb_v3}** soit {pct_v3:.0f}% — Vœu 4 : **{nb_v4}** soit {pct_v4:.0f}%
+                """)                
                 
                 # Créer le tableau comparatif
                 tableau_comparatif = []
@@ -2015,6 +2064,8 @@ elif page == "💻🔍 Candidatures/Poste":
                         prefix = "V2_"
                     elif cand['voeu_match'] == "Vœu 3":
                         prefix = "V3_"
+                    elif cand['voeu_match'] == "Vœu 4":
+                        prefix = "V4_"                        
                     
                     row_data = {
                         "Rang de vœu": cand['voeu_match'],
@@ -2369,21 +2420,24 @@ elif page == "🗒️🔁 Tableau agrégé AM":
         
         st.divider()
         
+        
         # ===== EXPORT EXCEL =====
         st.subheader("📥 Export Excel")
-        
+
         col_export1, col_export2 = st.columns([3, 1])
-        
+
         with col_export1:
-            st.info("💡 Le fichier exporté contiendra les données **filtrées** affichées dans le tableau ci-dessus.")
-        
+            # ✅ AFFICHAGE CONDITIONNEL DU MESSAGE
+            if filtres_actifs:
+                st.info("💡 Le fichier exporté contiendra les données **filtrées** affichées dans le tableau ci-dessus.")
+
         with col_export2:
             paris_tz = pytz.timezone('Europe/Paris')
             export_time = datetime.now(paris_tz)
             filename = f"EDL voeux CAP25 - {export_time.strftime('%d-%m-%Y %Hh%M')}.xlsx"
-            
+    
             excel_data = to_excel(df_filtered_agg)
-            
+    
             st.download_button(
                 label="📥 Télécharger en Excel",
                 data=excel_data,
@@ -2539,25 +2593,46 @@ elif page == "🎯 Analyse par Poste":
             width="stretch",
             hide_index=True,
             column_config={
-                "Nb_Candidats": st.column_config.NumberColumn(
-                    "Nombre de candidats",
-                    format="%d"
-                ),
+                "Poste": st.column_config.TextColumn("Poste", width="large"),
+                "Direction": st.column_config.TextColumn("Direction", width="medium"),
                 "Postes disponibles": st.column_config.NumberColumn(
-                    "Postes disponibles",
-                    format="%d"
+                    "Postes totaux",
+                    format="%d",
+                    width="small",
+                    help="Nombre total de postes dans le référentiel"
+                ),
+                "Nombre ouvert à la mobilité": st.column_config.NumberColumn(
+                    "Mobilité interne",
+                    format="%d",
+                    width="small",
+                    help="Postes disponibles après retrait des postes attribués"
                 ),
                 "Postes attribués": st.column_config.NumberColumn(
-                    "Postes attribués",
-                    format="%d"
+                    "Attribués",
+                    format="%d",
+                    width="small"
                 ),
-                "Candidats": st.column_config.TextColumn(
+                "Nb_Candidats": st.column_config.NumberColumn(
                     "Candidats",
-                    width="large"
-                )
+                    format="%d",
+                    width="small"
+                ),
+                "Candidats": st.column_config.TextColumn("Détail candidats", width="large"),
+                "Statut": st.column_config.TextColumn("Statut", width="medium")
             }
         )
-        
+
+        # ✅ AJOUT CSS pour les couleurs de fond
+        st.markdown("""
+        <style>
+        [data-testid="stDataFrame"] td:nth-child(4) {
+            background-color: rgba(234, 43, 94, 0.1) !important;
+        }
+        [data-testid="stDataFrame"] td:nth-child(5) {
+            background-color: rgba(0, 175, 152, 0.1) !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         st.divider()
         
         # Section pour accéder aux fiches détaillées
@@ -2714,6 +2789,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
