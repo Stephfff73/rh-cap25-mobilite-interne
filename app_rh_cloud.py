@@ -958,81 +958,38 @@ if page == "📊 Tableau de Bord":
     
     st.divider()
     
-    # ===== GRAPHIQUES OPTIMISÉS =====
-st.subheader("📊 Analyse des vœux par poste")
+# ===== GRAPHIQUES OPTIMISÉS =====
+    st.subheader("📊 Analyse des vœux par poste")
 
-col_chart1, col_chart2 = st.columns(2)
+    col_chart1, col_chart2 = st.columns(2)
 
-with col_chart1:
-    st.markdown("#### 🔥 Top 10 des postes les plus demandés")
-    
-    all_voeux = pd.concat([
-        collaborateurs_df["Vœux 1"],
-        collaborateurs_df["Vœux 2"],
-        collaborateurs_df["Voeux 3"]
-    ])
-    all_voeux = all_voeux[
-        all_voeux.notna() & 
-        (all_voeux.astype(str).str.strip() != "") & 
-        (all_voeux.astype(str).str.strip() != "Positionnement manquant")
-    ]
-    
-    if len(all_voeux) > 0:
-        top_postes = all_voeux.value_counts().head(10)
-        
-        # Tableau avec tooltips pour les noms longs
-        top_df = pd.DataFrame({
-            "#": range(1, len(top_postes) + 1),
-            "Poste": top_postes.index,
-            "Vœux": top_postes.values
-        })
-        
-        st.dataframe(
-            top_df,
-            width="stretch",
-            hide_index=True,
-            column_config={
-                "#": st.column_config.NumberColumn("Rang", width="small"),
-                "Vœux": st.column_config.NumberColumn("Nombre", width="small", help="Nombre total de vœux émis"),
-                "Poste": st.column_config.TextColumn("Intitulé du poste", width="large")
-            },
-            height=400
-        )
-    else:
-        st.info("Aucun vœu enregistré pour le moment")
+    all_voeux = pd.concat([collaborateurs_df["Vœux 1"], collaborateurs_df["Vœux 2"], collaborateurs_df["Voeux 3"]])
+    all_voeux = all_voeux[all_voeux.notna() & (all_voeux.astype(str).str.strip() != "") & (all_voeux.astype(str).str.strip() != "Positionnement manquant")]
 
-with col_chart2:
-    st.markdown("#### ⚠️ Postes en tension d'attractivité")
-    
-    if len(all_voeux) > 0:
-        flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
-        
-        flop_df = pd.DataFrame({
-            "#": range(1, len(flop_postes) + 1),
-            "Poste": flop_postes.index,
-            "Vœux": flop_postes.values
-        })
-        
-        st.dataframe(
-            flop_df,
-            width="stretch",
-            hide_index=True,
-            column_config={
-                "#": st.column_config.NumberColumn("Rang", width="small"),
-                "Vœux": st.column_config.NumberColumn("Nombre", width="small", help="Nombre total de vœux émis"),
-                "Poste": st.column_config.TextColumn("Intitulé du poste", width="large")
-            },
-            height=400
-        )
-    else:
-        st.info("Aucun vœu enregistré pour le moment")
+    with col_chart1:
+        st.markdown("#### 🔥 Top 10 des postes les plus demandés")
+        if len(all_voeux) > 0:
+            top_postes = all_voeux.value_counts().head(10)
+            top_df = pd.DataFrame({"#": range(1, len(top_postes) + 1), "Poste": top_postes.index, "Vœux": top_postes.values})
+            st.dataframe(top_df, use_container_width=True, hide_index=True, height=350)
+        else:
+            st.info("Aucun vœu enregistré")
+
+    with col_chart2:
+        st.markdown("#### ⚠️ Postes en tension d'attractivité")
+        if len(all_voeux) > 0:
+            flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
+            flop_df = pd.DataFrame({"#": range(1, len(flop_postes) + 1), "Poste": flop_postes.index, "Vœux": flop_postes.values})
+            st.dataframe(flop_df, use_container_width=True, hide_index=True, height=350)
+        else:
+            st.info("Aucun vœu enregistré")
 
 # ========================================
 # PAGE 2 : GESTION DES CANDIDATURES
 # ========================================
 
 elif page == "👥 Gestion des Candidatures":
-st.title("👥 Gestion des Candidatures")
+    st.title("👥 Gestion des Candidatures")
     
     # Filtres
     col_f1, col_f2, col_f3, col_f4 = st.columns(4)
@@ -2691,6 +2648,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
