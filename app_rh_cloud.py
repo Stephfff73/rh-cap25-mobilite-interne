@@ -777,10 +777,10 @@ st.sidebar.markdown("""
 
 # --- SIDEBAR : NAVIGATION AVEC LOGO ---
 # Utilisation de margin-top négatif pour coller le titre au haut de la page
-st.sidebar.markdown("<h3 style='color: #ea2b5e; margin: -10px 0px 5px 0px; padding: 0;'>🏢 CAP25 - Mobilité Interne</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("<h2 style='color: #ea2b5e; margin: -10px 0px 5px 0px; padding: 0;'>🏢 CAP25 - Mobilité Interne</h2>", unsafe_allow_html=True)
 
 # Affichage du logo sans conteneur intermédiaire pour gagner de la place
-st.sidebar.image("Logo - BO RH in'li.png", width=220)
+st.sidebar.image("Logo - BO RH in'li.png", width=250)
 
 # Un petit divider fin avec une marge réduite
 st.sidebar.markdown("<hr style='margin: 10px 0px 10px 0px; border-top: 1px solid #ccc;'>", unsafe_allow_html=True)
@@ -2808,6 +2808,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
