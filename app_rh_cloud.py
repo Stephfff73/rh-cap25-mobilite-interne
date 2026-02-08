@@ -797,7 +797,10 @@ st.sidebar.caption(f"Dernière mise à jour : {paris_time.strftime('%H:%M:%S')}"
 if st.session_state.last_save_time:
     st.sidebar.caption(f"💾 Dernière sauvegarde : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
 
-st.sidebar.image("Logo- in'li.png", width=210)
+# Remplacer la ligne existante par :
+col_logo = st.sidebar.columns([1, 2, 1])
+with col_logo[1]:
+    st.sidebar.image("Logo- in'li.png", width=210)
 
 # ========================================
 # PAGE 1 : TABLEAU DE BORD AMÉLIORÉ
@@ -809,7 +812,7 @@ if page == "📊 Tableau de Bord":
     now = datetime.now(paris_tz)
     
     st.title("📊 Tableau de Bord - Vue d'ensemble")
-    st.subheader(f"**📌 Avancement global de la mobilité au {now.strftime('%d/%m/%Y')} à {now.strftime('%H:%M')}**")
+    st.markdown(f"<p style='font-style: italic; color: #ea2b5e; font-size: 1.1em; font-weight: 500;'>📌 Avancement global de la mobilité au {now.strftime('%d/%m/%Y')} à {now.strftime('%H:%M')}</p>", unsafe_allow_html=True)
     st.divider()
     
     # ===== PREMIÈRE LIGNE : MÉTRIQUES PRINCIPALES =====
@@ -955,69 +958,74 @@ if page == "📊 Tableau de Bord":
     
     st.divider()
     
-    # ===== GRAPHIQUES =====
-    col_chart1, col_chart2 = st.columns(2)
+# ===== GRAPHIQUES OPTIMISÉS =====
+st.subheader("📊 Analyse des vœux par poste")
+
+col_chart1, col_chart2 = st.columns(2)
+
+with col_chart1:
+    st.markdown("#### 🔥 Top 10 des postes les plus demandés")
     
-    with col_chart1:
-        st.subheader("🔥 Top 10 des postes les plus demandés")
-        
-        all_voeux = pd.concat([
-            collaborateurs_df["Vœux 1"],
-            collaborateurs_df["Vœux 2"],
-            collaborateurs_df["Voeux 3"]
-        ])
-        all_voeux = all_voeux[
-            all_voeux.notna() & 
-            (all_voeux.astype(str).str.strip() != "") & 
-            (all_voeux.astype(str).str.strip() != "Positionnement manquant")
-        ]
-        
-        if len(all_voeux) > 0:
-            top_postes = all_voeux.value_counts().head(10)
-            
-            top_df = pd.DataFrame({
-                "Classement": range(1, len(top_postes) + 1),
-                "Poste": top_postes.index,
-                "Nombre de vœux": top_postes.values
-            })
-            
-            st.dataframe(
-                top_df,
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "Classement": st.column_config.NumberColumn(width="small"),
-                    "Nombre de vœux": st.column_config.NumberColumn(width="small"),
-                    "Poste": st.column_config.TextColumn(width="large")
-                }
-            )
-        else:
-            st.info("Aucun vœu enregistré pour le moment")
+    all_voeux = pd.concat([
+        collaborateurs_df["Vœux 1"],
+        collaborateurs_df["Vœux 2"],
+        collaborateurs_df["Voeux 3"]
+    ])
+    all_voeux = all_voeux[
+        all_voeux.notna() & 
+        (all_voeux.astype(str).str.strip() != "") & 
+        (all_voeux.astype(str).str.strip() != "Positionnement manquant")
+    ]
     
-    with col_chart2:
-        st.subheader("⚠️ Postes en tension d'attractivité")
+    if len(all_voeux) > 0:
+        top_postes = all_voeux.value_counts().head(10)
         
-        if len(all_voeux) > 0:
-            flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
-            
-            flop_df = pd.DataFrame({
-                "Classement": range(1, len(flop_postes) + 1),
-                "Poste": flop_postes.index,
-                "Nombre de vœux": flop_postes.values
-            })
-            
-            st.dataframe(
-                flop_df,
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "Classement": st.column_config.NumberColumn(width="small"),
-                    "Nombre de vœux": st.column_config.NumberColumn(width="small"),
-                    "Poste": st.column_config.TextColumn(width="large")
-                }
-            )
-        else:
-            st.info("Aucun vœu enregistré pour le moment")
+        # Tableau avec tooltips pour les noms longs
+        top_df = pd.DataFrame({
+            "#": range(1, len(top_postes) + 1),
+            "Poste": top_postes.index,
+            "Vœux": top_postes.values
+        })
+        
+        st.dataframe(
+            top_df,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "#": st.column_config.NumberColumn("Rang", width="small"),
+                "Vœux": st.column_config.NumberColumn("Nombre", width="small", help="Nombre total de vœux émis"),
+                "Poste": st.column_config.TextColumn("Intitulé du poste", width="large")
+            },
+            height=400
+        )
+    else:
+        st.info("Aucun vœu enregistré pour le moment")
+
+with col_chart2:
+    st.markdown("#### ⚠️ Postes en tension d'attractivité")
+    
+    if len(all_voeux) > 0:
+        flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
+        
+        flop_df = pd.DataFrame({
+            "#": range(1, len(flop_postes) + 1),
+            "Poste": flop_postes.index,
+            "Vœux": flop_postes.values
+        })
+        
+        st.dataframe(
+            flop_df,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "#": st.column_config.NumberColumn("Rang", width="small"),
+                "Vœux": st.column_config.NumberColumn("Nombre", width="small", help="Nombre total de vœux émis"),
+                "Poste": st.column_config.TextColumn("Intitulé du poste", width="large")
+            },
+            height=400
+        )
+    else:
+        st.info("Aucun vœu enregistré pour le moment")
 
 
 # ========================================
@@ -2684,6 +2692,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
