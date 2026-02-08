@@ -1940,7 +1940,7 @@ elif page == "📝 Entretien RH":
 
                         with col_btn3:
                             if st.button("🟢 Oui, vœu retenu", key="btn_retenu", type="primary", use_container_width=True):
-                            success = update_voeu_retenu(gsheet_client, SHEET_URL, st.session_state.current_matricule, poste_final)
+                                success = update_voeu_retenu(gsheet_client, SHEET_URL, st.session_state.current_matricule, poste_final)
                 
                                 if success:
                                     st.session_state.entretien_data["Decision_RH_Poste"] = f"Retenu: {poste_final}"
@@ -2864,6 +2864,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
