@@ -731,60 +731,12 @@ def badge_priorite(p):
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1BXez24VFNhb470PrCjwNIFx6GdJFqLnVh8nFf3gGGvw/edit?usp=sharing"
 
 # --- INITIALISATION ---
-# (Assurez-vous que vos fonctions init_session_state, get_gsheet_connection, etc. sont bien définies au-dessus)
-if 'last_save_time' not in st.session_state:
-    st.session_state.last_save_time = None
+init_session_state()
 
-# --- CSS POUR SIDEBAR ULTRA-COMPACTE (CONSEIL APPLIQUÉ) ---
-st.sidebar.markdown("""
-    <style>
-        /* 1. Supprime le padding énorme en haut de la sidebar */
-        [data-testid="stSidebarUserContent"] {
-            padding-top: 0.5rem !important;
-        }
-
-        /* 2. Réduit l'espace entre chaque composant vertical */
-        [data-testid="stVerticalBlock"] {
-            gap: 0rem !important;
-        }
-
-        /* 3. Supprime les marges des conteneurs d'éléments */
-        .element-container {
-            margin-bottom: 0px !important;
-        }
-
-        /* 4. Cible spécifiquement les boutons radio du menu pour les serrer */
-        div[role="radiogroup"] {
-            gap: 0rem !important;
-        }
-
-        div[role="radiogroup"] label {
-            padding: 2px 0px !important; 
-            margin-bottom: 0px !important;
-            min-height: 1.2rem !important;
-        }
-
-        /* 5. Texte du menu légèrement plus petit pour la densité */
-        div[role="radiogroup"] label div p {
-            font-size: 0.92rem !important;
-            margin: 0 !important;
-        }
-
-        /* 6. Ajustement du divider et des titres */
-        hr {
-            margin-top: 5px !important;
-            margin-bottom: 8px !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- LOGIQUE DE CONNEXION ---
 try:
-    # Simulation de la connexion (à remplacer par votre appel réel)
-    # gsheet_client = get_gsheet_connection()
-    gsheet_client = True 
+    gsheet_client = get_gsheet_connection()
     if gsheet_client:
-        st.sidebar.markdown("<p style='font-size: 0.7em; color: #10b981; margin: 0; padding: 0;'>✅ Connexion établie</p>", unsafe_allow_html=True)
+        create_entretien_sheet_if_not_exists(gsheet_client, SHEET_URL)
     else:
         st.sidebar.error("❌ Erreur de connexion")
         st.stop()
@@ -792,18 +744,56 @@ except Exception as e:
     st.sidebar.error(f"❌ Erreur : {str(e)}")
     st.stop()
 
-# --- SIDEBAR : NAVIGATION ---
+# --- CHARGEMENT DES DONNÉES (AVANT LA SIDEBAR) ---
+with st.spinner("Chargement des données..."):
+    collaborateurs_df, postes_df = load_data_from_gsheet(gsheet_client, SHEET_URL)
 
-# Titre compact
-st.sidebar.markdown("<h2 style='color: #ea2b5e; margin: 0px; padding: 0; line-height: 1.1; font-size: 1.3rem;'>🏢 CAP25 - Mobilité interne</h2>", unsafe_allow_html=True)
+# ✅ VÉRIFICATION ET CRÉATION DE LA COLONNE "Vœux Retenu" SI MANQUANTE
+if not collaborateurs_df.empty:
+    collaborateurs_df.columns = collaborateurs_df.columns.str.strip()
+    
+    if "Vœux Retenu" not in collaborateurs_df.columns:
+        collaborateurs_df["Vœux Retenu"] = ""
 
-# Logo (taille ajustée pour le ratio hauteur/largeur)
-st.sidebar.image("Logo - BO RH in'li.png", width=250)
+if collaborateurs_df.empty or postes_df.empty:
+    st.error("Impossible de charger les données. Vérifiez la structure du Google Sheet.")
+    st.stop()
 
-# Divider fin
-st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+# --- CSS POUR SIDEBAR COMPACTE MAIS AÉRÉE ---
+st.sidebar.markdown("""
+    <style>
+        /* Supprime le padding énorme en haut de la sidebar */
+        [data-testid="stSidebarUserContent"] {
+            padding-top: 0.5rem !important;
+        }
+        /* Réduit l'espace entre chaque élément de la sidebar */
+        [data-testid="stSidebarNav"] {
+            padding-top: 0px !important;
+        }
+        /* Espacement global léger entre éléments */
+        .element-container {
+            margin-bottom: 0.3rem !important;
+        }
+        /* Radio buttons plus compacts */
+        div[role="radiogroup"] label {
+            padding-top: 0.4rem !important;
+            padding-bottom: 0.4rem !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-# Menu Radio (Label caché pour gagner de la place)
+# --- CONNEXION (Version ultra-compacte) ---
+st.sidebar.markdown("<p style='font-size: 0.75em; color: #10b981; margin: 2px 0; padding: 0;'>✅ Connexion établie</p>", unsafe_allow_html=True)
+
+# --- SIDEBAR : NAVIGATION AVEC LOGO ---
+st.sidebar.markdown("<h2 style='color: #ea2b5e; margin: 8px 0 6px 0; padding: 0; line-height: 1.1; font-size: 1.4rem;'>🏢 CAP25 - Mobilité</h2>", unsafe_allow_html=True)
+
+# Logo légèrement réduit
+st.sidebar.image("Logo - BO RH in'li.png", width=200)
+
+# Divider HTML très fin avec espacement contrôlé
+st.sidebar.markdown("<hr style='margin: 10px 0px 12px 0px; border: none; border-top: 1px solid #e5e7eb;'>", unsafe_allow_html=True)
+
 page = st.sidebar.radio(
     "Navigation",
     [
@@ -818,35 +808,32 @@ page = st.sidebar.radio(
     label_visibility="collapsed"
 )
 
-st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+# Divider avec espacement
+st.sidebar.markdown("<div style='margin: 12px 0;'></div>", unsafe_allow_html=True)
 
-# Bouton Rafraîchir
-if st.sidebar.button("🔄 Rafraîchir", use_container_width=True):
+if st.sidebar.button("🔄 Rafraîchir les données", use_container_width=True):
+    st.sidebar.caption("ℹ️ Les données sont mises en cache pendant 1 minute")
+    st.sidebar.warning("⚠️ Rafraîchissement en cours...")
+    time.sleep(1)
     st.cache_data.clear()
     st.rerun()
 
-# Infos de temps (Police réduite)
+st.sidebar.markdown("<div style='margin: 10px 0;'></div>", unsafe_allow_html=True)
+
 paris_tz = pytz.timezone('Europe/Paris')
 paris_time = datetime.now(paris_tz)
-st.sidebar.markdown(f"""
-    <div style='font-size: 0.75rem; color: gray; margin-top: 5px;'>
-        🕒 MAJ : {paris_time.strftime('%H:%M:%S')}
-    </div>
-""", unsafe_allow_html=True)
+st.sidebar.caption(f"Dernière MAJ : {paris_time.strftime('%H:%M:%S')}")
 
 if st.session_state.last_save_time:
-    st.sidebar.markdown(f"""
-        <div style='font-size: 0.75rem; color: gray;'>
-            💾 Save : {st.session_state.last_save_time.strftime('%H:%M:%S')}
-        </div>
-    """, unsafe_allow_html=True)
+    st.sidebar.caption(f"💾 Sauvegarde : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
 
-# Logo de pied de sidebar (optionnel si vous manquez encore de place)
-# Placé tout en bas avec un petit espace
-st.sidebar.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-col_logo_bottom = st.sidebar.columns([1, 2, 1])
-with col_logo_bottom[1]:
-    st.image("Logo- in'li.png", width=150)
+# Espacement avant le logo du bas
+st.sidebar.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=True)
+
+# Logo en bas de la barre latérale
+col_logo = st.sidebar.columns([1, 2, 1])
+with col_logo[1]:
+    st.sidebar.image("Logo- in'li.png", width=150)
     
 # ========================================
 # PAGE 1 : TABLEAU DE BORD AMÉLIORÉ
@@ -2870,6 +2857,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
