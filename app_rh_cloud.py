@@ -762,8 +762,8 @@ if collaborateurs_df.empty or postes_df.empty:
     st.stop()
 
 # --- SIDEBAR : NAVIGATION AVEC LOGO ---
-st.sidebar.image("Logo - BO RH in'li.png", width=220)
 st.sidebar.markdown("### 🏢 CAP25 - Mobilité Interne")
+st.sidebar.image("Logo - BO RH in'li.png", width=220)
 st.sidebar.divider()
 
 page = st.sidebar.radio(
@@ -2684,6 +2684,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
