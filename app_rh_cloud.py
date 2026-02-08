@@ -789,7 +789,7 @@ st.sidebar.markdown("<p style='font-size: 0.75em; color: #10b981; margin: 2px 0;
 st.sidebar.markdown("<h2 style='color: #ea2b5e; margin: 8px 0 6px 0; padding: 0; line-height: 1.1; font-size: 1.4rem;'>🏢 CAP25 - Mobilité</h2>", unsafe_allow_html=True)
 
 # Logo légèrement réduit
-st.sidebar.image("Logo - BO RH in'li.png", width=200)
+st.sidebar.image("Logo - BO RH in'li.png", width=250)
 
 # Divider HTML très fin avec espacement contrôlé
 st.sidebar.markdown("<hr style='margin: 10px 0px 12px 0px; border: none; border-top: 1px solid #e5e7eb;'>", unsafe_allow_html=True)
@@ -809,7 +809,7 @@ page = st.sidebar.radio(
 )
 
 # Divider avec espacement
-st.sidebar.markdown("<div style='margin: 12px 0;'></div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='margin: 5px 0;'></div>", unsafe_allow_html=True)
 
 if st.sidebar.button("🔄 Rafraîchir les données", use_container_width=True):
     st.sidebar.caption("ℹ️ Les données sont mises en cache pendant 1 minute")
@@ -2857,6 +2857,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
