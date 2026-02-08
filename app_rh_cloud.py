@@ -1953,7 +1953,7 @@ elif page == "📝 Entretien RH":
                                     st.divider()
         
                     if st.button("💾 Sauvegarder l'entretien complet", type="primary", use_container_width=True):
-                    save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
+                        save_entretien_to_gsheet(gsheet_client, SHEET_URL, st.session_state.entretien_data, show_success=True)
 
 # ========================================
 # NOUVELLE PAGE : COMPARATIF DES CANDIDATURES PAR POSTE
@@ -2864,6 +2864,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
