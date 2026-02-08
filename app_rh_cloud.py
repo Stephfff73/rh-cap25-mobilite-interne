@@ -812,7 +812,7 @@ if page == "📊 Tableau de Bord":
     now = datetime.now(paris_tz)
     
     st.title("📊 Tableau de Bord - Vue d'ensemble")
-    st.markdown(f"<p style='font-style: italic; color: #ea2b5e; font-size: 1.1em; font-weight: 500;'>📌 Avancement global de la mobilité au {now.strftime('%d/%m/%Y')} à {now.strftime('%H:%M')}</p>", unsafe_allow_html=True)
+    st.subheader(f"**📌 Avancement global de la mobilité au {now.strftime('%d/%m/%Y')} à {now.strftime('%H:%M')}**")
     st.divider()
     
     # ===== PREMIÈRE LIGNE : MÉTRIQUES PRINCIPALES =====
@@ -838,42 +838,54 @@ if page == "📊 Tableau de Bord":
     c1, c2, c3 = st.columns(3)
     
     with c1:
-        st.markdown(f"""
+        st.markdown("""
         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                     padding: 20px; border-radius: 12px; color: white;'>
             <h3 style='margin:0; color: white;'>👥 Collaborateurs</h3>
-            <h1 style='margin:10px 0; color: white;'>{nb_collaborateurs}</h1>
+            <h1 style='margin:10px 0; color: white;'>{}</h1>
             <p style='margin:0; opacity: 0.9;'>à repositionner</p>
         </div>
-        """, unsafe_allow_html=True)
+        """.format(nb_collaborateurs), unsafe_allow_html=True)
     
     with c2:
-        st.markdown(f"""
+        st.markdown("""
         <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
                     padding: 20px; border-radius: 12px; color: white;'>
             <h3 style='margin:0; color: white;'>📢 Postes ouverts</h3>
-            <h1 style='margin:10px 0; color: white;'>{nb_postes_ouverts}</h1>
+            <h1 style='margin:10px 0; color: white;'>{}</h1>
             <p style='margin:0; opacity: 0.9;'>mobilité interne</p>
         </div>
-        """, unsafe_allow_html=True)
+        """.format(nb_postes_ouverts), unsafe_allow_html=True)
     
     with c3:
-        st.markdown(f"""
+        st.markdown("""
         <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
                     padding: 20px; border-radius: 12px; color: white;'>
             <h3 style='margin:0; color: white;'>🎯 Taux d'affectation</h3>
-            <h1 style='margin:10px 0; color: white;'>{pct_attribution:.1f}%</h1>
-            <p style='margin:0; opacity: 0.9;'>{nb_postes_attribues} postes pourvus</p>
+            <h1 style='margin:10px 0; color: white;'>{:.1f}%</h1>
+            <p style='margin:0; opacity: 0.9;'>{} postes pourvus</p>
         </div>
-        """, unsafe_allow_html=True)
+        """.format(pct_attribution, nb_postes_attribues), unsafe_allow_html=True)
         
+        # Barre de progression améliorée
         st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-        col_prog1, col_prog2 = st.columns([max(pct_attribution, 1), max(100 - pct_attribution, 1)])
+        col_prog1, col_prog2 = st.columns([pct_attribution, 100 - pct_attribution] if pct_attribution < 100 else [100, 0.1])
         with col_prog1:
-            st.markdown(f"<div style='background: #10b981; height: 25px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;'>{pct_attribution:.1f}%</div>", unsafe_allow_html=True)
-        with col_prog2:
-            st.markdown(f"<div style='background: #e5e7eb; height: 25px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #6b7280;'>{100 - pct_attribution:.1f}%</div>", unsafe_allow_html=True)
-
+            st.markdown(f"""
+            <div style='background: #10b981; height: 25px; border-radius: 12px; 
+                        display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;'>
+                {pct_attribution:.1f}%
+            </div>
+            """, unsafe_allow_html=True)
+        if pct_attribution < 100:
+            with col_prog2:
+                st.markdown(f"""
+                <div style='background: #e5e7eb; height: 25px; border-radius: 12px; 
+                            display: flex; align-items: center; justify-content: center; color: #6b7280;'>
+                    {100 - pct_attribution:.1f}%
+                </div>
+                """, unsafe_allow_html=True)
+    
     st.divider()
     
     # ===== DEUXIÈME LIGNE : PRIORITÉS =====
@@ -881,16 +893,29 @@ if page == "📊 Tableau de Bord":
     
     nb_priorite_1 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 1"])
     nb_priorite_2 = len(collaborateurs_df[collaborateurs_df["Priorité"] == "Priorité 2"])
-    nb_priorite_3_4 = len(collaborateurs_df[collaborateurs_df["Priorité"].isin(["Priorité 3", "Priorité 4"])])
+    nb_priorite_3_4 = len(collaborateurs_df[
+        (collaborateurs_df["Priorité"] == "Priorité 3") | 
+        (collaborateurs_df["Priorité"] == "Priorité 4")
+    ])
     
     total_priorites = nb_priorite_1 + nb_priorite_2 + nb_priorite_3_4
+    pct_p1 = (nb_priorite_1 / total_priorites * 100) if total_priorites > 0 else 0
+    pct_p2 = (nb_priorite_2 / total_priorites * 100) if total_priorites > 0 else 0
+    pct_p3_4 = (nb_priorite_3_4 / total_priorites * 100) if total_priorites > 0 else 0
     
     col5, col6, col7 = st.columns(3)
-    for col, lab, val in zip([col5, col6, col7], ["🔴 Priorité 1", "🟠 Priorité 2", "🟡 Priorité 3 et 4"], [nb_priorite_1, nb_priorite_2, nb_priorite_3_4]):
-        with col:
-            pct = (val / total_priorites * 100) if total_priorites > 0 else 0
-            st.metric(lab, val)
-            st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct)}% du total</p>", unsafe_allow_html=True)
+    
+    with col5:
+        st.metric("🔴 Priorité 1", nb_priorite_1, delta=f"{int(pct_p1)}%", delta_color="off")
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_p1)}% du total</p>", unsafe_allow_html=True)
+    
+    with col6:
+        st.metric("🟠 Priorité 2", nb_priorite_2, delta=f"{int(pct_p2)}%", delta_color="off")
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_p2)}% du total</p>", unsafe_allow_html=True)
+    
+    with col7:
+        st.metric("🟡 Priorité 3 et 4", nb_priorite_3_4, delta=f"{int(pct_p3_4)}%", delta_color="off")
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_p3_4)}% du total</p>", unsafe_allow_html=True)
     
     st.divider()
     
@@ -898,45 +923,105 @@ if page == "📊 Tableau de Bord":
     st.subheader("🗓️ Pilotage des entretiens RH")
     
     today = date.today()
-    # On utilise des opérations vectorisées pour la performance au lieu d'une boucle for
-    dates_series = pd.to_datetime(collaborateurs_df["Date de rdv"], errors='coerce').dt.date
-    entretiens_planifies = len(dates_series[dates_series > today])
-    entretiens_aujourd_hui = len(dates_series[dates_series == today])
-    entretiens_realises = len(dates_series[dates_series < today])
+    entretiens_planifies = 0
+    entretiens_aujourd_hui = 0
+    entretiens_realises = 0
+    
+    for idx, row in collaborateurs_df.iterrows():
+        date_rdv = parse_date(row.get("Date de rdv", ""))
+        if date_rdv:
+            if date_rdv > today:
+                entretiens_planifies += 1
+            elif date_rdv == today:
+                entretiens_aujourd_hui += 1
+            elif date_rdv < today:
+                entretiens_realises += 1
+    
+    total_entretiens = entretiens_planifies + entretiens_aujourd_hui + entretiens_realises
+    pct_planifies = (entretiens_planifies / total_entretiens * 100) if total_entretiens > 0 else 0
+    pct_aujourd_hui = (entretiens_aujourd_hui / total_entretiens * 100) if total_entretiens > 0 else 0
+    pct_realises = (entretiens_realises / total_entretiens * 100) if total_entretiens > 0 else 0
     
     col9, col10, col11 = st.columns(3)
-    # ... (Affichage des metrics Entretiens ici, même logique d'indentation)
-    with col9: st.metric("📅 Entretiens planifiés", entretiens_planifies)
-    with col10: st.metric("✅ Entretiens réalisés", entretiens_realises)
-    with col11: st.metric("⌛ Aujourd'hui", entretiens_aujourd_hui)
-
+    
+    with col9:
+        st.metric("📅 Entretiens planifiés", entretiens_planifies)
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_planifies)}% du total</p>", unsafe_allow_html=True)
+    
+    with col10:
+        st.metric("✅ Entretiens réalisés", entretiens_realises)
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_realises)}% du total</p>", unsafe_allow_html=True)
+    
+    with col11:
+        st.metric("⌛ Aujourd'hui", entretiens_aujourd_hui)
+        st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_aujourd_hui)}% du total</p>", unsafe_allow_html=True)
+    
     st.divider()
     
-    # ===== GRAPHIQUES OPTIMISÉS (ICI ÉTAIT L'ERREUR) =====
-    st.subheader("📊 Analyse des vœux par poste")
-
+    # ===== GRAPHIQUES =====
     col_chart1, col_chart2 = st.columns(2)
-
-    all_voeux = pd.concat([collaborateurs_df["Vœux 1"], collaborateurs_df["Vœux 2"], collaborateurs_df["Voeux 3"]])
-    all_voeux = all_voeux[all_voeux.notna() & (all_voeux.astype(str).str.strip() != "") & (all_voeux.astype(str).str.strip() != "Positionnement manquant")]
-
+    
     with col_chart1:
-        st.markdown("#### 🔥 Top 10 des postes les plus demandés")
+        st.subheader("🔥 Top 10 des postes les plus demandés")
+        
+        all_voeux = pd.concat([
+            collaborateurs_df["Vœux 1"],
+            collaborateurs_df["Vœux 2"],
+            collaborateurs_df["Voeux 3"]
+        ])
+        all_voeux = all_voeux[
+            all_voeux.notna() & 
+            (all_voeux.astype(str).str.strip() != "") & 
+            (all_voeux.astype(str).str.strip() != "Positionnement manquant")
+        ]
+        
         if len(all_voeux) > 0:
             top_postes = all_voeux.value_counts().head(10)
-            top_df = pd.DataFrame({"#": range(1, len(top_postes) + 1), "Poste": top_postes.index, "Vœux": top_postes.values})
-            st.dataframe(top_df, use_container_width=True, hide_index=True, height=350)
+            
+            top_df = pd.DataFrame({
+                "Classement": range(1, len(top_postes) + 1),
+                "Poste": top_postes.index,
+                "Nombre de vœux": top_postes.values
+            })
+            
+            st.dataframe(
+                top_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Classement": st.column_config.NumberColumn(width="small"),
+                    "Nombre de vœux": st.column_config.NumberColumn(width="small"),
+                    "Poste": st.column_config.TextColumn(width="large")
+                }
+            )
         else:
-            st.info("Aucun vœu enregistré")
-
+            st.info("Aucun vœu enregistré pour le moment")
+    
     with col_chart2:
-        st.markdown("#### ⚠️ Postes en tension d'attractivité")
+        st.subheader("⚠️ Postes en tension d'attractivité")
+        
         if len(all_voeux) > 0:
             flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
-            flop_df = pd.DataFrame({"#": range(1, len(flop_postes) + 1), "Poste": flop_postes.index, "Vœux": flop_postes.values})
-            st.dataframe(flop_df, use_container_width=True, hide_index=True, height=350)
+            
+            flop_df = pd.DataFrame({
+                "Classement": range(1, len(flop_postes) + 1),
+                "Poste": flop_postes.index,
+                "Nombre de vœux": flop_postes.values
+            })
+            
+            st.dataframe(
+                flop_df,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "Classement": st.column_config.NumberColumn(width="small"),
+                    "Nombre de vœux": st.column_config.NumberColumn(width="small"),
+                    "Poste": st.column_config.TextColumn(width="large")
+                }
+            )
         else:
-            st.info("Aucun vœu enregistré")
+            st.info("Aucun vœu enregistré pour le moment")
+
 
 # ========================================
 # PAGE 2 : GESTION DES CANDIDATURES
@@ -951,14 +1036,12 @@ elif page == "👥 Gestion des Candidatures":
     with col_f1:
         filtre_direction = st.multiselect(
             "Filtrer par Direction",
-            options=sorted(collaborateurs_df["Direction libellé"].dropna().unique()),
+            options=sorted(collaborateurs_df["Direction libellé"].unique()),
             default=[]
         )
     
     with col_f2:
-        # Création d'une colonne temporaire pour le nom complet si elle n'existe pas
-        collaborateurs_df["Nom_Complet"] = collaborateurs_df["NOM"].fillna("") + " " + collaborateurs_df["Prénom"].fillna("")
-        all_collabs = sorted(collaborateurs_df["Nom_Complet"].unique())
+        all_collabs = sorted((collaborateurs_df["NOM"] + " " + collaborateurs_df["Prénom"]).unique())
         filtre_collaborateur = st.multiselect(
             "Filtrer par Collaborateur",
             options=all_collabs,
@@ -971,12 +1054,14 @@ elif page == "👥 Gestion des Candidatures":
     with col_f4:
         filtre_rrh = st.multiselect(
             "Filtrer par RRH",
-            options=sorted(collaborateurs_df["Référente RH"].dropna().unique()),
+            options=sorted(collaborateurs_df["Référente RH"].unique()),
             default=[]
         )
     
-    filtre_date_rdv = st.date_input("Filtrer par Date de rdv", value=None)
-    
+    filtre_date_rdv = st.date_input(
+        "Filtrer par Date de rdv",
+        value=None
+    )
     # Appliquer les filtres
     df_filtered = collaborateurs_df.copy()
     df_filtered = df_filtered[df_filtered["Matricule"].notna() & (df_filtered["Matricule"].astype(str).str.strip() != "")]
@@ -2601,6 +2686,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
