@@ -2700,21 +2700,20 @@ elif page == "🌳 Référentiel Postes":
 # --- FOOTER ---
 st.divider()
 
-
-
-# On affiche le texte centré
+# 1. Le texte centré en haut
 st.markdown("""
-<div style='text-align: center; color: #999; font-size: 0.85em; margin-top: -10px;'>
+<div style='text-align: center; color: #999; font-size: 0.85em; margin-bottom: 20px;'>
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
+""", unsafe_allow_html=True)
 
-# On crée 3 colonnes pour centrer l'image (la colonne du milieu contient le logo)
-col_left, col_logo, col_right = st.columns([2, 1, 2])
+# 2. Le saut de ligne (déjà géré par le margin-bottom au-dessus, mais on peut forcer si besoin)
+# st.write("") 
 
-with col_logo:
-    # Streamlit trouve directement l'image à la racine de ton dossier GitHub
+# 3. Le logo centré en bas
+col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
+with col_f_logo:
     st.image("Logo- in'li.png", width=120)
 
-""", unsafe_allow_html=True)
 
 
