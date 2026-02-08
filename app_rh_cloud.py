@@ -991,244 +991,77 @@ if page == "📊 Tableau de Bord":
     
     st.divider()
     
-    # ===== TABLEAUX OPTIMISÉS VERSION PRO =====
-    st.subheader("📊 Analyse des vœux par poste")
+    # --- SECTION 3 : LE TOP & FLOP (La MasterClass visuelle) ---
+    st.subheader("📊 La demande par poste")
     
-    all_voeux = pd.concat([
-        collaborateurs_df["Vœux 1"],
-        collaborateurs_df["Vœux 2"],
-        collaborateurs_df["Voeux 3"]
-    ])
-    all_voeux = all_voeux[
-        all_voeux.notna() & 
-        (all_voeux.astype(str).str.strip() != "") & 
-        (all_voeux.astype(str).str.strip() != "Positionnement manquant")
-    ]
-    
-    if len(all_voeux) == 0:
-        st.info("Aucun vœu enregistré pour le moment")
+    # Préparation des données (Voeux 1, 2 et 3 combinés)
+    all_voeux = pd.concat([collaborateurs_df["Vœux 1"], collaborateurs_df["Vœux 2"], collaborateurs_df["Voeux 3"]])
+    all_voeux = all_voeux[all_voeux.notna() & (all_voeux.str.strip() != "") & (all_voeux != "Positionnement manquant")]
+
+    if all_voeux.empty:
+        st.info("Aucune donnée de vœux disponible.")
     else:
-        col_chart1, col_chart2 = st.columns(2)
+        col_top, col_flop = st.columns(2)
         
-        with col_chart1:
-            st.markdown("#### 🔥 Top 10 des postes les plus demandés")
-            
-            top_postes = all_voeux.value_counts().head(10)  # ✅ LIMITE À 10 (pas de ligne 11 vide)
-            
-            top_df = pd.DataFrame({
-                "🏆": [f"#{i}" for i in range(1, len(top_postes) + 1)],
-                "📊": top_postes.values,
-                "Intitulé du poste": top_postes.index
-            })
-            
-            # ✅ CSS OPTIMISÉ - COULEURS VIBRANTES + COLONNES ÉTROITES
-            st.markdown("""
-            <style>
-            /* Réduction largeur colonnes Rang et Vœux */
-            div[data-testid="column"]:nth-child(1) table th:nth-child(1),
-            div[data-testid="column"]:nth-child(1) table td:nth-child(1) {
-                width: 50px !important;
-                max-width: 50px !important;
-            }
-            div[data-testid="column"]:nth-child(1) table th:nth-child(2),
-            div[data-testid="column"]:nth-child(1) table td:nth-child(2) {
-                width: 70px !important;
-                max-width: 70px !important;
-            }
-            
-            /* En-tête avec gradient orange vif */
-            div[data-testid="column"]:nth-child(1) th {
-                background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%) !important;
-                color: white !important;
-                font-weight: 700 !important;
-                padding: 14px 8px !important;
-                text-align: center !important;
-                font-size: 0.95em !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.5px !important;
-                border: none !important;
-            }
-            
-            /* Lignes alternées avec couleurs chaudes */
-            div[data-testid="column"]:nth-child(1) tbody tr:nth-child(odd) {
-                background: linear-gradient(90deg, #fff4e6 0%, #ffffff 100%) !important;
-            }
-            div[data-testid="column"]:nth-child(1) tbody tr:nth-child(even) {
-                background: linear-gradient(90deg, #ffe8cc 0%, #fff9f0 100%) !important;
-            }
-            
-            /* Hover dynamique */
-            div[data-testid="column"]:nth-child(1) tbody tr:hover {
-                background: linear-gradient(90deg, #ffd8a8 0%, #ffe5c2 100%) !important;
-                transform: translateX(3px);
-                transition: all 0.2s ease;
-                box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
-            }
-            
-            /* Cellules */
-            div[data-testid="column"]:nth-child(1) td {
-                padding: 12px 8px !important;
-                border-bottom: 1px solid #ffe0b2 !important;
-                border-right: 1px solid #ffe0b2 !important;
-            }
-            
-            /* Colonne Rang - Badge style */
-            div[data-testid="column"]:nth-child(1) td:nth-child(1) {
-                text-align: center !important;
-                font-weight: 700 !important;
-                font-size: 1em !important;
-                color: #e65100 !important;
-            }
-            
-            /* Colonne Vœux - Mise en avant MAXIMALE */
-            div[data-testid="column"]:nth-child(1) td:nth-child(2) {
-                font-weight: 800 !important;
-                font-size: 1.3em !important;
-                color: #ffffff !important;
-                text-align: center !important;
-                background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%) !important;
-                border-radius: 8px !important;
-                box-shadow: 0 2px 6px rgba(255, 107, 53, 0.3) !important;
-            }
-            
-            /* Colonne Intitulé */
-            div[data-testid="column"]:nth-child(1) td:nth-child(3) {
-                font-size: 0.9em !important;
-                color: #424242 !important;
-                font-weight: 500 !important;
-            }
-            </style>
-            """, unsafe_allow_html=True)
+        # --- TABLEAU GAUCHE : TOP 10 ---
+        with col_top:
+            st.markdown("##### 🔥 Top 10 : Les plus demandés")
+            top_data = all_voeux.value_counts().head(10).reset_index()
+            top_data.columns = ["Poste", "Demandes"]
+            top_max = top_data["Demandes"].max() # Pour l'échelle de la barre
             
             st.dataframe(
-                top_df,
+                top_data,
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "🏆": st.column_config.TextColumn("Rang", width="small"),
-                    "📊": st.column_config.NumberColumn("Vœux", width="small"),
-                    "Intitulé du poste": st.column_config.TextColumn("Intitulé du poste", width="large")
+                    "Poste": st.column_config.TextColumn(
+                        "Intitulé du poste",
+                        width="medium", # Laisse de la place au texte
+                        help="Intitulé officiel du poste"
+                    ),
+                    "Demandes": st.column_config.ProgressColumn(
+                        "Volume",
+                        help="Nombre de vœux cumulés",
+                        format="%d",
+                        min_value=0,
+                        max_value=int(top_max), # Echelle relative au max
+                        width="small" # Compact
+                    ),
                 },
-                height=438
+                height=400 # Hauteur fixe pour alignement
             )
-        
-        with col_chart2:
-            st.markdown("#### ⚠️ Postes en tension d'attractivité")
-            
-            flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)  # ✅ LIMITE À 10
-            
-            flop_df = pd.DataFrame({
-                "⚠️": [f"#{i}" for i in range(1, len(flop_postes) + 1)],
-                "📊": flop_postes.values,
-                "Intitulé du poste": flop_postes.index
-            })
-            
-            # ✅ CSS OPTIMISÉ - ROUGE VIF + CODE COULEUR
-            st.markdown("""
-            <style>
-            /* Réduction largeur colonnes */
-            div[data-testid="column"]:nth-child(2) table th:nth-child(1),
-            div[data-testid="column"]:nth-child(2) table td:nth-child(1) {
-                width: 50px !important;
-                max-width: 50px !important;
-            }
-            div[data-testid="column"]:nth-child(2) table th:nth-child(2),
-            div[data-testid="column"]:nth-child(2) table td:nth-child(2) {
-                width: 70px !important;
-                max-width: 70px !important;
-            }
-            
-            /* En-tête rouge vif */
-            div[data-testid="column"]:nth-child(2) th {
-                background: linear-gradient(135deg, #e53935 0%, #c62828 100%) !important;
-                color: white !important;
-                font-weight: 700 !important;
-                padding: 14px 8px !important;
-                text-align: center !important;
-                font-size: 0.95em !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.5px !important;
-                border: none !important;
-            }
-            
-            /* Lignes alternées rouges */
-            div[data-testid="column"]:nth-child(2) tbody tr:nth-child(odd) {
-                background: linear-gradient(90deg, #ffebee 0%, #ffffff 100%) !important;
-            }
-            div[data-testid="column"]:nth-child(2) tbody tr:nth-child(even) {
-                background: linear-gradient(90deg, #ffcdd2 0%, #fff5f5 100%) !important;
-            }
-            
-            /* Hover rouge */
-            div[data-testid="column"]:nth-child(2) tbody tr:hover {
-                background: linear-gradient(90deg, #ef9a9a 0%, #ffcdd2 100%) !important;
-                transform: translateX(3px);
-                transition: all 0.2s ease;
-                box-shadow: 0 2px 8px rgba(229, 57, 53, 0.3);
-            }
-            
-            /* Cellules */
-            div[data-testid="column"]:nth-child(2) td {
-                padding: 12px 8px !important;
-                border-bottom: 1px solid #ffcdd2 !important;
-                border-right: 1px solid #ffcdd2 !important;
-            }
-            
-            /* Colonne Rang */
-            div[data-testid="column"]:nth-child(2) td:nth-child(1) {
-                text-align: center !important;
-                font-weight: 700 !important;
-                font-size: 1em !important;
-                color: #b71c1c !important;
-            }
-            
-            /* Colonne Vœux - CODE COULEUR DYNAMIQUE */
-            div[data-testid="column"]:nth-child(2) td:nth-child(2) {
-                font-weight: 800 !important;
-                font-size: 1.3em !important;
-                text-align: center !important;
-                border-radius: 8px !important;
-                box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
-            }
-            
-            /* Si valeur = 0 : Rouge foncé */
-            div[data-testid="column"]:nth-child(2) tbody tr:has(td:nth-child(2):contains("0")) td:nth-child(2):contains("0") {
-                background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%) !important;
-                color: white !important;
-            }
-            
-            /* Si valeur = 1 : Rouge moyen */
-            div[data-testid="column"]:nth-child(2) tbody tr:has(td:nth-child(2):contains("1")) td:nth-child(2):contains("1") {
-                background: linear-gradient(135deg, #e53935 0%, #d32f2f 100%) !important;
-                color: white !important;
-            }
-            
-            /* Si valeur >= 2 : Orange d'alerte */
-            div[data-testid="column"]:nth-child(2) tbody tr td:nth-child(2):not(:contains("0")):not(:contains("1")) {
-                background: linear-gradient(135deg, #ff6f00 0%, #f57c00 100%) !important;
-                color: white !important;
-            }
-            
-            /* Colonne Intitulé */
-            div[data-testid="column"]:nth-child(2) td:nth-child(3) {
-                font-size: 0.9em !important;
-                color: #424242 !important;
-                font-weight: 500 !important;
-            }
-            </style>
-            """, unsafe_allow_html=True)
+
+        # --- TABLEAU DROITE : FLOP 10 (Attention) ---
+        with col_flop:
+            st.markdown("##### ⚠️ Attention : En manque d'attractivité")
+            # On prend ceux qui ont des voeux mais le moins (tail), ou 0 si on avait la liste complète
+            flop_data = all_voeux.value_counts().tail(10).sort_values().reset_index()
+            flop_data.columns = ["Poste", "Demandes"]
             
             st.dataframe(
-                flop_df,
+                flop_data,
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "⚠️": st.column_config.TextColumn("Rang", width="small"),
-                    "📊": st.column_config.NumberColumn("Vœux", width="small"),
-                    "Intitulé du poste": st.column_config.TextColumn("Intitulé du poste", width="large")
+                    "Poste": st.column_config.TextColumn(
+                        "Intitulé du poste",
+                        width="medium"
+                    ),
+                    "Demandes": st.column_config.ProgressColumn(
+                        "Volume",
+                        format="%d",
+                        min_value=0,
+                        max_value=int(top_max), # On garde la même échelle que le TOP pour comparer visuellement !
+                        width="small"
+                        # Note: Streamlit ne permet pas encore de changer la couleur de la barre nativement en rouge via API simple
+                        # mais le contexte "Attention" suffit.
+                    ),
                 },
-                height=438
+                height=400
             )
+
+
 # ========================================
 # PAGE 2 : GESTION DES CANDIDATURES
 # ========================================
@@ -2132,43 +1965,37 @@ elif page == "💻🔍 Candidatures/Poste":
     Les candidats sont classés par ordre de vœu (V1 > V2 > V3 > V4) puis au sein de chaque voeu par ordre alphabétique.
     """)
     
-    st.divider()
-
+   st.divider()
 
     # ===== FILTRES =====
     st.subheader("🔍 Filtres")
-    col_filtre1, col_filtre2 = st.columns(2)
-
-    with col_filtre1:
-        # Filtre : Mobilité interne uniquement
-        only_mobilite = st.checkbox("📌 Afficher uniquement les postes ouverts à la mobilité interne", value=True)
-
-    with col_filtre2:
-        # Filtre par Direction
-        directions_postes = sorted(postes_df["Direction"].unique())
-        filtre_direction_poste = st.multiselect(
-            "Filtrer par Direction",
-            options=directions_postes,
-            default=[]
-        )
-
-    # Appliquer les filtres
-    postes_filtres_df = postes_df.copy()
-
-    if only_mobilite:
-        postes_filtres_df = postes_filtres_df[postes_filtres_df["Mobilité interne"].str.lower() == "oui"]
+    
+    # ✅ FILTRE AUTOMATIQUE : Postes mobilité interne uniquement (pas de checkbox)
+    postes_filtres_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"].copy()
+    
+    # Filtre par Direction
+    directions_postes = sorted(postes_filtres_df["Direction"].unique())
+    filtre_direction_poste = st.multiselect(
+        "Filtrer par Direction",
+        options=directions_postes,
+        default=[],
+        help="💡 Seuls les postes ouverts à la mobilité interne sont affichés"
+    )
 
     if filtre_direction_poste:
         postes_filtres_df = postes_filtres_df[postes_filtres_df["Direction"].isin(filtre_direction_poste)]
-
   
     # Sélection du poste
     postes_list = sorted(postes_filtres_df["Poste"].unique())
+    
+    st.info(f"📌 **{len(postes_list)} postes** ouverts à la mobilité interne{' pour la/les direction(s) sélectionnée(s)' if filtre_direction_poste else ''}")
+    
     poste_compare = st.selectbox(
         "🎯 Sélectionner un poste à analyser",
         options=["-- Sélectionner --"] + postes_list,
         key="select_poste_compare"
     )
+
     
     if poste_compare != "-- Sélectionner --":
         st.subheader(f"📊 Analyse comparative pour : **{poste_compare}**")
@@ -2335,19 +2162,31 @@ elif page == "💻🔍 Candidatures/Poste":
                 
                 st.divider()
                 
-                # Bouton d'export CSV
-                csv_buffer = io.StringIO()
-                df_comparatif.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
-                excel_data = to_excel(df_comparatif)
 
-                st.download_button(
-                    label="📥 Télécharger le comparatif en Excel (.xlsx)",
-                    data=excel_data,
-                    file_name=f"comparatif_candidatures_{poste_compare.replace(' ', '_')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    type="primary", 
-                    width="stretch" # Rend le bouton plus imposant et moderne
-                )
+
+                
+                # ✅ MODULE EXPORT AVEC MESSAGE CONDITIONNEL
+                st.subheader("📥 Export Excel")
+                
+                filtres_actifs_export = bool(filtre_direction_poste)
+                
+                col_exp1, col_exp2 = st.columns([3, 1])
+                
+                with col_exp1:
+                    if filtres_actifs_export:
+                        st.info("💡 Le fichier exporté contiendra les données **filtrées** affichées dans le tableau ci-dessus.")
+                
+                with col_exp2:
+                    excel_data = to_excel(df_comparatif)
+                    
+                    st.download_button(
+                        label="📥 Télécharger en Excel",
+                        data=excel_data,
+                        file_name=f"comparatif_candidatures_{poste_compare.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        type="primary",
+                        use_container_width=True
+                    )
 
         
         except Exception as e:
@@ -2729,7 +2568,8 @@ elif page == "🎯 Analyse par Poste":
         job_analysis.append({
             "Poste": poste,
             "Direction": poste_row.get("Direction", "N/A"),
-            "Postes disponibles": nb_postes_disponibles,
+            "Postes totaux": nb_postes_total,  # ✅ NOUVELLE COLONNE
+            "Ouverts mobilité": nb_postes_disponibles,  # ✅ RENOMMÉ
             "Postes attribués": nb_postes_attribues,
             "Nb_Candidats": nb_candidats,
             "Candidats": ", ".join(candidats) if candidats else "",
@@ -2793,22 +2633,22 @@ elif page == "🎯 Analyse par Poste":
     if not df_filtered_analysis.empty:
         st.dataframe(
             df_filtered_analysis.drop(columns=["Candidats_Data"]),
-            width="stretch",
+            use_container_width=True,
             hide_index=True,
             column_config={
                 "Poste": st.column_config.TextColumn("Poste", width="large"),
                 "Direction": st.column_config.TextColumn("Direction", width="medium"),
-                "Postes disponibles": st.column_config.NumberColumn(
+                "Postes totaux": st.column_config.NumberColumn(
                     "Postes totaux",
                     format="%d",
                     width="small",
-                    help="Nombre total de postes dans le référentiel"
+                    help="Nombre total de postes du référentiel"
                 ),
-                "Nombre ouvert à la mobilité": st.column_config.NumberColumn(
-                    "Mobilité interne",
+                "Ouverts mobilité": st.column_config.NumberColumn(
+                    "Ouverts mobilité",
                     format="%d",
                     width="small",
-                    help="Postes disponibles après retrait des postes attribués"
+                    help="Postes disponibles (Total - Attribués)"
                 ),
                 "Postes attribués": st.column_config.NumberColumn(
                     "Attribués",
@@ -2825,17 +2665,47 @@ elif page == "🎯 Analyse par Poste":
             }
         )
 
-        # ✅ AJOUT CSS pour les couleurs de fond
+        # ✅ CSS POUR COULEURS DE FOND
         st.markdown("""
         <style>
-        [data-testid="stDataFrame"] td:nth-child(4) {
-            background-color: rgba(234, 43, 94, 0.1) !important;
+        /* Colonne "Ouverts mobilité" en rose */
+        [data-testid="stDataFrame"] tbody tr td:nth-child(4) {
+            background-color: rgba(234, 43, 94, 0.15) !important;
+            font-weight: 600;
         }
-        [data-testid="stDataFrame"] td:nth-child(5) {
-            background-color: rgba(0, 175, 152, 0.1) !important;
+        /* Colonne "Postes attribués" en vert */
+        [data-testid="stDataFrame"] tbody tr td:nth-child(5) {
+            background-color: rgba(0, 175, 152, 0.15) !important;
+            font-weight: 600;
         }
         </style>
         """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # ✅ MODULE EXPORT EXCEL
+        st.subheader("📥 Export du tableau")
+        
+        filtres_actifs_analyse = show_zero or bool(filtre_direction_analyse) or bool(filtre_statut)
+        
+        col_export_a1, col_export_a2 = st.columns([3, 1])
+        
+        with col_export_a1:
+            if filtres_actifs_analyse:
+                st.info("💡 Le fichier exporté contiendra les données **filtrées** affichées dans le tableau ci-dessus.")
+        
+        with col_export_a2:
+            excel_analyse = to_excel(df_filtered_analysis.drop(columns=["Candidats_Data"]))
+            
+            st.download_button(
+                label="📥 Télécharger en Excel",
+                data=excel_analyse,
+                file_name=f"Analyse_Viviers_Postes_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                use_container_width=True
+            )
+        
         st.divider()
         
         # Section pour accéder aux fiches détaillées
@@ -2992,6 +2862,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
