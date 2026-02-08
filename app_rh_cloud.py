@@ -1967,7 +1967,7 @@ elif page == "💻🔍 Candidatures/Poste":
     Les candidats sont classés par ordre de vœu (V1 > V2 > V3 > V4) puis au sein de chaque voeu par ordre alphabétique.
     """)
     
-st.divider()
+    st.divider()
 
     # ===== FILTRES =====
     st.subheader("🔍 Filtres")
@@ -2864,6 +2864,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
