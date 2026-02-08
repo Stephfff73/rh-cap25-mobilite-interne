@@ -762,7 +762,7 @@ if collaborateurs_df.empty or postes_df.empty:
     st.stop()
 
 # --- SIDEBAR : NAVIGATION AVEC LOGO ---
-st.sidebar.markdown("<h3 style='color: #ea2b5e; margin-bottom: 10px;'>🏢 CAP25 - Mobilité Interne</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("### 🏢 CAP25 - Mobilité Interne")
 st.sidebar.image("Logo - BO RH in'li.png", width=220)
 st.sidebar.divider()
 
@@ -797,10 +797,7 @@ st.sidebar.caption(f"Dernière mise à jour : {paris_time.strftime('%H:%M:%S')}"
 if st.session_state.last_save_time:
     st.sidebar.caption(f"💾 Dernière sauvegarde : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
 
-# Remplacer la ligne existante par :
-col_logo = st.sidebar.columns([1, 2, 1])
-with col_logo[1]:
-    st.sidebar.image("Logo- in'li.png", width=210)
+st.sidebar.image("Logo- in'li.png", width=210)
 
 # ========================================
 # PAGE 1 : TABLEAU DE BORD AMÉLIORÉ
@@ -1062,6 +1059,7 @@ elif page == "👥 Gestion des Candidatures":
         "Filtrer par Date de rdv",
         value=None
     )
+    
     # Appliquer les filtres
     df_filtered = collaborateurs_df.copy()
     df_filtered = df_filtered[df_filtered["Matricule"].notna() & (df_filtered["Matricule"].astype(str).str.strip() != "")]
@@ -2686,36 +2684,3 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
