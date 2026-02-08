@@ -794,7 +794,7 @@ st.sidebar.markdown("""
 # --- TITRE + LOGO (PLUS COMPACTS) ---
 st.sidebar.markdown("<h3 style='color: #ea2b5e; margin: 0px 0 8px 0; padding: 0; line-height: 1.1; font-size: 1.35rem;'>🏢 CAP25 - Mobilité interne</h3>", unsafe_allow_html=True)
 
-st.sidebar.image("Logo - BO RH in'li.png", width=240)
+st.sidebar.image("Logo - BO RH in'li.png", width=250)
 
 st.sidebar.markdown("<hr style='margin: 8px 0px 10px 0px; border: none; border-top: 1px solid #e5e7eb;'>", unsafe_allow_html=True)
 
@@ -836,7 +836,7 @@ st.sidebar.markdown("<div style='margin: 18px 0;'></div>", unsafe_allow_html=Tru
 # Logo en bas
 col_logo = st.sidebar.columns([1, 2, 1])
 with col_logo[1]:
-    st.sidebar.image("Logo- in'li.png", width=200)
+    st.sidebar.image("Logo- in'li.png", width=210)
     
 # ========================================
 # PAGE 1 : TABLEAU DE BORD - VERSION PRO
@@ -2992,6 +2992,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
