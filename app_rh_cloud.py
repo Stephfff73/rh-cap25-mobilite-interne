@@ -978,7 +978,7 @@ if page == "📊 Tableau de Bord":
     col9, col10, col11 = st.columns(3)
     
     with col9:
-        st.metric("📅 Entretiens planifiés", entretiens_planifies)
+        st.metric("⏳ Entretiens planifiés", entretiens_planifies)
         st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_planifies)}% du total</p>", unsafe_allow_html=True)
     
     with col10:
@@ -986,7 +986,7 @@ if page == "📊 Tableau de Bord":
         st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_realises)}% du total</p>", unsafe_allow_html=True)
     
     with col11:
-        st.metric("⌛ Aujourd'hui", entretiens_aujourd_hui)
+        st.metric("⏰ Aujourd'hui", entretiens_aujourd_hui)
         st.markdown(f"<p style='color: #10b981; font-weight: bold; margin-top: -10px;'>{int(pct_aujourd_hui)}% du total</p>", unsafe_allow_html=True)
     
     st.divider()
@@ -2864,6 +2864,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
