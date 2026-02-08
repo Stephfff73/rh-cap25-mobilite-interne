@@ -761,12 +761,29 @@ if collaborateurs_df.empty or postes_df.empty:
     st.error("Impossible de charger les données. Vérifiez la structure du Google Sheet.")
     st.stop()
 
+# --- CSS POUR COMPACTER LA SIDEBAR ---
+st.sidebar.markdown("""
+    <style>
+        /* Réduit l'espace en haut de la sidebar */
+        [data-testid="stSidebarUserContent"] {
+            padding-top: 1rem !important;
+        }
+        /* Supprime les marges par défaut des blocs markdown */
+        .element-container {
+            margin-bottom: 0px !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- SIDEBAR : NAVIGATION AVEC LOGO ---
-st.sidebar.markdown("<h3 style='color: #ea2b5e; margin-bottom: 1px; margin-top: -1px;'>🏢 CAP25 - Mobilité Interne</h3>", unsafe_allow_html=True)
-st.sidebar.markdown("<div style='margin-bottom: 1px;'></div>", unsafe_allow_html=True)
+# Utilisation de margin-top négatif pour coller le titre au haut de la page
+st.sidebar.markdown("<h3 style='color: #ea2b5e; margin: -10px 0px 5px 0px; padding: 0;'>🏢 CAP25 - Mobilité Interne</h3>", unsafe_allow_html=True)
+
+# Affichage du logo sans conteneur intermédiaire pour gagner de la place
 st.sidebar.image("Logo - BO RH in'li.png", width=220)
-st.sidebar.markdown("<div style='margin-bottom: 1px;'></div>", unsafe_allow_html=True)
-st.sidebar.divider()
+
+# Un petit divider fin avec une marge réduite
+st.sidebar.markdown("<hr style='margin: 10px 0px 10px 0px; border-top: 1px solid #ccc;'>", unsafe_allow_html=True)
 
 page = st.sidebar.radio(
     "Navigation",
@@ -2791,6 +2808,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
