@@ -777,7 +777,7 @@ st.sidebar.markdown("""
 st.sidebar.markdown("<p style='font-size: 0.75em; color: #10b981; margin: 2px 0; padding: 0;'>✅ Connexion établie avec Google Sheet</p>", unsafe_allow_html=True)
 
 # --- SIDEBAR : NAVIGATION AVEC LOGO ---
-st.sidebar.markdown("<h2 style='color: #ea2b5e; margin: 8px 0 6px 0; padding: 0; line-height: 1.1; font-size: 1.4rem;'>🏢 CAP25 - Mobilité interne</h2>", unsafe_allow_html=True)
+st.sidebar.markdown("<h3 style='color: #ea2b5e; margin: 8px 0 6px 0; padding: 0; line-height: 1.1; font-size: 1.4rem;'>🏢 CAP25 - Mobilité interne</h3>", unsafe_allow_html=True)
 
 # Logo légèrement réduit
 st.sidebar.image("Logo - BO RH in'li.png", width=250)
@@ -824,7 +824,7 @@ st.sidebar.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=Tru
 # Logo en bas de la barre latérale
 col_logo = st.sidebar.columns([1, 2, 1])
 with col_logo[1]:
-    st.sidebar.image("Logo- in'li.png", width=150)
+    st.sidebar.image("Logo- in'li.png", width=210)
     
 # ========================================
 # PAGE 1 : TABLEAU DE BORD OPTIMISÉ
@@ -2923,6 +2923,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
