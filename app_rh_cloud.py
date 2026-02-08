@@ -762,8 +762,7 @@ if collaborateurs_df.empty or postes_df.empty:
     st.stop()
 
 # --- SIDEBAR : NAVIGATION AVEC LOGO ---
-#st.sidebar.image("Logo- in'li.png", width=220)
-st.sidebar.image("Logo - BO RH in'li.png", width=250)
+st.sidebar.image("Logo- in'li.png", width=210)
 st.sidebar.markdown("### 🏢 CAP25 - Mobilité Interne")
 st.sidebar.divider()
 
@@ -798,6 +797,7 @@ st.sidebar.caption(f"Dernière mise à jour : {paris_time.strftime('%H:%M:%S')}"
 if st.session_state.last_save_time:
     st.sidebar.caption(f"💾 Dernière sauvegarde : {st.session_state.last_save_time.strftime('%H:%M:%S')}")
 
+st.sidebar.image("Logo - BO RH in'li.png", width=250)
 
 # ========================================
 # PAGE 1 : TABLEAU DE BORD AMÉLIORÉ
@@ -2684,6 +2684,7 @@ st.markdown("""
     <p>CAP25 - Pilotage de la Mobilité Interne | Synchronisé avec Google Sheets</p>
 </div>
 """, unsafe_allow_html=True)
+
 
 
 
