@@ -759,25 +759,16 @@ if collaborateurs_df.empty or postes_df.empty:
     st.error("Impossible de charger les données. Vérifiez la structure du Google Sheet.")
     st.stop()
 
-# --- CSS POUR SIDEBAR COMPACTE MAIS AÉRÉE ---
+# --- CSS POUR SIDEBAR COMPACTE (SANS MODIFIER L'ESPACEMENT DU MENU) ---
 st.sidebar.markdown("""
     <style>
         /* Supprime le padding énorme en haut de la sidebar */
         [data-testid="stSidebarUserContent"] {
             padding-top: 0.5rem !important;
         }
-        /* Réduit l'espace entre chaque élément de la sidebar */
+        /* Réduit l'espace au-dessus du menu de navigation */
         [data-testid="stSidebarNav"] {
             padding-top: 0px !important;
-        }
-        /* Espacement global léger entre éléments */
-        .element-container {
-            margin-bottom: 0.3rem !important;
-        }
-        /* Radio buttons plus compacts */
-        div[role="radiogroup"] label {
-            padding-top: 0.4rem !important;
-            padding-bottom: 0.4rem !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -836,7 +827,7 @@ with col_logo[1]:
     st.sidebar.image("Logo- in'li.png", width=150)
     
 # ========================================
-# PAGE 1 : TABLEAU DE BORD AMÉLIORÉ
+# PAGE 1 : TABLEAU DE BORD OPTIMISÉ
 # ========================================
 
 if page == "📊 Tableau de Bord":
@@ -991,108 +982,183 @@ if page == "📊 Tableau de Bord":
     
     st.divider()
     
-    # ===== GRAPHIQUES OPTIMISÉS AVEC COULEURS =====
+    # ===== GRAPHIQUES OPTIMISÉS PROFESSIONNELS =====
     st.subheader("📊 Analyse des vœux par poste")
-
-    col_chart1, col_chart2 = st.columns(2)
-
-    with col_chart1:
-        st.markdown("#### 🔥 Top 10 des postes les plus demandés")
     
-        all_voeux = pd.concat([
-            collaborateurs_df["Vœux 1"],
-            collaborateurs_df["Vœux 2"],
-            collaborateurs_df["Voeux 3"]
-        ])
-        all_voeux = all_voeux[
-            all_voeux.notna() & 
-            (all_voeux.astype(str).str.strip() != "") & 
-            (all_voeux.astype(str).str.strip() != "Positionnement manquant")
-        ]
+    # Collecte des vœux
+    all_voeux = pd.concat([
+        collaborateurs_df["Vœux 1"],
+        collaborateurs_df["Vœux 2"],
+        collaborateurs_df["Voeux 3"]
+    ])
+    all_voeux = all_voeux[
+        all_voeux.notna() & 
+        (all_voeux.astype(str).str.strip() != "") & 
+        (all_voeux.astype(str).str.strip() != "Positionnement manquant")
+    ]
     
-        if len(all_voeux) > 0:
+    if len(all_voeux) == 0:
+        st.info("Aucun vœu enregistré pour le moment")
+    else:
+        col_chart1, col_chart2 = st.columns(2)
+        
+        with col_chart1:
+            st.markdown("#### 🔥 Top 10 des postes les plus demandés")
+            
             top_postes = all_voeux.value_counts().head(10)
-        
-            # ✅ TABLEAU OPTIMISÉ AVEC COULEURS ALTERNÉES
+            
+            # ✅ TABLEAU OPTIMISÉ - RANG + NOMBRE VISIBLE
             top_df = pd.DataFrame({
-                "🏆": [f"#{i}" for i in range(1, len(top_postes) + 1)],
-                "Poste": top_postes.index,
-                "🔢": top_postes.values  # Icône pour attirer l'œil sur le chiffre clé
+                "Rang": [f"#{i}" for i in range(1, len(top_postes) + 1)],
+                "Vœux": top_postes.values,  # ← EN 2ÈME POSITION POUR VISIBILITÉ
+                "Intitulé du poste": top_postes.index
             })
             
-            # Styling avec HTML pour couleurs alternées
-            def highlight_rows(row):
-                if int(row["🏆"].replace("#", "")) % 2 == 0:
-                    return ['background-color: #f0f9ff'] * len(row)
-                else:
-                    return ['background-color: #ffffff'] * len(row)
+            # CSS pour bordures et couleurs alternées professionnelles
+            st.markdown("""
+            <style>
+            /* Tableau 1 - Style professionnel */
+            div[data-testid="column"]:nth-child(1) table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+            div[data-testid="column"]:nth-child(1) th {
+                background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
+                color: white !important;
+                font-weight: 600 !important;
+                padding: 12px 8px !important;
+                text-align: center !important;
+                border: 1px solid #ea580c !important;
+            }
+            div[data-testid="column"]:nth-child(1) tbody tr:nth-child(odd) {
+                background-color: #fff7ed !important;
+            }
+            div[data-testid="column"]:nth-child(1) tbody tr:nth-child(even) {
+                background-color: #ffffff !important;
+            }
+            div[data-testid="column"]:nth-child(1) tbody tr:hover {
+                background-color: #fed7aa !important;
+                transition: all 0.2s ease;
+            }
+            div[data-testid="column"]:nth-child(1) td {
+                padding: 10px 8px !important;
+                border: 1px solid #fed7aa !important;
+            }
+            /* Colonne Vœux en gras et centrée */
+            div[data-testid="column"]:nth-child(1) td:nth-child(2) {
+                font-weight: 700 !important;
+                font-size: 1.1em !important;
+                color: #ea580c !important;
+                text-align: center !important;
+                background-color: #ffedd5 !important;
+            }
+            /* Colonne Rang centrée */
+            div[data-testid="column"]:nth-child(1) td:nth-child(1) {
+                text-align: center !important;
+                font-weight: 600 !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
             
-            styled_df = top_df.style.apply(highlight_rows, axis=1)
-        
             st.dataframe(
-                styled_df,
+                top_df,
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "🏆": st.column_config.TextColumn("Rang", width="small"),
-                    "🔢": st.column_config.NumberColumn(
+                    "Rang": st.column_config.TextColumn("Rang", width="small"),
+                    "Vœux": st.column_config.NumberColumn(
                         "Vœux", 
-                        width="small", 
-                        help="Nombre de vœux émis",
-                        format="%d ⭐"  # Ajoute une étoile pour visibilité
+                        width="small",
+                        help="Nombre de vœux émis pour ce poste"
                     ),
-                    "Poste": st.column_config.TextColumn("Intitulé", width="large")
+                    "Intitulé du poste": st.column_config.TextColumn("Intitulé du poste", width="large")
                 },
-                height=420
+                height=435  # Hauteur fixe pour alignement
             )
-        else:
-            st.info("Aucun vœu enregistré pour le moment")
-
-    with col_chart2:
-        st.markdown("#### ⚠️ Postes en tension d'attractivité")
-    
-        if len(all_voeux) > 0:
+        
+        with col_chart2:
+            st.markdown("#### ⚠️ Postes en tension d'attractivité")
+            
             flop_postes = all_voeux.value_counts().sort_values(ascending=True).head(10)
-        
+            
             flop_df = pd.DataFrame({
-                "⚠️": [f"#{i}" for i in range(1, len(flop_postes) + 1)],
-                "Poste": flop_postes.index,
-                "🔢": flop_postes.values
+                "Rang": [f"#{i}" for i in range(1, len(flop_postes) + 1)],
+                "Vœux": flop_postes.values,  # ← EN 2ÈME POSITION POUR VISIBILITÉ
+                "Intitulé du poste": flop_postes.index
             })
             
-            # Styling avec dégradé de rouge selon le niveau de tension
-            def color_tension(row):
-                val = int(row["🔢"])
-                if val == 0:
-                    color = '#fee2e2'  # Rouge très pâle
-                elif val <= 2:
-                    color = '#fecaca'  # Rouge pâle
-                elif val <= 4:
-                    color = '#fca5a5'  # Rouge moyen
-                else:
-                    color = '#ffffff'  # Blanc (pas vraiment en tension)
-                return [f'background-color: {color}'] * len(row)
+            # CSS pour tableau 2 avec dégradé de rouge
+            st.markdown("""
+            <style>
+            /* Tableau 2 - Style tension */
+            div[data-testid="column"]:nth-child(2) table {
+                border-collapse: collapse;
+                width: 100%;
+            }
+            div[data-testid="column"]:nth-child(2) th {
+                background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important;
+                color: white !important;
+                font-weight: 600 !important;
+                padding: 12px 8px !important;
+                text-align: center !important;
+                border: 1px solid #991b1b !important;
+            }
+            div[data-testid="column"]:nth-child(2) tbody tr:nth-child(odd) {
+                background-color: #fef2f2 !important;
+            }
+            div[data-testid="column"]:nth-child(2) tbody tr:nth-child(even) {
+                background-color: #ffffff !important;
+            }
+            div[data-testid="column"]:nth-child(2) tbody tr:hover {
+                background-color: #fecaca !important;
+                transition: all 0.2s ease;
+            }
+            div[data-testid="column"]:nth-child(2) td {
+                padding: 10px 8px !important;
+                border: 1px solid #fecaca !important;
+            }
+            /* Colonne Vœux en gras et centrée avec code couleur */
+            div[data-testid="column"]:nth-child(2) td:nth-child(2) {
+                font-weight: 700 !important;
+                font-size: 1.1em !important;
+                text-align: center !important;
+            }
+            /* Code couleur automatique selon valeur */
+            div[data-testid="column"]:nth-child(2) tbody tr:has(td:nth-child(2):is([data-value="0"], :contains("0"))) td:nth-child(2) {
+                background-color: #fee2e2 !important;
+                color: #991b1b !important;
+            }
+            div[data-testid="column"]:nth-child(2) tbody tr:has(td:nth-child(2):is([data-value="1"], :contains("1"))) td:nth-child(2) {
+                background-color: #fecaca !important;
+                color: #dc2626 !important;
+            }
+            div[data-testid="column"]:nth-child(2) tbody tr:has(td:nth-child(2):is([data-value="2"], :contains("2"))) td:nth-child(2) {
+                background-color: #fca5a5 !important;
+                color: #dc2626 !important;
+            }
+            /* Colonne Rang centrée */
+            div[data-testid="column"]:nth-child(2) td:nth-child(1) {
+                text-align: center !important;
+                font-weight: 600 !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
             
-            styled_flop = flop_df.style.apply(color_tension, axis=1)
-        
             st.dataframe(
-                styled_flop,
+                flop_df,
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "⚠️": st.column_config.TextColumn("Rang", width="small"),
-                    "🔢": st.column_config.NumberColumn(
+                    "Rang": st.column_config.TextColumn("Rang", width="small"),
+                    "Vœux": st.column_config.NumberColumn(
                         "Vœux", 
-                        width="small", 
-                        help="Nombre de vœux émis (faible = tension)",
-                        format="%d ⚡"
+                        width="small",
+                        help="Nombre de vœux (faible = tension élevée)"
                     ),
-                    "Poste": st.column_config.TextColumn("Intitulé", width="large")
+                    "Intitulé du poste": st.column_config.TextColumn("Intitulé du poste", width="large")
                 },
-                height=420
+                height=435  # Hauteur identique pour alignement
             )
-        else:
-            st.info("Aucun vœu enregistré pour le moment")
 
 # ========================================
 # PAGE 2 : GESTION DES CANDIDATURES
@@ -2857,6 +2923,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
