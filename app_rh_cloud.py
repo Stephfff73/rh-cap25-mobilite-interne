@@ -743,9 +743,9 @@ def create_org_structure(df, postes_df, mode="actuel"):
     if mode == "actuel":
         # Organisation actuelle basée sur "Direction libellé" et "Emploi libellé"
         for _, row in df.iterrows():
-            direction = get_safe_value(row.get('Direction libellé', ''), 'Non renseigné')
-            service = get_safe_value(row.get('Service libellé', ''), 'Non renseigné')
-            poste = get_safe_value(row.get('Poste libellé', ''), 'Non renseigné')
+            direction = get_safe_value(row.get('Direction libellé', '')), 'Non renseigné'
+            service = get_safe_value(row.get('Service libellé', '')), 'Non renseigné'
+            poste = get_safe_value(row.get('Poste libellé', '')), 'Non renseigné'
             nom = f"{get_safe_value(row.get('NOM', ''))} {get_safe_value(row.get('Prénom', ''))}"
             
             org_structure[direction][service].append({
@@ -778,7 +778,7 @@ def create_org_structure(df, postes_df, mode="actuel"):
                 # 1. Utiliser le service actuel (si maintien)
                 # 2. Utiliser "Service" de l'onglet Postes si disponible
                 # 3. Mettre "À définir"
-                service = get_safe_value(row.get('Service libellé', ''), 'À définir')
+                service = get_safe_value(row.get('Service libellé', '')), 'À définir'
                 
                 poste = voeu_retenu
                 nom = f"{get_safe_value(row.get('NOM', ''))} {get_safe_value(row.get('Prénom', ''))}"
@@ -813,7 +813,7 @@ def create_sankey_diagram(df, postes_df):
     labels = set()
     
     for _, row in df_with_voeu.iterrows():
-        poste_actuel = get_safe_value(row.get('Poste libellé', ''), 'Non renseigné')
+        poste_actuel = get_safe_value(row.get('Poste libellé', '')), 'Non renseigné'
         voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
         
         if voeu_retenu:
@@ -3543,6 +3543,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
