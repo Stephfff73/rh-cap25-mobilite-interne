@@ -827,7 +827,7 @@ def create_sankey_diagram(df, postes_df):
     flux_count = defaultdict(int)
     
     for _, row in df_with_voeu.iterrows():
-        poste_actuel = get_safe_value(row.get('Poste libellé', ''), 'Non renseigné')
+        poste_actuel = get_safe_value(row.get('Poste libellé', '')), 'Non renseigné'
         voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
         
         if voeu_retenu:
@@ -3543,6 +3543,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
