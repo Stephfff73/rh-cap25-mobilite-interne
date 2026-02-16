@@ -8,6 +8,9 @@ import pytz
 import json
 import altair as alt
 import io
+import plotly.graph_objects as go
+import plotly.express as px
+from collections import defaultdict
 
 
 # --- CONFIGURATION DE LA PAGE ---
@@ -616,7 +619,7 @@ def to_excel(df):
     return output.getvalue()
 
  # ========================================
-# FONCTIONS UTILITAIRES & CACHE (A placer idéalement en début de script ou ici)
+# FONCTIONS UTILITAIRES & CACHE
 # ========================================
 
 @st.cache_data(ttl=600) # Cache les données pour 10 minutes ou jusqu'au reboot
@@ -726,6 +729,210 @@ def badge_priorite(p):
     }
     return f"{colors.get(p, '⚪')} {p}"
 
+# ========================================
+# FONCTIONS POUR L'ORGANIGRAMME
+# ========================================
+
+def create_org_structure(df, postes_df, mode="actuel"):
+    """
+    Crée une structure hiérarchique de l'organisation
+    mode: "actuel" ou "cap2025"
+    """
+    org_structure = defaultdict(lambda: defaultdict(list))
+    
+    if mode == "actuel":
+        # Organisation actuelle basée sur "Direction libellé" et "Emploi libellé"
+        for _, row in df.iterrows():
+            direction = get_safe_value(row.get('Direction libellé', ''), 'Non renseigné')
+            service = get_safe_value(row.get('Service libellé', ''), 'Non renseigné')
+            poste = get_safe_value(row.get('Emploi libellé', ''), 'Non renseigné')
+            nom = f"{get_safe_value(row.get('NOM', ''))} {get_safe_value(row.get('Prénom', ''))}"
+            
+            org_structure[direction][service].append({
+                'nom': nom,
+                'poste': poste,
+                'matricule': get_safe_value(row.get('Matricule', ''))
+            })
+    else:  # CAP 2025
+        # Filtrer uniquement les collaborateurs avec "Vœux Retenu" non vide
+        df_with_voeu = df[df['Vœux Retenu'].notna() & (df['Vœux Retenu'] != '')].copy()
+        
+        # Créer un dictionnaire de mapping Poste → Direction depuis l'onglet Postes
+        poste_to_direction = {}
+        if not postes_df.empty:
+            for _, poste_row in postes_df.iterrows():
+                poste_name = get_safe_value(poste_row.get('Poste', ''))
+                direction_name = get_safe_value(poste_row.get('Direction', ''))
+                if poste_name:
+                    poste_to_direction[poste_name] = direction_name
+        
+        # Construire l'organigramme CAP 2025
+        for _, row in df_with_voeu.iterrows():
+            voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
+            
+            if voeu_retenu:
+                # Trouver la direction correspondante dans le référentiel Postes
+                direction = poste_to_direction.get(voeu_retenu, 'Direction non trouvée')
+                
+                # Pour le service, on peut soit :
+                # 1. Utiliser le service actuel (si maintien)
+                # 2. Utiliser "Service" de l'onglet Postes si disponible
+                # 3. Mettre "À définir"
+                service = get_safe_value(row.get('Service libellé', ''), 'À définir')
+                
+                poste = voeu_retenu
+                nom = f"{get_safe_value(row.get('NOM', ''))} {get_safe_value(row.get('Prénom', ''))}"
+                
+                org_structure[direction][service].append({
+                    'nom': nom,
+                    'poste': poste,
+                    'matricule': get_safe_value(row.get('Matricule', ''))
+                })
+    
+    return org_structure
+
+def create_sankey_diagram(df, postes_df):
+    """Crée un diagramme Sankey pour visualiser les flux de mobilité"""
+    
+    # Créer le mapping Poste → Direction depuis l'onglet Postes
+    poste_to_direction = {}
+    if not postes_df.empty:
+        for _, poste_row in postes_df.iterrows():
+            poste_name = get_safe_value(poste_row.get('Poste', ''))
+            direction_name = get_safe_value(poste_row.get('Direction', ''))
+            if poste_name:
+                poste_to_direction[poste_name] = direction_name
+    
+    # Filtrer uniquement les collaborateurs avec "Vœux Retenu"
+    df_with_voeu = df[df['Vœux Retenu'].notna() & (df['Vœux Retenu'] != '')].copy()
+    
+    # Préparer les données pour Sankey
+    sources = []
+    targets = []
+    values = []
+    labels = set()
+    
+    for _, row in df_with_voeu.iterrows():
+        poste_actuel = get_safe_value(row.get('Emploi libellé', ''), 'Non renseigné')
+        voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
+        
+        if voeu_retenu:
+            labels.add(f"ACTUEL: {poste_actuel}")
+            labels.add(f"CAP25: {voeu_retenu}")
+    
+    labels_list = sorted(list(labels))
+    label_to_idx = {label: idx for idx, label in enumerate(labels_list)}
+    
+    # Créer les flux
+    flux_count = defaultdict(int)
+    
+    for _, row in df_with_voeu.iterrows():
+        poste_actuel = get_safe_value(row.get('Emploi libellé', ''), 'Non renseigné')
+        voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
+        
+        if voeu_retenu:
+            source_label = f"ACTUEL: {poste_actuel}"
+            target_label = f"CAP25: {voeu_retenu}"
+            
+            flux_count[(source_label, target_label)] += 1
+    
+    # Convertir en listes pour Plotly
+    for (source_label, target_label), count in flux_count.items():
+        sources.append(label_to_idx[source_label])
+        targets.append(label_to_idx[target_label])
+        values.append(count)
+    
+    # Créer le diagramme Sankey
+    fig = go.Figure(data=[go.Sankey(
+        node=dict(
+            pad=15,
+            thickness=20,
+            line=dict(color="black", width=0.5),
+            label=labels_list,
+            color=["#3B82F6" if "ACTUEL" in l else "#10B981" for l in labels_list]
+        ),
+        link=dict(
+            source=sources,
+            target=targets,
+            value=values,
+            color="rgba(100, 116, 139, 0.3)"
+        )
+    )])
+    
+    fig.update_layout(
+        title="Flux de mobilité : Organisation actuelle → CAP 2025",
+        font=dict(size=10),
+        height=800
+    )
+    
+    return fig
+
+def create_treemap(org_structure, title):
+    """Crée un treemap de l'organisation"""
+    
+    # Préparer les données pour le treemap
+    labels = []
+    parents = []
+    values = []
+    colors = []
+    
+    # Palette de couleurs par direction
+    color_palette = px.colors.qualitative.Set3
+    direction_colors = {}
+    
+    for idx, direction in enumerate(org_structure.keys()):
+        direction_colors[direction] = color_palette[idx % len(color_palette)]
+        
+        # Ajouter la direction
+        labels.append(direction)
+        parents.append("")
+        values.append(0)  # Sera recalculé
+        colors.append(direction_colors[direction])
+        
+        for service, collaborateurs in org_structure[direction].items():
+            # Ajouter le service
+            service_label = f"{direction}/{service}"
+            labels.append(service_label)
+            parents.append(direction)
+            values.append(len(collaborateurs))
+            colors.append(direction_colors[direction])
+    
+    # Recalculer les valeurs des directions
+    for i, label in enumerate(labels):
+        if parents[i] == "":
+            values[i] = sum(v for j, v in enumerate(values) if parents[j] == label)
+    
+    fig = go.Figure(go.Treemap(
+        labels=labels,
+        parents=parents,
+        values=values,
+        marker=dict(colors=colors),
+        textposition="middle center",
+        textfont=dict(size=12)
+    ))
+    
+    fig.update_layout(
+        title=title,
+        height=600,
+        margin=dict(t=50, l=0, r=0, b=0)
+    )
+    
+    return fig
+
+def get_poste_capacity(postes_df, poste_name):
+    """Retourne la capacité d'un poste depuis le référentiel"""
+    if postes_df.empty:
+        return None
+    
+    matching_rows = postes_df[postes_df['Poste'] == poste_name]
+    if not matching_rows.empty:
+        capacity = matching_rows.iloc[0].get('Nombre total de postes', None)
+        try:
+            return int(capacity) if capacity else None
+        except:
+            return None
+    return None
+
 
 # --- URL DU GOOGLE SHEET ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1BXez24VFNhb470PrCjwNIFx6GdJFqLnVh8nFf3gGGvw/edit?usp=sharing"
@@ -808,7 +1015,8 @@ page = st.sidebar.radio(
         "💻🔍 Candidatures/Poste",
         "🎯 Analyse par Poste", 
         "🗒️🔁 Tableau agrégé AM",
-        "🌳 Référentiel Postes"
+        "🌳 Référentiel Postes",
+        "🏛️ Organigramme Cap25"
     ],
     label_visibility="collapsed"
 )
@@ -2847,6 +3055,473 @@ elif page == "🌳 Référentiel Postes":
         hide_index=True
     )
 
+# ========================================
+# PAGE 7 : ORGANIGRAMME CAP 2025 
+# ========================================
+
+
+elif page == "🏛️ Organigramme Cap25":
+    st.title("🏛️ Organigramme CAP 2025 - Transition Organisationnelle")
+    
+    st.markdown("""
+    Cette page présente la transition entre l'organisation actuelle et la nouvelle organisation CAP 2025.
+    Vous pouvez visualiser les structures, comparer les effectifs et analyser les flux de mobilité.
+    """)
+    
+    # Onglets pour différentes vues
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📊 Vue d'ensemble",
+        "🔄 Flux de mobilité",
+        "📈 Comparaison détaillée",
+        "👥 Mouvements individuels"
+    ])
+    
+    # ========================================
+    # TAB 1 : VUE D'ENSEMBLE
+    # ========================================
+    
+    with tab1:
+        st.subheader("📊 Vue d'ensemble de la transition")
+        
+        # KPIs de transition
+        col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+        
+        # Calculer les statistiques
+        total_collab = len(collaborateurs_df)
+        avec_voeu = collaborateurs_df[
+            collaborateurs_df['Vœux Retenu'].notna() & 
+            (collaborateurs_df['Vœux Retenu'] != '')
+        ].shape[0]
+        
+        # Créer le mapping Poste → Direction
+        poste_to_direction = {}
+        if not postes_df.empty:
+            for _, poste_row in postes_df.iterrows():
+                poste_name = get_safe_value(poste_row.get('Poste', ''))
+                direction_name = get_safe_value(poste_row.get('Direction', ''))
+                if poste_name:
+                    poste_to_direction[poste_name] = direction_name
+        
+        # Collaborateurs changeant de direction
+        df_with_voeu = collaborateurs_df[
+            collaborateurs_df['Vœux Retenu'].notna() & 
+            (collaborateurs_df['Vœux Retenu'] != '')
+        ].copy()
+        
+        df_with_voeu['Direction_Cible'] = df_with_voeu['Vœux Retenu'].map(poste_to_direction)
+        changement_direction = (df_with_voeu['Direction libellé'] != df_with_voeu['Direction_Cible']).sum()
+        
+        # Postes concernés
+        postes_actuels = set(collaborateurs_df['Emploi libellé'].dropna().unique())
+        postes_cibles = set(df_with_voeu['Vœux Retenu'].dropna().unique())
+        nb_postes_impactes = len(postes_actuels | postes_cibles)
+        
+        with col_kpi1:
+            st.metric(
+                "👥 Collaborateurs en transition",
+                f"{avec_voeu}",
+                f"{(avec_voeu/total_collab*100):.1f}% du total"
+            )
+        
+        with col_kpi2:
+            st.metric(
+                "🔄 Changements de direction",
+                f"{changement_direction}",
+                f"{(changement_direction/avec_voeu*100 if avec_voeu > 0 else 0):.1f}%"
+            )
+        
+        with col_kpi3:
+            nb_directions_actuelles = collaborateurs_df['Direction libellé'].nunique()
+            nb_directions_cibles = df_with_voeu['Direction_Cible'].nunique() if len(df_with_voeu) > 0 else 0
+            st.metric(
+                "🏢 Directions",
+                f"{nb_directions_actuelles} → {nb_directions_cibles}",
+                f"{nb_directions_cibles - nb_directions_actuelles:+d}"
+            )
+        
+        with col_kpi4:
+            st.metric(
+                "🎯 Postes impactés",
+                f"{nb_postes_impactes}",
+                "dans la transition"
+            )
+        
+        st.divider()
+        
+        # Treemaps côte à côte
+        col_tree1, col_tree2 = st.columns(2)
+        
+        with col_tree1:
+            st.subheader("🏢 Organisation Actuelle")
+            org_actuelle = create_org_structure(collaborateurs_df, postes_df, mode="actuel")
+            fig_actuelle = create_treemap(org_actuelle, "Structure Actuelle")
+            st.plotly_chart(fig_actuelle, use_container_width=True)
+        
+        with col_tree2:
+            st.subheader("🎯 Organisation CAP 2025")
+            org_cap2025 = create_org_structure(collaborateurs_df, postes_df, mode="cap2025")
+            fig_cap2025 = create_treemap(org_cap2025, "Structure CAP 2025")
+            st.plotly_chart(fig_cap2025, use_container_width=True)
+    
+    # ========================================
+    # TAB 2 : FLUX DE MOBILITÉ
+    # ========================================
+    
+    with tab2:
+        st.subheader("🔄 Visualisation des flux de mobilité")
+        
+        st.info("💡 Ce diagramme Sankey montre les mouvements des collaborateurs de leur poste actuel vers leur poste CAP 2025 (Vœux Retenu)")
+        
+        # Filtres pour le Sankey
+        col_s1, col_s2 = st.columns(2)
+        
+        with col_s1:
+            direction_filter_sankey = st.multiselect(
+                "Filtrer par Direction actuelle",
+                options=sorted(collaborateurs_df['Direction libellé'].dropna().unique()),
+                default=[]
+            )
+        
+        with col_s2:
+            min_flux = st.slider(
+                "Afficher uniquement les flux d'au moins X personnes",
+                min_value=1,
+                max_value=10,
+                value=1
+            )
+        
+        # Appliquer les filtres
+        df_sankey = collaborateurs_df.copy()
+        if direction_filter_sankey:
+            df_sankey = df_sankey[df_sankey['Direction libellé'].isin(direction_filter_sankey)]
+        
+        # Créer et afficher le Sankey
+        fig_sankey = create_sankey_diagram(df_sankey, postes_df)
+        st.plotly_chart(fig_sankey, use_container_width=True)
+        
+        st.divider()
+        
+        # Analyse des flux principaux
+        st.subheader("📊 Top 10 des flux de mobilité")
+        
+        flux_analysis = []
+        df_flux_temp = df_sankey[df_sankey['Vœux Retenu'].notna() & (df_sankey['Vœux Retenu'] != '')].copy()
+        
+        for _, row in df_flux_temp.iterrows():
+            poste_actuel = get_safe_value(row.get('Emploi libellé', ''))
+            voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
+            
+            if voeu_retenu:
+                flux_analysis.append({
+                    'Poste Actuel': poste_actuel,
+                    'Poste CAP 2025': voeu_retenu,
+                    'Collaborateur': f"{get_safe_value(row.get('NOM', ''))} {get_safe_value(row.get('Prénom', ''))}"
+                })
+        
+        df_flux = pd.DataFrame(flux_analysis)
+        if not df_flux.empty:
+            flux_counts = df_flux.groupby(['Poste Actuel', 'Poste CAP 2025']).size().reset_index(name='Nombre')
+            flux_counts = flux_counts[flux_counts['Nombre'] >= min_flux]
+            flux_counts = flux_counts.sort_values('Nombre', ascending=False).head(10)
+            
+            st.dataframe(
+                flux_counts,
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.info("Aucun flux de mobilité avec les filtres sélectionnés")
+    
+    # ========================================
+    # TAB 3 : COMPARAISON DÉTAILLÉE
+    # ========================================
+    
+    with tab3:
+        st.subheader("📈 Comparaison détaillée par Direction")
+        
+        # Sélection de la direction à analyser
+        directions_list = sorted(collaborateurs_df['Direction libellé'].dropna().unique())
+        direction_selected = st.selectbox(
+            "Sélectionner une Direction",
+            options=directions_list
+        )
+        
+        if direction_selected:
+            # Créer le mapping Poste → Direction
+            poste_to_direction = {}
+            if not postes_df.empty:
+                for _, poste_row in postes_df.iterrows():
+                    poste_name = get_safe_value(poste_row.get('Poste', ''))
+                    direction_name = get_safe_value(poste_row.get('Direction', ''))
+                    if poste_name:
+                        poste_to_direction[poste_name] = direction_name
+            
+            # Effectifs actuels
+            effectif_actuel = collaborateurs_df[collaborateurs_df['Direction libellé'] == direction_selected].shape[0]
+            
+            # Effectifs cibles (personnes voulant venir dans cette direction)
+            df_with_voeu_comp = collaborateurs_df[
+                collaborateurs_df['Vœux Retenu'].notna() & 
+                (collaborateurs_df['Vœux Retenu'] != '')
+            ].copy()
+            df_with_voeu_comp['Direction_Cible'] = df_with_voeu_comp['Vœux Retenu'].map(poste_to_direction)
+            effectif_cible = df_with_voeu_comp[df_with_voeu_comp['Direction_Cible'] == direction_selected].shape[0]
+            
+            # Flux sortants (personnes partant de cette direction)
+            effectif_sortant = df_with_voeu_comp[
+                (df_with_voeu_comp['Direction libellé'] == direction_selected) &
+                (df_with_voeu_comp['Direction_Cible'] != direction_selected)
+            ].shape[0]
+            
+            # Flux entrants (personnes venant d'autres directions)
+            effectif_entrant = df_with_voeu_comp[
+                (df_with_voeu_comp['Direction libellé'] != direction_selected) &
+                (df_with_voeu_comp['Direction_Cible'] == direction_selected)
+            ].shape[0]
+            
+            # Affichage des métriques
+            col_comp1, col_comp2, col_comp3, col_comp4 = st.columns(4)
+            
+            with col_comp1:
+                st.metric(
+                    "👥 Effectif Actuel",
+                    f"{effectif_actuel}",
+                    help="Nombre de collaborateurs actuellement dans cette direction"
+                )
+            
+            with col_comp2:
+                st.metric(
+                    "🎯 Effectif CAP 2025",
+                    f"{effectif_cible}",
+                    f"{effectif_cible - effectif_actuel:+d}",
+                    help="Nombre de collaborateurs ciblant cette direction (Vœux Retenu)"
+                )
+            
+            with col_comp3:
+                st.metric(
+                    "📤 Flux Sortants",
+                    f"{effectif_sortant}",
+                    help="Collaborateurs quittant cette direction"
+                )
+            
+            with col_comp4:
+                st.metric(
+                    "📥 Flux Entrants",
+                    f"{effectif_entrant}",
+                    help="Collaborateurs rejoignant cette direction"
+                )
+            
+            st.divider()
+            
+            # Détail des mouvements
+            col_det1, col_det2 = st.columns(2)
+            
+            with col_det1:
+                st.markdown("##### 📤 Collaborateurs sortants")
+                df_sortants = df_with_voeu_comp[
+                    (df_with_voeu_comp['Direction libellé'] == direction_selected) &
+                    (df_with_voeu_comp['Direction_Cible'] != direction_selected)
+                ][['NOM', 'Prénom', 'Emploi libellé', 'Vœux Retenu', 'Direction_Cible']]
+                
+                if not df_sortants.empty:
+                    st.dataframe(
+                        df_sortants.rename(columns={
+                            'NOM': 'Nom',
+                            'Emploi libellé': 'Poste actuel',
+                            'Vœux Retenu': 'Poste cible',
+                            'Direction_Cible': 'Direction cible'
+                        }),
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                else:
+                    st.info("Aucun flux sortant")
+            
+            with col_det2:
+                st.markdown("##### 📥 Collaborateurs entrants")
+                df_entrants = df_with_voeu_comp[
+                    (df_with_voeu_comp['Direction libellé'] != direction_selected) &
+                    (df_with_voeu_comp['Direction_Cible'] == direction_selected)
+                ][['NOM', 'Prénom', 'Direction libellé', 'Emploi libellé', 'Vœux Retenu']]
+                
+                if not df_entrants.empty:
+                    st.dataframe(
+                        df_entrants.rename(columns={
+                            'NOM': 'Nom',
+                            'Direction libellé': 'Direction actuelle',
+                            'Emploi libellé': 'Poste actuel',
+                            'Vœux Retenu': 'Poste cible'
+                        }),
+                        hide_index=True,
+                        use_container_width=True
+                    )
+                else:
+                    st.info("Aucun flux entrant")
+            
+            st.divider()
+            
+            # Analyse de la capacité des postes
+            st.markdown("##### 📊 Analyse de la capacité des postes cibles")
+            
+            # Récupérer tous les postes ciblés dans cette direction
+            postes_cibles_direction = df_with_voeu_comp[
+                df_with_voeu_comp['Direction_Cible'] == direction_selected
+            ]['Vœux Retenu'].value_counts()
+            
+            if not postes_cibles_direction.empty:
+                capacity_data = []
+                for poste, demande in postes_cibles_direction.items():
+                    capacite = get_poste_capacity(postes_df, poste)
+                    
+                    if capacite is not None:
+                        taux_remplissage = (demande / capacite * 100) if capacite > 0 else 0
+                        status = "✅ OK" if demande <= capacite else "⚠️ Surdemande"
+                    else:
+                        taux_remplissage = None
+                        status = "❓ Capacité non définie"
+                    
+                    capacity_data.append({
+                        'Poste': poste,
+                        'Demande': demande,
+                        'Capacité': capacite if capacite is not None else "Non définie",
+                        'Taux': f"{taux_remplissage:.0f}%" if taux_remplissage is not None else "N/A",
+                        'Statut': status
+                    })
+                
+                df_capacity = pd.DataFrame(capacity_data)
+                df_capacity = df_capacity.sort_values('Demande', ascending=False)
+                
+                st.dataframe(
+                    df_capacity,
+                    hide_index=True,
+                    use_container_width=True,
+                    column_config={
+                        "Demande": st.column_config.NumberColumn(format="%d"),
+                        "Statut": st.column_config.TextColumn(width="medium")
+                    }
+                )
+            else:
+                st.info("Aucun poste ciblé dans cette direction")
+    
+    # ========================================
+    # TAB 4 : MOUVEMENTS INDIVIDUELS
+    # ========================================
+    
+    with tab4:
+        st.subheader("👥 Analyse des mouvements individuels")
+        
+        # Filtres
+        col_mv1, col_mv2, col_mv3 = st.columns(3)
+        
+        # Créer le mapping Poste → Direction pour les filtres
+        poste_to_direction = {}
+        if not postes_df.empty:
+            for _, poste_row in postes_df.iterrows():
+                poste_name = get_safe_value(poste_row.get('Poste', ''))
+                direction_name = get_safe_value(poste_row.get('Direction', ''))
+                if poste_name:
+                    poste_to_direction[poste_name] = direction_name
+        
+        with col_mv1:
+            type_mouvement = st.selectbox(
+                "Type de mouvement",
+                ["Tous", "Changement de direction", "Même direction", "Sans positionnement"]
+            )
+        
+        with col_mv2:
+            search_nom = st.text_input("🔍 Rechercher par nom")
+        
+        with col_mv3:
+            filtre_priorite = st.selectbox(
+                "Filtrer par priorité",
+                ["Toutes", "Urgent", "Prioritaire", "A suivre", "Standard"]
+            )
+        
+        # Préparer les données
+        df_mouvements = collaborateurs_df.copy()
+        
+        # Ajouter la colonne de direction cible
+        df_mouvements['Direction_Cible'] = df_mouvements['Vœux Retenu'].map(poste_to_direction)
+        
+        # Ajouter le type de mouvement
+        def get_type_mouvement(row):
+            if pd.isna(row['Vœux Retenu']) or row['Vœux Retenu'] == '':
+                return "Sans positionnement"
+            elif row['Direction libellé'] != row['Direction_Cible']:
+                return "Changement de direction"
+            else:
+                return "Même direction"
+        
+        df_mouvements['Type_Mouvement'] = df_mouvements.apply(get_type_mouvement, axis=1)
+        
+        # Appliquer les filtres
+        if type_mouvement != "Tous":
+            df_mouvements = df_mouvements[df_mouvements['Type_Mouvement'] == type_mouvement]
+        
+        if search_nom:
+            df_mouvements = df_mouvements[
+                df_mouvements['NOM'].str.contains(search_nom, case=False, na=False) |
+                df_mouvements['Prénom'].str.contains(search_nom, case=False, na=False)
+            ]
+        
+        if filtre_priorite != "Toutes":
+            df_mouvements = df_mouvements[df_mouvements['Priorité'] == filtre_priorite]
+        
+        # Affichage
+        st.markdown(f"**{len(df_mouvements)} collaborateurs** correspondent aux filtres")
+        
+        # Tableau détaillé
+        df_display = df_mouvements[[
+            'Matricule', 'NOM', 'Prénom', 
+            'Direction libellé', 'Service libellé', 'Emploi libellé',
+            'Vœux Retenu', 'Direction_Cible', 'Type_Mouvement', 'Priorité', 'Date de rdv'
+        ]].copy()
+        
+        df_display = df_display.rename(columns={
+            'NOM': 'Nom',
+            'Direction libellé': 'Direction actuelle',
+            'Service libellé': 'Service actuel',
+            'Emploi libellé': 'Poste actuel',
+            'Vœux Retenu': 'Poste cible',
+            'Direction_Cible': 'Direction cible',
+            'Type_Mouvement': 'Type de mouvement',
+            'Date de rdv': 'Date RDV'
+        })
+        
+        st.dataframe(
+            df_display,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "Type de mouvement": st.column_config.TextColumn(
+                    width="medium",
+                ),
+                "Priorité": st.column_config.TextColumn(
+                    width="small",
+                )
+            }
+        )
+        
+        # Export
+        st.divider()
+        
+        col_exp1, col_exp2 = st.columns([3, 1])
+        
+        with col_exp1:
+            st.info("💡 Exportez la liste filtrée pour un suivi détaillé de la transition")
+        
+        with col_exp2:
+            excel_mouvements = to_excel(df_display)
+            st.download_button(
+                label="📥 Télécharger en Excel",
+                data=excel_mouvements,
+                file_name=f"Mouvements_CAP2025_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                use_container_width=True
+            )
+
+
 # --- FOOTER ---
 st.divider()
 
@@ -2864,35 +3539,5 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
