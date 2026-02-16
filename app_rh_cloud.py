@@ -3438,7 +3438,7 @@ elif page == "🏛️ Organigramme Cap25":
         with col_mv3:
             filtre_priorite = st.selectbox(
                 "Filtrer par priorité",
-                ["Toutes", "🔴 Priorité 1", "🟠 Priorité 2", "🟡 Priorité 3", "🟢 Priorité 4"]
+                ["Toutes", "Priorité 1", "Priorité 2", "Priorité 3", "Priorité 4"]
             )
         
         # Préparer les données
@@ -3543,6 +3543,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
