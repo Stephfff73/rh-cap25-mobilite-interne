@@ -3415,7 +3415,7 @@ elif page == "🏛️ Organigramme Cap25":
         st.subheader("👥 Analyse des mouvements individuels")
         
         # Filtres
-        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        col_mv1, col_mv2, col_mv3, col_mv4 = st.columns(4)
         
         # Créer le mapping Poste → Direction pour les filtres
         poste_to_direction = {}
@@ -3543,6 +3543,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
