@@ -961,7 +961,7 @@ if not collaborateurs_df.empty:
     collaborateurs_df.columns = collaborateurs_df.columns.str.strip()
     
     # DEBUG : Afficher les colonnes chargées
-    st.sidebar.write("🔍 DEBUG - Colonnes disponibles:", list(collaborateurs_df.columns[:20]))  # Afficher les 10 premières
+    #st.sidebar.write("🔍 DEBUG - Colonnes disponibles:", list(collaborateurs_df.columns[:20]))  # Afficher les 10 premières
     
     if "Vœux Retenu" not in collaborateurs_df.columns:
         collaborateurs_df["Vœux Retenu"] = ""
@@ -3543,6 +3543,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
