@@ -745,7 +745,7 @@ def create_org_structure(df, postes_df, mode="actuel"):
         for _, row in df.iterrows():
             direction = get_safe_value(row.get('Direction libellé', ''), 'Non renseigné')
             service = get_safe_value(row.get('Service libellé', ''), 'Non renseigné')
-            poste = get_safe_value(row.get('Poste  libellé', ''), 'Non renseigné')
+            poste = get_safe_value(row.get("Poste  libellé", ''), 'Non renseigné')
             nom = f"{get_safe_value(row.get('NOM', ''))} {get_safe_value(row.get('Prénom', ''))}"
             
             org_structure[direction][service].append({
@@ -813,7 +813,7 @@ def create_sankey_diagram(df, postes_df):
     labels = set()
     
     for _, row in df_with_voeu.iterrows():
-        poste_actuel = get_safe_value(row.get('Poste  libellé', ''), 'Non renseigné')
+        poste_actuel = get_safe_value(row.get("Poste  libellé", ''), 'Non renseigné')
         voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
         
         if voeu_retenu:
@@ -827,7 +827,7 @@ def create_sankey_diagram(df, postes_df):
     flux_count = defaultdict(int)
     
     for _, row in df_with_voeu.iterrows():
-        poste_actuel = get_safe_value(row.get('Poste  libellé', ''), 'Non renseigné')
+        poste_actuel = get_safe_value(row.get("Poste  libellé", ''), 'Non renseigné')
         voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
         
         if voeu_retenu:
@@ -1643,7 +1643,7 @@ elif page == "📝 Entretien RH":
                     st.markdown(f"**Mail** : {get_safe_value(collab.get('Mail', 'N/A'))}")
                 
                 with col_info2:
-                    st.markdown(f"**Poste actuel** : {get_safe_value(collab.get('Poste  libellé', 'N/A'))}")
+                    st.markdown(f"**Poste actuel** : {get_safe_value(collab.get("Poste  libellé", 'N/A'))}")
                     st.markdown(f"**Direction** : {get_safe_value(collab.get('Direction libellé', 'N/A'))}")
                     anciennete_display = calculate_anciennete(get_safe_value(collab.get("Date entrée groupe", "")))
                     st.markdown(f"**Ancienneté** : {anciennete_display}")
@@ -2264,7 +2264,7 @@ elif page == "💻🔍 Candidatures/Poste":
                         'voeu_match': voeu_match,
                         'matricule': matricule,
                         'entretien': entretien,
-                        'poste_actuel': get_safe_value(collab.get('Poste  libellé', '')),
+                        'poste_actuel': get_safe_value(collab.get("Poste  libellé", '')),
                         'anciennete': calculate_anciennete(get_safe_value(collab.get("Date entrée groupe", ""))),
                         'priorite': get_safe_value(collab.get('Priorité', ''))
                     })
@@ -2734,7 +2734,7 @@ elif page == "🎯 Analyse par Poste":
         for _, collab in collaborateurs_df.iterrows():
             nom_collab = get_safe_value(collab.get('NOM', ''))
             prenom_collab = get_safe_value(collab.get('Prénom', ''))
-            poste_actuel_collab = get_safe_value(collab.get('Poste  libellé', ''))  # Bien noter le double espace
+            poste_actuel_collab = get_safe_value(collab.get("Poste  libellé", ''))  # Bien noter le double espace
             
             voeu_match = None  # Variable pour capter quel vœu correspond
             
@@ -2971,7 +2971,7 @@ elif page == "🎯 Analyse par Poste":
                                 st.markdown(f"**Mail** : {mail if mail else '/'}")
                             
                             with col_info2:
-                                poste_actuel = get_safe_value(collab.get('Poste  libellé', ''))
+                                poste_actuel = get_safe_value(collab.get("Poste  libellé", ''))
                                 direction = get_safe_value(collab.get('Direction libellé', ''))
                                 date_entree = get_safe_value(collab.get("Date entrée groupe", ""))
                                 anciennete_display = calculate_anciennete(date_entree)
@@ -3116,7 +3116,7 @@ elif page == "🏛️ Organigramme Cap25":
         changement_direction = (df_with_voeu['Direction libellé'] != df_with_voeu['Direction_Cible']).sum()
         
         # Postes concernés
-        postes_actuels = set(collaborateurs_df['Poste  libellé'].dropna().unique())
+        postes_actuels = set(collaborateurs_df["Poste  libellé"].dropna().unique())
         postes_cibles = set(df_with_voeu['Vœux Retenu'].dropna().unique())
         nb_postes_impactes = len(postes_actuels | postes_cibles)
         
@@ -3212,7 +3212,7 @@ elif page == "🏛️ Organigramme Cap25":
         df_flux_temp = df_sankey[df_sankey['Vœux Retenu'].notna() & (df_sankey['Vœux Retenu'] != '')].copy()
         
         for _, row in df_flux_temp.iterrows():
-            poste_actuel = get_safe_value(row.get('Poste  libellé', ''))
+            poste_actuel = get_safe_value(row.get("Poste  libellé", ''))
             voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
             
             if voeu_retenu:
@@ -3325,13 +3325,13 @@ elif page == "🏛️ Organigramme Cap25":
                 df_sortants = df_with_voeu_comp[
                     (df_with_voeu_comp['Direction libellé'] == direction_selected) &
                     (df_with_voeu_comp['Direction_Cible'] != direction_selected)
-                ][['NOM', 'Prénom', 'Poste  libellé', 'Vœux Retenu', 'Direction_Cible']]
+                ][['NOM', 'Prénom', "Poste  libellé", 'Vœux Retenu', 'Direction_Cible']]
                 
                 if not df_sortants.empty:
                     st.dataframe(
                         df_sortants.rename(columns={
                             'NOM': 'Nom',
-                            'Poste  libellé': 'Poste actuel',
+                            "Poste  libellé": 'Poste actuel',
                             'Vœux Retenu': 'Poste cible',
                             'Direction_Cible': 'Direction cible'
                         }),
@@ -3346,14 +3346,14 @@ elif page == "🏛️ Organigramme Cap25":
                 df_entrants = df_with_voeu_comp[
                     (df_with_voeu_comp['Direction libellé'] != direction_selected) &
                     (df_with_voeu_comp['Direction_Cible'] == direction_selected)
-                ][['NOM', 'Prénom', 'Direction libellé', 'Poste  libellé', 'Vœux Retenu']]
+                ][['NOM', 'Prénom', 'Direction libellé', "Poste  libellé", 'Vœux Retenu']]
                 
                 if not df_entrants.empty:
                     st.dataframe(
                         df_entrants.rename(columns={
                             'NOM': 'Nom',
                             'Direction libellé': 'Direction actuelle',
-                            'Poste  libellé': 'Poste actuel',
+                            "Poste  libellé": 'Poste actuel',
                             'Vœux Retenu': 'Poste cible'
                         }),
                         hide_index=True,
@@ -3477,7 +3477,7 @@ elif page == "🏛️ Organigramme Cap25":
         # Tableau détaillé
         df_display = df_mouvements[[
             'Matricule', 'NOM', 'Prénom', 
-            'Direction libellé', 'Service libellé', 'Poste  libellé',
+            'Direction libellé', 'Service libellé', "Poste  libellé",
             'Vœux Retenu', 'Direction_Cible', 'Type_Mouvement', 'Priorité', 'Date de rdv'
         ]].copy()
         
@@ -3485,7 +3485,7 @@ elif page == "🏛️ Organigramme Cap25":
             'NOM': 'Nom',
             'Direction libellé': 'Direction actuelle',
             'Service libellé': 'Service actuel',
-            'Poste  libellé': 'Poste actuel',
+            "Poste  libellé": 'Poste actuel',
             'Vœux Retenu': 'Poste cible',
             'Direction_Cible': 'Direction cible',
             'Type_Mouvement': 'Type de mouvement',
@@ -3543,4 +3543,5 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
