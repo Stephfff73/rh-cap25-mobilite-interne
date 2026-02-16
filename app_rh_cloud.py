@@ -745,7 +745,7 @@ def create_org_structure(df, postes_df, mode="actuel"):
         for _, row in df.iterrows():
             direction = get_safe_value(row.get('Direction libellé', ''), 'Non renseigné')
             service = get_safe_value(row.get('Service libellé', ''), 'Non renseigné')
-            poste = get_safe_value(row.get('Emploi libellé', ''), 'Non renseigné')
+            poste = get_safe_value(row.get('Poste  libellé', ''), 'Non renseigné')
             nom = f"{get_safe_value(row.get('NOM', ''))} {get_safe_value(row.get('Prénom', ''))}"
             
             org_structure[direction][service].append({
@@ -813,7 +813,7 @@ def create_sankey_diagram(df, postes_df):
     labels = set()
     
     for _, row in df_with_voeu.iterrows():
-        poste_actuel = get_safe_value(row.get('Emploi libellé', ''), 'Non renseigné')
+        poste_actuel = get_safe_value(row.get('Poste  libellé', ''), 'Non renseigné')
         voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
         
         if voeu_retenu:
@@ -827,7 +827,7 @@ def create_sankey_diagram(df, postes_df):
     flux_count = defaultdict(int)
     
     for _, row in df_with_voeu.iterrows():
-        poste_actuel = get_safe_value(row.get('Emploi libellé', ''), 'Non renseigné')
+        poste_actuel = get_safe_value(row.get('Poste  libellé', ''), 'Non renseigné')
         voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
         
         if voeu_retenu:
@@ -3112,7 +3112,7 @@ elif page == "🏛️ Organigramme Cap25":
         changement_direction = (df_with_voeu['Direction libellé'] != df_with_voeu['Direction_Cible']).sum()
         
         # Postes concernés
-        postes_actuels = set(collaborateurs_df['Emploi libellé'].dropna().unique())
+        postes_actuels = set(collaborateurs_df['Poste  libellé'].dropna().unique())
         postes_cibles = set(df_with_voeu['Vœux Retenu'].dropna().unique())
         nb_postes_impactes = len(postes_actuels | postes_cibles)
         
@@ -3208,7 +3208,7 @@ elif page == "🏛️ Organigramme Cap25":
         df_flux_temp = df_sankey[df_sankey['Vœux Retenu'].notna() & (df_sankey['Vœux Retenu'] != '')].copy()
         
         for _, row in df_flux_temp.iterrows():
-            poste_actuel = get_safe_value(row.get('Emploi libellé', ''))
+            poste_actuel = get_safe_value(row.get('Poste  libellé', ''))
             voeu_retenu = get_safe_value(row.get('Vœux Retenu', ''))
             
             if voeu_retenu:
@@ -3321,13 +3321,13 @@ elif page == "🏛️ Organigramme Cap25":
                 df_sortants = df_with_voeu_comp[
                     (df_with_voeu_comp['Direction libellé'] == direction_selected) &
                     (df_with_voeu_comp['Direction_Cible'] != direction_selected)
-                ][['NOM', 'Prénom', 'Emploi libellé', 'Vœux Retenu', 'Direction_Cible']]
+                ][['NOM', 'Prénom', 'Poste  libellé', 'Vœux Retenu', 'Direction_Cible']]
                 
                 if not df_sortants.empty:
                     st.dataframe(
                         df_sortants.rename(columns={
                             'NOM': 'Nom',
-                            'Emploi libellé': 'Poste actuel',
+                            'Poste  libellé': 'Poste actuel',
                             'Vœux Retenu': 'Poste cible',
                             'Direction_Cible': 'Direction cible'
                         }),
@@ -3342,14 +3342,14 @@ elif page == "🏛️ Organigramme Cap25":
                 df_entrants = df_with_voeu_comp[
                     (df_with_voeu_comp['Direction libellé'] != direction_selected) &
                     (df_with_voeu_comp['Direction_Cible'] == direction_selected)
-                ][['NOM', 'Prénom', 'Direction libellé', 'Emploi libellé', 'Vœux Retenu']]
+                ][['NOM', 'Prénom', 'Direction libellé', 'Poste  libellé', 'Vœux Retenu']]
                 
                 if not df_entrants.empty:
                     st.dataframe(
                         df_entrants.rename(columns={
                             'NOM': 'Nom',
                             'Direction libellé': 'Direction actuelle',
-                            'Emploi libellé': 'Poste actuel',
+                            'Poste  libellé': 'Poste actuel',
                             'Vœux Retenu': 'Poste cible'
                         }),
                         hide_index=True,
@@ -3473,7 +3473,7 @@ elif page == "🏛️ Organigramme Cap25":
         # Tableau détaillé
         df_display = df_mouvements[[
             'Matricule', 'NOM', 'Prénom', 
-            'Direction libellé', 'Service libellé', 'Emploi libellé',
+            'Direction libellé', 'Service libellé', 'Poste  libellé',
             'Vœux Retenu', 'Direction_Cible', 'Type_Mouvement', 'Priorité', 'Date de rdv'
         ]].copy()
         
@@ -3481,7 +3481,7 @@ elif page == "🏛️ Organigramme Cap25":
             'NOM': 'Nom',
             'Direction libellé': 'Direction actuelle',
             'Service libellé': 'Service actuel',
-            'Emploi libellé': 'Poste actuel',
+            'Poste  libellé': 'Poste actuel',
             'Vœux Retenu': 'Poste cible',
             'Direction_Cible': 'Direction cible',
             'Type_Mouvement': 'Type de mouvement',
@@ -3539,5 +3539,6 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
