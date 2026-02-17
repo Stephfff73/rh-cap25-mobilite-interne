@@ -618,6 +618,41 @@ def to_excel(df):
     
     return output.getvalue()
 
+def get_voeux_alternatifs(df_collabs, matricule, voeu_bloque):
+    """
+    Retourne les vœux alternatifs d'un candidat
+    (les vœux autres que celui qui est bloqué)
+    """
+    collab = df_collabs[df_collabs['Matricule'] == matricule]
+    if collab.empty:
+        return ""
+    
+    collab = collab.iloc[0]
+    
+    voeux = []
+    
+    if voeu_bloque != "Vœu 1":
+        v1 = get_safe_value(collab.get('Vœux 1', ''))
+        if v1 and v1 != 'Positionnement manquant':
+            voeux.append(f"V1: {v1}")
+    
+    if voeu_bloque != "Vœu 2":
+        v2 = get_safe_value(collab.get('Vœux 2', ''))
+        if v2 and v2 != 'Positionnement manquant':
+            voeux.append(f"V2: {v2}")
+    
+    if voeu_bloque != "Vœu 3":
+        v3 = get_safe_value(collab.get('Voeux 3', ''))
+        if v3 and v3 != 'Positionnement manquant':
+            voeux.append(f"V3: {v3}")
+    
+    if voeu_bloque != "Vœu 4":
+        v4 = get_safe_value(collab.get('Voeux 4', ''))
+        if v4 and v4 != 'Positionnement manquant':
+            voeux.append(f"V4: {v4}")
+    
+    return " | ".join(voeux) if voeux else "Aucun vœu alternatif"
+
  # ========================================
 # FONCTIONS UTILITAIRES & CACHE
 # ========================================
@@ -1019,6 +1054,7 @@ page = st.sidebar.radio(
         "💻🔍 Candidatures/Poste",
         "🎯 Analyse par Poste", 
         "🗒️🔁 Tableau agrégé AM",
+        "🎯 Commission RH",
         "🌳 Référentiel Postes",
         "🏛️ Organigramme Cap25"
     ],
@@ -3526,6 +3562,632 @@ elif page == "🏛️ Organigramme Cap25":
             )
 
 
+# ========================================
+# PAGE : COMMISSION RH
+# ========================================
+
+
+elif page == "🎯 Commission RH":
+    st.title("🎯 Commission RH - Vue Consolidée pour Décisions")
+    
+    st.markdown("""
+    Cette page offre une vue complète pour les décisions de la commission RH :
+    - **Analyse par poste** : quota, retenus, candidats en attente
+    - **Gestion des quotas** : identification des postes saturés
+    - **Repositionnement** : candidats à rediriger vers d'autres vœux
+    - **Suivi des entretiens** : planning et réalisations
+    """)
+    
+    st.divider()
+    
+    # ========================================
+    # SECTION 1 : KPIs GLOBAUX
+    # ========================================
+    
+    st.subheader("📊 Indicateurs Clés de la Commission")
+    
+    # Calculs des KPIs
+    total_postes_ouverts = int(postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]["Nombre total de postes"].sum())
+    
+    # Postes pourvus
+    postes_avec_retenu = collaborateurs_df[
+        collaborateurs_df['Vœux Retenu'].notna() & 
+        (collaborateurs_df['Vœux Retenu'] != '')
+    ]['Vœux Retenu'].value_counts()
+    nb_postes_pourvus = len(postes_avec_retenu)
+    nb_collaborateurs_retenus = collaborateurs_df[
+        collaborateurs_df['Vœux Retenu'].notna() & 
+        (collaborateurs_df['Vœux Retenu'] != '')
+    ].shape[0]
+    
+    taux_postes_pourvus = (nb_collaborateurs_retenus / total_postes_ouverts * 100) if total_postes_ouverts > 0 else 0
+    
+    # Vœu 1 exaucé
+    voeu1_exauce = collaborateurs_df[
+        (collaborateurs_df['Vœux 1'].notna()) &
+        (collaborateurs_df['Vœux Retenu'].notna()) &
+        (collaborateurs_df['Vœux 1'] == collaborateurs_df['Vœux Retenu'])
+    ].shape[0]
+    
+    total_avec_voeu1 = collaborateurs_df[
+        collaborateurs_df['Vœux 1'].notna() & 
+        (collaborateurs_df['Vœux 1'] != '') &
+        (collaborateurs_df['Vœux 1'] != 'Positionnement manquant')
+    ].shape[0]
+    
+    taux_voeu1_exauce = (voeu1_exauce / total_avec_voeu1 * 100) if total_avec_voeu1 > 0 else 0
+    
+    # Collaborateurs sans vœu initial mais avec Vœux Retenu
+    sans_voeu_mais_retenu = collaborateurs_df[
+        (
+            (collaborateurs_df['Vœux 1'].isna()) | 
+            (collaborateurs_df['Vœux 1'] == '') |
+            (collaborateurs_df['Vœux 1'] == 'Positionnement manquant')
+        ) &
+        (collaborateurs_df['Vœux Retenu'].notna()) &
+        (collaborateurs_df['Vœux Retenu'] != '')
+    ].shape[0]
+    
+    # Postes saturés (quota atteint)
+    postes_satures = 0
+    for _, poste_row in postes_df[postes_df["Mobilité interne"].str.lower() == "oui"].iterrows():
+        poste_name = poste_row["Poste"]
+        quota = int(poste_row.get("Nombre total de postes", 0))
+        nb_retenus = collaborateurs_df[collaborateurs_df['Vœux Retenu'] == poste_name].shape[0]
+        if nb_retenus >= quota:
+            postes_satures += 1
+    
+    # Affichage des KPIs
+    col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
+    
+    with col_kpi1:
+        st.metric(
+            "🎯 Taux de postes pourvus",
+            f"{taux_postes_pourvus:.1f}%",
+            f"{nb_collaborateurs_retenus}/{total_postes_ouverts}"
+        )
+    
+    with col_kpi2:
+        st.metric(
+            "✅ Vœu 1 exaucé",
+            f"{taux_voeu1_exauce:.1f}%",
+            f"{voeu1_exauce}/{total_avec_voeu1}"
+        )
+    
+    with col_kpi3:
+        st.metric(
+            "🔄 Repositionnés",
+            f"{sans_voeu_mais_retenu}",
+            "sans vœu initial"
+        )
+    
+    with col_kpi4:
+        st.metric(
+            "🔴 Postes saturés",
+            f"{postes_satures}",
+            f"sur {nb_postes_pourvus}"
+        )
+    
+    with col_kpi5:
+        candidats_en_attente = collaborateurs_df[
+            (collaborateurs_df['Vœux Retenu'].isna()) | 
+            (collaborateurs_df['Vœux Retenu'] == '')
+        ].shape[0]
+        st.metric(
+            "⏳ En attente",
+            f"{candidats_en_attente}",
+            "candidats"
+        )
+    
+    st.divider()
+    
+    # ========================================
+    # SECTION 2 : TABLEAU PRINCIPAL DE COMMISSION
+    # ========================================
+    
+    st.subheader("📋 Tableau de Commission - Vue par Poste")
+    
+    # Filtres
+    st.markdown("##### 🔍 Filtres")
+    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+    
+    with col_f1:
+        directions_list = sorted(postes_df["Direction"].unique())
+        filtre_direction_commission = st.multiselect(
+            "Direction",
+            options=directions_list,
+            default=[]
+        )
+    
+    with col_f2:
+        postes_ouverts_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
+        if filtre_direction_commission:
+            postes_filtres_liste = sorted(postes_ouverts_df[postes_ouverts_df["Direction"].isin(filtre_direction_commission)]["Poste"].unique())
+        else:
+            postes_filtres_liste = sorted(postes_ouverts_df["Poste"].unique())
+        
+        filtre_poste_commission = st.multiselect(
+            "Poste",
+            options=postes_filtres_liste,
+            default=[]
+        )
+    
+    with col_f3:
+        filtre_priorite_commission = st.multiselect(
+            "Priorité",
+            options=["Priorité 1", "Priorité 2", "Priorité 3", "Priorité 4"],
+            default=[]
+        )
+    
+    with col_f4:
+        filtre_voeu_commission = st.multiselect(
+            "N° de Vœu",
+            options=["Vœu 1", "Vœu 2", "Vœu 3", "Vœu 4"],
+            default=[]
+        )
+    
+    # Options d'affichage
+    col_opt1, col_opt2 = st.columns(2)
+    with col_opt1:
+        show_only_satures = st.checkbox("🔴 Afficher uniquement les postes saturés")
+    with col_opt2:
+        show_only_with_candidats = st.checkbox("📊 Afficher uniquement les postes avec candidats")
+    
+    st.divider()
+    
+    # Construction du tableau
+    commission_data = []
+    
+    for _, poste_row in postes_df[postes_df["Mobilité interne"].str.lower() == "oui"].iterrows():
+        poste_name = poste_row["Poste"]
+        direction = poste_row["Direction"]
+        quota = int(poste_row.get("Nombre total de postes", 0))
+        
+        # Appliquer les filtres de direction et poste
+        if filtre_direction_commission and direction not in filtre_direction_commission:
+            continue
+        if filtre_poste_commission and poste_name not in filtre_poste_commission:
+            continue
+        
+        # Collaborateurs retenus pour ce poste
+        retenus_df = collaborateurs_df[collaborateurs_df['Vœux Retenu'] == poste_name]
+        nb_retenus = len(retenus_df)
+        
+        liste_retenus = []
+        for _, ret in retenus_df.iterrows():
+            nom_ret = f"{get_safe_value(ret.get('Prénom', ''))} {get_safe_value(ret.get('NOM', ''))}"
+            liste_retenus.append(nom_ret)
+        
+        # Candidats en attente (Vœux Retenu vide)
+        candidats_v1 = []
+        candidats_v2 = []
+        candidats_v3 = []
+        candidats_v4 = []
+        
+        for _, collab in collaborateurs_df.iterrows():
+            # Vérifier que Vœux Retenu est vide
+            voeu_retenu = get_safe_value(collab.get('Vœux Retenu', ''))
+            if voeu_retenu and voeu_retenu != '':
+                continue  # Déjà retenu ailleurs, on skip
+            
+            nom_collab = f"{get_safe_value(collab.get('Prénom', ''))} {get_safe_value(collab.get('NOM', ''))}"
+            priorite_collab = get_safe_value(collab.get('Priorité', ''))
+            
+            # Appliquer le filtre de priorité
+            if filtre_priorite_commission and priorite_collab not in filtre_priorite_commission:
+                continue
+            
+            # Vœu 1
+            if get_safe_value(collab.get('Vœux 1', '')) == poste_name:
+                candidats_v1.append({
+                    'nom': nom_collab,
+                    'priorite': priorite_collab,
+                    'matricule': get_safe_value(collab.get('Matricule', ''))
+                })
+            
+            # Vœu 2
+            if get_safe_value(collab.get('Vœux 2', '')) == poste_name:
+                candidats_v2.append({
+                    'nom': nom_collab,
+                    'priorite': priorite_collab,
+                    'matricule': get_safe_value(collab.get('Matricule', ''))
+                })
+            
+            # Vœu 3
+            if get_safe_value(collab.get('Voeux 3', '')) == poste_name:
+                candidats_v3.append({
+                    'nom': nom_collab,
+                    'priorite': priorite_collab,
+                    'matricule': get_safe_value(collab.get('Matricule', ''))
+                })
+            
+            # Vœu 4
+            if get_safe_value(collab.get('Voeux 4', '')) == poste_name:
+                candidats_v4.append({
+                    'nom': nom_collab,
+                    'priorite': priorite_collab,
+                    'matricule': get_safe_value(collab.get('Matricule', ''))
+                })
+        
+        # Appliquer le filtre de vœu
+        total_candidats = 0
+        if not filtre_voeu_commission or "Vœu 1" in filtre_voeu_commission:
+            total_candidats += len(candidats_v1)
+        if not filtre_voeu_commission or "Vœu 2" in filtre_voeu_commission:
+            total_candidats += len(candidats_v2)
+        if not filtre_voeu_commission or "Vœu 3" in filtre_voeu_commission:
+            total_candidats += len(candidats_v3)
+        if not filtre_voeu_commission or "Vœu 4" in filtre_voeu_commission:
+            total_candidats += len(candidats_v4)
+        
+        # Filtres d'affichage
+        if show_only_with_candidats and total_candidats == 0:
+            continue
+        
+        is_sature = nb_retenus >= quota
+        if show_only_satures and not is_sature:
+            continue
+        
+        # Formater les listes de candidats
+        def format_candidats_list(candidats_list, voeu_label):
+            if not candidats_list:
+                return ""
+            return "; ".join([f"{c['nom']} ({voeu_label})" for c in candidats_list])
+        
+        # Construire la liste complète des candidats
+        liste_candidats_complete = []
+        if not filtre_voeu_commission or "Vœu 1" in filtre_voeu_commission:
+            liste_candidats_complete.append(format_candidats_list(candidats_v1, "V1"))
+        if not filtre_voeu_commission or "Vœu 2" in filtre_voeu_commission:
+            liste_candidats_complete.append(format_candidats_list(candidats_v2, "V2"))
+        if not filtre_voeu_commission or "Vœu 3" in filtre_voeu_commission:
+            liste_candidats_complete.append(format_candidats_list(candidats_v3, "V3"))
+        if not filtre_voeu_commission or "Vœu 4" in filtre_voeu_commission:
+            liste_candidats_complete.append(format_candidats_list(candidats_v4, "V4"))
+        
+        liste_candidats_str = "; ".join([x for x in liste_candidats_complete if x])
+        
+        # Déterminer le statut
+        places_restantes = quota - nb_retenus
+        if is_sature:
+            statut = "🔴 SATURÉ"
+        elif nb_retenus == 0:
+            statut = "⚪ Libre"
+        elif places_restantes <= 2:
+            statut = "🟠 Presque saturé"
+        else:
+            statut = "🟢 Disponible"
+        
+        commission_data.append({
+            "Statut": statut,
+            "Poste": poste_name,
+            "Direction": direction,
+            "Quota": quota,
+            "Retenus": nb_retenus,
+            "Places restantes": places_restantes,
+            "Liste des retenus": "; ".join(liste_retenus) if liste_retenus else "",
+            "Nb candidats V1": len(candidats_v1) if (not filtre_voeu_commission or "Vœu 1" in filtre_voeu_commission) else "-",
+            "Nb candidats V2": len(candidats_v2) if (not filtre_voeu_commission or "Vœu 2" in filtre_voeu_commission) else "-",
+            "Nb candidats V3": len(candidats_v3) if (not filtre_voeu_commission or "Vœu 3" in filtre_voeu_commission) else "-",
+            "Nb candidats V4": len(candidats_v4) if (not filtre_voeu_commission or "Vœu 4" in filtre_voeu_commission) else "-",
+            "Total candidats": total_candidats,
+            "Liste des candidats": liste_candidats_str,
+            "Candidats_V1_Data": candidats_v1,
+            "Candidats_V2_Data": candidats_v2,
+            "Candidats_V3_Data": candidats_v3,
+            "Candidats_V4_Data": candidats_v4
+        })
+    
+    df_commission = pd.DataFrame(commission_data)
+    
+    if not df_commission.empty:
+        # Trier par statut puis par direction
+        ordre_statut = {"🔴 SATURÉ": 1, "🟠 Presque saturé": 2, "🟢 Disponible": 3, "⚪ Libre": 4}
+        df_commission['_ordre'] = df_commission['Statut'].map(ordre_statut)
+        df_commission = df_commission.sort_values(['_ordre', 'Direction', 'Poste'])
+        df_commission = df_commission.drop(columns=['_ordre'])
+        
+        st.markdown(f"**{len(df_commission)} poste(s)** affiché(s)")
+        
+        # Affichage du tableau
+        st.dataframe(
+            df_commission.drop(columns=['Candidats_V1_Data', 'Candidats_V2_Data', 'Candidats_V3_Data', 'Candidats_V4_Data']),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Statut": st.column_config.TextColumn("Statut", width="small"),
+                "Poste": st.column_config.TextColumn("Poste", width="large"),
+                "Direction": st.column_config.TextColumn("Direction", width="medium"),
+                "Quota": st.column_config.NumberColumn("Quota", format="%d", width="small"),
+                "Retenus": st.column_config.NumberColumn("Retenus", format="%d", width="small"),
+                "Places restantes": st.column_config.NumberColumn("Places", format="%d", width="small"),
+                "Liste des retenus": st.column_config.TextColumn("Retenus (noms)", width="large"),
+                "Nb candidats V1": st.column_config.TextColumn("V1", width="small"),
+                "Nb candidats V2": st.column_config.TextColumn("V2", width="small"),
+                "Nb candidats V3": st.column_config.TextColumn("V3", width="small"),
+                "Nb candidats V4": st.column_config.TextColumn("V4", width="small"),
+                "Total candidats": st.column_config.NumberColumn("Total", format="%d", width="small"),
+                "Liste des candidats": st.column_config.TextColumn("Candidats en attente (noms)", width="large")
+            }
+        )
+        
+        # CSS pour colorer les lignes saturées
+        st.markdown("""
+        <style>
+        /* Mise en évidence des lignes saturées */
+        [data-testid="stDataFrame"] tbody tr:has(td:first-child:contains("🔴")) {
+            background-color: rgba(239, 68, 68, 0.1) !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # Export Excel
+        st.subheader("📥 Export du tableau de commission")
+        
+        filtres_actifs_commission = bool(filtre_direction_commission) or bool(filtre_poste_commission) or bool(filtre_priorite_commission) or bool(filtre_voeu_commission) or show_only_satures or show_only_with_candidats
+        
+        col_exp_c1, col_exp_c2 = st.columns([3, 1])
+        
+        with col_exp_c1:
+            if filtres_actifs_commission:
+                st.info("💡 Le fichier exporté contiendra les données **filtrées** affichées dans le tableau ci-dessus.")
+        
+        with col_exp_c2:
+            excel_commission = to_excel(df_commission.drop(columns=['Candidats_V1_Data', 'Candidats_V2_Data', 'Candidats_V3_Data', 'Candidats_V4_Data']))
+            
+            st.download_button(
+                label="📥 Télécharger en Excel",
+                data=excel_commission,
+                file_name=f"Commission_RH_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                use_container_width=True
+            )
+        
+        st.divider()
+        
+        # ========================================
+        # SECTION 3 : CANDIDATS À REPOSITIONNER
+        # ========================================
+        
+        st.subheader("🔄 Candidats à Repositionner (Postes saturés)")
+        
+        candidats_a_repositionner = []
+        
+        for _, row_comm in df_commission.iterrows():
+            if row_comm['Statut'] == "🔴 SATURÉ":
+                poste_sature = row_comm['Poste']
+                
+                # V1
+                for cand in row_comm['Candidats_V1_Data']:
+                    candidats_a_repositionner.append({
+                        'Nom': cand['nom'],
+                        'Poste saturé': poste_sature,
+                        'Vœu bloqué': "Vœu 1",
+                        'Priorité': cand['priorite'],
+                        'Matricule': cand['matricule']
+                    })
+                
+                # V2
+                for cand in row_comm['Candidats_V2_Data']:
+                    candidats_a_repositionner.append({
+                        'Nom': cand['nom'],
+                        'Poste saturé': poste_sature,
+                        'Vœu bloqué': "Vœu 2",
+                        'Priorité': cand['priorite'],
+                        'Matricule': cand['matricule']
+                    })
+                
+                # V3
+                for cand in row_comm['Candidats_V3_Data']:
+                    candidats_a_repositionner.append({
+                        'Nom': cand['nom'],
+                        'Poste saturé': poste_sature,
+                        'Vœu bloqué': "Vœu 3",
+                        'Priorité': cand['priorite'],
+                        'Matricule': cand['matricule']
+                    })
+                
+                # V4
+                for cand in row_comm['Candidats_V4_Data']:
+                    candidats_a_repositionner.append({
+                        'Nom': cand['nom'],
+                        'Poste saturé': poste_sature,
+                        'Vœu bloqué': "Vœu 4",
+                        'Priorité': cand['priorite'],
+                        'Matricule': cand['matricule']
+                    })
+        
+        if candidats_a_repositionner:
+            df_repositionner = pd.DataFrame(candidats_a_repositionner)
+            
+            # Enrichir avec les autres vœux
+            df_repositionner['Vœux alternatifs'] = df_repositionner.apply(
+                lambda row: get_voeux_alternatifs(collaborateurs_df, row['Matricule'], row['Vœu bloqué']),
+                axis=1
+            )
+            
+            st.warning(f"⚠️ **{len(df_repositionner)} candidat(s)** à repositionner car leur vœu cible un poste saturé")
+            
+            st.dataframe(
+                df_repositionner.drop(columns=['Matricule']),
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Nom": st.column_config.TextColumn("Nom", width="medium"),
+                    "Poste saturé": st.column_config.TextColumn("Poste saturé", width="large"),
+                    "Vœu bloqué": st.column_config.TextColumn("Vœu bloqué", width="small"),
+                    "Priorité": st.column_config.TextColumn("Priorité", width="small"),
+                    "Vœux alternatifs": st.column_config.TextColumn("Vœux alternatifs disponibles", width="large")
+                }
+            )
+        else:
+            st.success("✅ Aucun candidat à repositionner - Tous les vœux sont sur des postes disponibles")
+    
+    else:
+        st.info("Aucun poste ne correspond aux filtres sélectionnés")
+    
+    st.divider()
+    
+    # ========================================
+    # SECTION 4 : SUIVI DES ENTRETIENS
+    # ========================================
+    
+    st.subheader("🗓️ Suivi des Entretiens RH")
+    
+    col_ent1, col_ent2 = st.columns(2)
+    
+    with col_ent1:
+        filtre_direction_entretien = st.multiselect(
+            "Filtrer par Direction",
+            options=sorted(collaborateurs_df['Direction libellé'].dropna().unique()),
+            default=[],
+            key="filtre_dir_entretien"
+        )
+    
+    with col_ent2:
+        statut_entretien = st.selectbox(
+            "Statut de l'entretien",
+            options=["Tous", "À venir", "Réalisés", "Aujourd'hui"],
+            key="statut_entretien"
+        )
+    
+    # Filtrer les données
+    df_entretiens = collaborateurs_df.copy()
+    
+    if filtre_direction_entretien:
+        df_entretiens = df_entretiens[df_entretiens['Direction libellé'].isin(filtre_direction_entretien)]
+    
+    # Filtrer par statut d'entretien
+    today = date.today()
+    
+    if statut_entretien == "À venir":
+        df_entretiens = df_entretiens[df_entretiens['Date de rdv'].apply(
+            lambda x: parse_date(x) > today if parse_date(x) else False
+        )]
+    elif statut_entretien == "Réalisés":
+        df_entretiens = df_entretiens[df_entretiens['Date de rdv'].apply(
+            lambda x: parse_date(x) < today if parse_date(x) else False
+        )]
+    elif statut_entretien == "Aujourd'hui":
+        df_entretiens = df_entretiens[df_entretiens['Date de rdv'].apply(
+            lambda x: parse_date(x) == today if parse_date(x) else False
+        )]
+    
+    # Préparer les données d'affichage
+    entretiens_display = []
+    
+    for _, row in df_entretiens.iterrows():
+        date_rdv = get_safe_value(row.get('Date de rdv', ''))
+        if not date_rdv or date_rdv.strip() == '':
+            continue
+        
+        entretiens_display.append({
+            'Date': date_rdv,
+            'Heure': get_safe_value(row.get('Heure de rdv', '')),
+            'Prénom': get_safe_value(row.get('Prénom', '')),
+            'NOM': get_safe_value(row.get('NOM', '')),
+            'Mail': get_safe_value(row.get('Mail', '')),
+            'Téléphone': get_safe_value(row.get('Téléphone', '')),
+            'Direction': get_safe_value(row.get('Direction libellé', '')),
+            'Poste actuel': get_safe_value(row.get('Poste  libellé', '')),
+            'RRH': get_safe_value(row.get('Référente RH', '')),
+            'Priorité': get_safe_value(row.get('Priorité', '')),
+            'Vœu 1': get_safe_value(row.get('Vœux 1', '')),
+            'Vœu 2': get_safe_value(row.get('Vœux 2', '')),
+            'Vœu 3': get_safe_value(row.get('Voeux 3', '')),
+            'Vœux Retenu': get_safe_value(row.get('Vœux Retenu', ''))
+        })
+    
+    if entretiens_display:
+        df_entretiens_display = pd.DataFrame(entretiens_display)
+        
+        # Trier par date
+        df_entretiens_display = df_entretiens_display.sort_values('Date')
+        
+        st.markdown(f"**{len(df_entretiens_display)} entretien(s)** programmé(s)")
+        
+        st.dataframe(
+            df_entretiens_display,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Date": st.column_config.TextColumn("Date", width="small"),
+                "Heure": st.column_config.TextColumn("Heure", width="small"),
+                "Prénom": st.column_config.TextColumn("Prénom", width="medium"),
+                "NOM": st.column_config.TextColumn("NOM", width="medium"),
+                "Mail": st.column_config.TextColumn("Mail", width="medium"),
+                "Téléphone": st.column_config.TextColumn("Téléphone", width="medium"),
+                "Direction": st.column_config.TextColumn("Direction", width="medium"),
+                "Poste actuel": st.column_config.TextColumn("Poste actuel", width="large"),
+                "RRH": st.column_config.TextColumn("RRH", width="medium"),
+                "Priorité": st.column_config.TextColumn("Priorité", width="small"),
+                "Vœu 1": st.column_config.TextColumn("Vœu 1", width="large"),
+                "Vœu 2": st.column_config.TextColumn("Vœu 2", width="large"),
+                "Vœu 3": st.column_config.TextColumn("Vœu 3", width="large"),
+                "Vœux Retenu": st.column_config.TextColumn("Vœux Retenu", width="large")
+            }
+        )
+        
+        # Export
+        st.divider()
+        col_ent_exp1, col_ent_exp2 = st.columns([3, 1])
+        
+        with col_ent_exp2:
+            excel_entretiens = to_excel(df_entretiens_display)
+            st.download_button(
+                label="📥 Export Excel",
+                data=excel_entretiens,
+                file_name=f"Entretiens_RH_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+    else:
+        st.info("Aucun entretien programmé avec les filtres sélectionnés")
+
+
+# ========================================
+# FONCTION UTILITAIRE POUR VŒUX ALTERNATIFS
+# ========================================
+# À INSÉRER APRÈS LA FONCTION to_excel() (ligne ~870)
+
+def get_voeux_alternatifs(df_collabs, matricule, voeu_bloque):
+    """
+    Retourne les vœux alternatifs d'un candidat
+    (les vœux autres que celui qui est bloqué)
+    """
+    collab = df_collabs[df_collabs['Matricule'] == matricule]
+    if collab.empty:
+        return ""
+    
+    collab = collab.iloc[0]
+    
+    voeux = []
+    
+    if voeu_bloque != "Vœu 1":
+        v1 = get_safe_value(collab.get('Vœux 1', ''))
+        if v1 and v1 != 'Positionnement manquant':
+            voeux.append(f"V1: {v1}")
+    
+    if voeu_bloque != "Vœu 2":
+        v2 = get_safe_value(collab.get('Vœux 2', ''))
+        if v2 and v2 != 'Positionnement manquant':
+            voeux.append(f"V2: {v2}")
+    
+    if voeu_bloque != "Vœu 3":
+        v3 = get_safe_value(collab.get('Voeux 3', ''))
+        if v3 and v3 != 'Positionnement manquant':
+            voeux.append(f"V3: {v3}")
+    
+    if voeu_bloque != "Vœu 4":
+        v4 = get_safe_value(collab.get('Voeux 4', ''))
+        if v4 and v4 != 'Positionnement manquant':
+            voeux.append(f"V4: {v4}")
+    
+    return " | ".join(voeux) if voeux else "Aucun vœu alternatif"
+
 # --- FOOTER ---
 st.divider()
 
@@ -3543,6 +4205,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
