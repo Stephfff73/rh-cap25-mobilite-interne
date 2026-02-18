@@ -3695,43 +3695,43 @@ elif page == "🚀✨ Commission RH":
         # SECTION 2 : TABLEAU PRINCIPAL DE COMMISSION
         # ========================================
 
-st.subheader("📋 Tableau de Commission - Vue par Poste")
+    st.subheader("📋 Tableau de Commission - Vue par Poste")
 
 # --- ZONE DES FILTRES ---
-st.markdown("##### 🔍 Filtres")
+    st.markdown("##### 🔍 Filtres")
 # On passe à 5 colonnes pour intégrer le Statut
-col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
+    col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
 
-with col_f1:
-    directions_list = sorted(postes_df["Direction"].unique())
-    filtre_direction_commission = st.multiselect("Direction", options=directions_list)
+    with col_f1:
+        directions_list = sorted(postes_df["Direction"].unique())
+        filtre_direction_commission = st.multiselect("Direction", options=directions_list)
 
-with col_f2:
-    postes_ouverts_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
-    postes_filtres_liste = sorted(postes_ouverts_df[postes_ouverts_df["Direction"].isin(filtre_direction_commission)]["Poste"].unique()) if filtre_direction_commission else sorted(postes_ouverts_df["Poste"].unique())
-    filtre_poste_commission = st.multiselect("Poste", options=postes_filtres_liste)
+    with col_f2:
+        postes_ouverts_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
+        postes_filtres_liste = sorted(postes_ouverts_df[postes_ouverts_df["Direction"].isin(filtre_direction_commission)]["Poste"].unique()) if filtre_direction_commission else sorted(postes_ouverts_df["Poste"].unique())
+        filtre_poste_commission = st.multiselect("Poste", options=postes_filtres_liste)
 
-with col_f3:
-    filtre_priorite_commission = st.multiselect("Priorité", options=["Priorité 1", "Priorité 2", "Priorité 3", "Priorité 4"])
+    with col_f3:
+        filtre_priorite_commission = st.multiselect("Priorité", options=["Priorité 1", "Priorité 2", "Priorité 3", "Priorité 4"])
 
-with col_f4:
-    filtre_voeu_commission = st.multiselect("N° de Vœu", options=["Vœu 1", "Vœu 2", "Vœu 3", "Vœu 4"])
+    with col_f4:
+        filtre_voeu_commission = st.multiselect("N° de Vœu", options=["Vœu 1", "Vœu 2", "Vœu 3", "Vœu 4"])
 
-with col_f5:
+    with col_f5:
     # AJOUT DU FILTRE STATUT MANQUANT
-    filtre_statut_commission = st.multiselect(
-        "Statut Poste", 
-        options=["🟢 POURVU 💯", "⚠️ Poste totalement vacant", "🟠 Presque pourvu", "🔴 Disponible"]
-    )
+        filtre_statut_commission = st.multiselect(
+            "Statut Poste", 
+            options=["🟢 POURVU 💯", "⚠️ Poste totalement vacant", "🟠 Presque pourvu", "🔴 Disponible"]
+          )
 
 # Options d'affichage (Checkboxes)
-col_opt1, col_opt2 = st.columns(2)
-with col_opt1:
-    show_only_satures = st.checkbox("🟢 Masquer les postes non pourvus")
-with col_opt2:
-    show_only_with_candidats = st.checkbox("📊 Uniquement postes avec candidats")
+    col_opt1, col_opt2 = st.columns(2)
+    with col_opt1:
+        show_only_satures = st.checkbox("🟢 Masquer les postes non pourvus")
+    with col_opt2:
+        show_only_with_candidats = st.checkbox("📊 Uniquement postes avec candidats")
 
-st.divider()
+    st.divider()
 
 # --- CONSTRUCTION DES DONNÉES ---
 commission_data = []
@@ -4064,17 +4064,6 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
-
-
-
-
-
-
-
-
-
-
-
 
 
 
