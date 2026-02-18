@@ -3704,7 +3704,7 @@ elif page == "🎯 Commission RH":
         st.markdown(f"""
         <div style='background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%); 
                     padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>🔴 Postes saturés</h4>
+            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>🟢 Libellé de poste pourvu totalement 💯</h4>
             <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{postes_satures}</h1>
             <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>quota atteint</p>
         </div>
@@ -3770,7 +3770,7 @@ elif page == "🎯 Commission RH":
     # Options d'affichage
     col_opt1, col_opt2 = st.columns(2)
     with col_opt1:
-        show_only_satures = st.checkbox("🔴 Afficher uniquement les postes saturés")
+        show_only_satures = st.checkbox("🟢 Afficher uniquement les libellés de postes pourvus")
     with col_opt2:
         show_only_with_candidats = st.checkbox("📊 Afficher uniquement les postes avec candidats")
     
@@ -3891,13 +3891,13 @@ elif page == "🎯 Commission RH":
         # Déterminer le statut
         places_restantes = quota - nb_retenus
         if is_sature:
-            statut = "🔴 SATURÉ"
+            statut = "🟢 POURVU 💯"
         elif nb_retenus == 0:
-            statut = "⚪ Libre"
+            statut = "⚠️ Poste totalement vacant"
         elif places_restantes <= 2:
-            statut = "🟠 Presque saturé"
+            statut = "🟠 Presque pourvu"
         else:
-            statut = "🟢 Disponible"
+            statut = "🔴 Disponible"
         
         commission_data.append({
             "Statut": statut,
@@ -4281,6 +4281,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
