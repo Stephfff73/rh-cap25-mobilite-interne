@@ -3708,11 +3708,7 @@ with col_f1:
 
 with col_f2:
     postes_ouverts_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
-    if filtre_direction_commission:
-        postes_filtres_liste = sorted(postes_ouverts_df[postes_ouverts_df["Direction"].isin(filtre_direction_commission)]["Poste"].unique())
-    else:
-        postes_filtres_liste = sorted(postes_ouverts_df["Poste"].unique())
-    
+    postes_filtres_liste = sorted(postes_ouverts_df[postes_ouverts_df["Direction"].isin(filtre_direction_commission)]["Poste"].unique()) if filtre_direction_commission else sorted(postes_ouverts_df["Poste"].unique())
     filtre_poste_commission = st.multiselect("Poste", options=postes_filtres_liste)
 
 with col_f3:
@@ -3722,17 +3718,7 @@ with col_f4:
     filtre_voeu_commission = st.multiselect("N° de Vœu", options=["Vœu 1", "Vœu 2", "Vœu 3", "Vœu 4"])
 
 with col_f5:
-    filtre_statut_commission = st.multiselect(
-        "Statut Poste", 
-        options=["🟢 POURVU 💯", "⚠️ Poste totalement vacant", "🟠 Presque pourvu", "🔴 Disponible"]
-    )
-
-# Options d'affichage (Checkboxes)
-col_opt1, col_opt2 = st.columns(2)
-with col_opt1:
-    show_only_satures = st.checkbox("🟢 Masquer les postes non pourvus")
-with col_opt2:
-    show_only_with_candidats = st.checkbox("📊 Uniquement postes avec candidats")
+    filtre_statut_commission = st.multiselect("Statut Poste", options=["🟢 POURVU 💯", "⚠️ Poste totalement vacant", "🟠 Presque pourvu", "🔴 Disponible"])
 
 st.divider()
 
@@ -3744,63 +3730,40 @@ for _, poste_row in postes_df[postes_df["Mobilité interne"].str.lower() == "oui
     direction = poste_row["Direction"]
     quota = int(poste_row.get("Nombre total de postes", 0))
 
-    # Filtres direction et poste
-    if filtre_direction_commission and direction not in filtre_direction_commission:
-        continue
-    if filtre_poste_commission and poste_name not in filtre_poste_commission:
-        continue
+    if filtre_direction_commission and direction not in filtre_direction_commission: continue
+    if filtre_poste_commission and poste_name not in filtre_poste_commission: continue
 
-    # Collaborateurs retenus
     retenus_df = collaborateurs_df[collaborateurs_df['Vœux Retenu'] == poste_name]
     nb_retenus = len(retenus_df)
     liste_retenus = [f"{get_safe_value(ret.get('Prénom', ''))} {get_safe_value(ret.get('NOM', ''))}" for _, ret in retenus_df.iterrows()]
 
-    # Candidats en attente
     candidats_v1, candidats_v2, candidats_v3, candidats_v4 = [], [], [], []
     
     for _, collab in collaborateurs_df.iterrows():
-        voeu_retenu = get_safe_value(collab.get('Vœux Retenu', ''))
-        if voeu_retenu and voeu_retenu != '':
-            continue 
+        if get_safe_value(collab.get('Vœux Retenu', '')): continue 
         
-        nom_collab = f"{get_safe_value(collab.get('Prénom', ''))} {get_safe_value(collab.get('NOM', ''))}"
-        priorite_collab = get_safe_value(collab.get('Priorité', ''))
-        matricule = get_safe_value(collab.get('Matricule', ''))
+        nom_complet = f"{get_safe_value(collab.get('Prénom', ''))} {get_safe_value(collab.get('NOM', ''))}"
+        prio = get_safe_value(collab.get('Priorité', ''))
+        mat = get_safe_value(collab.get('Matricule', ''))
 
-        if filtre_priorite_commission and priorite_collab not in filtre_priorite_commission:
-            continue
+        if filtre_priorite_commission and prio not in filtre_priorite_commission: continue
 
-        c_data = {'nom': nom_collab, 'priorite': priorite_collab, 'matricule': matricule}
+        c_info = {'nom': nom_complet, 'priorite': prio, 'matricule': mat}
         
-        if get_safe_value(collab.get('Vœux 1', '')) == poste_name: candidats_v1.append(c_data)
-        if get_safe_value(collab.get('Vœux 2', '')) == poste_name: candidats_v2.append(c_data)
-        if get_safe_value(collab.get('Voeux 3', '')) == poste_name: candidats_v3.append(c_data)
-        if get_safe_value(collab.get('Voeux 4', '')) == poste_name: candidats_v4.append(c_data)
+        if get_safe_value(collab.get('Vœux 1', '')) == poste_name: candidats_v1.append(c_info)
+        if get_safe_value(collab.get('Vœux 2', '')) == poste_name: candidats_v2.append(c_info)
+        if get_safe_value(collab.get('Voeux 3', '')) == poste_name: candidats_v3.append(c_info)
+        if get_safe_value(collab.get('Voeux 4', '')) == poste_name: candidats_v4.append(c_info)
 
-    # Calcul du total candidats selon filtre
-    total_candidats = 0
-    if not filtre_voeu_commission or "Vœu 1" in filtre_voeu_commission: total_candidats += len(candidats_v1)
-    if not filtre_voeu_commission or "Vœu 2" in filtre_voeu_commission: total_candidats += len(candidats_v2)
-    if not filtre_voeu_commission or "Vœu 3" in filtre_voeu_commission: total_candidats += len(candidats_v3)
-    if not filtre_voeu_commission or "Vœu 4" in filtre_voeu_commission: total_candidats += len(candidats_v4)
-
-    if show_only_with_candidats and total_candidats == 0:
-        continue
-
-    is_sature = nb_retenus >= quota
-    if show_only_satures and not is_sature:
-        continue
-
-    # Détermination du statut
+    # Détermination du Statut
     places_restantes = quota - nb_retenus
-    if is_sature:
-        statut = "🟢 POURVU 💯"
-    elif nb_retenus == 0:
-        statut = "⚠️ Poste totalement vacant"
-    elif places_restantes <= 2:
-        statut = "🟠 Presque pourvu"
-    else:
-        statut = "🔴 Disponible"
+    if nb_retenus >= quota: statut = "🟢 POURVU 💯"
+    elif nb_retenus == 0: statut = "⚠️ Poste totalement vacant"
+    elif places_restantes <= 2: statut = "🟠 Presque pourvu"
+    else: statut = "🔴 Disponible"
+
+    # Préparation des chaînes de noms pour l'affichage
+    format_names = lambda l: "; ".join([c['nom'] for c in l])
 
     commission_data.append({
         "Statut": statut,
@@ -3808,14 +3771,17 @@ for _, poste_row in postes_df[postes_df["Mobilité interne"].str.lower() == "oui
         "Direction": direction,
         "Quota": quota,
         "Retenus": nb_retenus,
-        "Places restantes": places_restantes,
+        "Places": places_restantes,
         "Liste des retenus": "; ".join(liste_retenus),
-        "Nb candidats V1": len(candidats_v1),
-        "Nb candidats V2": len(candidats_v2),
-        "Nb candidats V3": len(candidats_v3),
-        "Nb candidats V4": len(candidats_v4),
-        "Total candidats": total_candidats,
-        "Candidats_V1_Data": candidats_v1,
+        "V1": len(candidats_v1),
+        "Candidats V1": format_names(candidats_v1),
+        "V2": len(candidats_v2),
+        "Candidats V2": format_names(candidats_v2),
+        "V3": len(candidats_v3),
+        "Candidats V3": format_names(candidats_v3),
+        "V4": len(candidats_v4),
+        "Candidats V4": format_names(candidats_v4),
+        "Candidats_V1_Data": candidats_v1, # Gardé pour la section 3
         "Candidats_V2_Data": candidats_v2,
         "Candidats_V3_Data": candidats_v3,
         "Candidats_V4_Data": candidats_v4
@@ -3824,32 +3790,32 @@ for _, poste_row in postes_df[postes_df["Mobilité interne"].str.lower() == "oui
 df_commission = pd.DataFrame(commission_data)
 
 if not df_commission.empty:
-    # Filtre statut final
     if filtre_statut_commission:
         df_commission = df_commission[df_commission['Statut'].isin(filtre_statut_commission)]
 
     if not df_commission.empty:
-        # Tri
         ordre_statut = {"🟢 POURVU 💯": 1, "🟠 Presque pourvu": 2, "🔴 Disponible": 3, "⚠️ Poste totalement vacant": 4}
         df_commission['_ordre'] = df_commission['Statut'].map(ordre_statut)
         df_commission = df_commission.sort_values(['_ordre', 'Direction', 'Poste']).drop(columns=['_ordre'])
 
-        st.markdown(f"**{len(df_commission)} poste(s)** affiché(s)")
-        
         st.dataframe(
             df_commission.drop(columns=['Candidats_V1_Data', 'Candidats_V2_Data', 'Candidats_V3_Data', 'Candidats_V4_Data']),
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
+            column_config={
+                "Statut": st.column_config.TextColumn("Statut", width="small"),
+                "Poste": st.column_config.TextColumn("Poste", width="medium"),
+                "Liste des retenus": st.column_config.TextColumn("Collaborateurs retenus", width="medium"),
+                "V1": st.column_config.NumberColumn("Nb V1", width="micro"),
+                "Candidats V1": st.column_config.TextColumn("Détail V1", width="medium"),
+                "V2": st.column_config.NumberColumn("Nb V2", width="micro"),
+                "Candidats V2": st.column_config.TextColumn("Détail V2", width="medium"),
+                "V3": st.column_config.NumberColumn("Nb V3", width="micro"),
+                "Candidats V3": st.column_config.TextColumn("Détail V3", width="medium"),
+                "V4": st.column_config.NumberColumn("Nb V4", width="micro"),
+                "Candidats V4": st.column_config.TextColumn("Détail V4", width="medium"),
+            }
         )
-
-        # CSS Harmonisé (Vert pour Pourvu)
-        st.markdown("""
-        <style>
-        [data-testid="stDataFrame"] tbody tr:has(td:first-child:contains("🟢")) {
-            background-color: rgba(34, 197, 94, 0.1) !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
 
         # ========================================
         # SECTION 3 : CANDIDATS À REPOSITIONNER
@@ -4072,6 +4038,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
