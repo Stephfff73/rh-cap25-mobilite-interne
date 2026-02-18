@@ -3586,12 +3586,37 @@ elif page == "🚀✨ Commission RH":
     # --- AFFICHAGE DES CARTES KPI (TRANSFORMATION) ---
     st.subheader("📊 Indicateurs de Performance de la Transformation")
     
+    # --- STYLE CSS PREMIUM ---
     st.markdown("""
     <style>
-    .kpi-card { background-color: white; padding: 24px; border-radius: 12px; border-left: 5px solid #4F46E5; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 20px; }
-    .kpi-title { color: #6B7280; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-    .kpi-value { color: #111827; font-size: 2.2rem; font-weight: 800; line-height: 1; }
-    .kpi-subtitle { color: #9CA3AF; font-size: 0.85rem; margin-top: 8px; font-weight: 500; }
+    .kpi-card {
+        background-color: white;
+        padding: 24px;
+        border-radius: 12px;
+        border-left: 5px solid #4F46E5;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        margin-bottom: 20px;
+    }
+    .kpi-title {
+        color: #6B7280;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+    }
+    .kpi-value {
+        color: #111827;
+        font-size: 2.2rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+    .kpi-subtitle {
+        color: #9CA3AF;
+        font-size: 0.85rem;
+        margin-top: 8px;
+        font-weight: 500;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -3604,18 +3629,26 @@ elif page == "🚀✨ Commission RH":
         </div>
         """
 
+    # --- AFFICHAGE DES CARTES ---
+    st.subheader("📊 Indicateurs de Performance de la Transformation")
+    
     col_k1, col_k2, col_k3 = st.columns(3)
     with col_k1:
         st.markdown(render_kpi("Taux Postes Pourvus", f"{taux_postes_pourvus:.1f}%", f"{nb_collaborateurs_retenus} affectations / {total_postes_ouverts}", "#4F46E5"), unsafe_allow_html=True)
     with col_k2:
-        postes_vacants = total_postes_ouverts - nb_collaborateurs_retenus
-        st.markdown(render_kpi("Postes Restants", f"{postes_vacants}", "Postes sans affectation validée", "#10B981"), unsafe_allow_html=True)
+        st.markdown(render_kpi("Vœu 1 Exaucé", voeu1_exauce, "Candidats ayant eu leur 1er choix", "#10B981"), unsafe_allow_html=True)
     with col_k3:
-        nb_candidats_actifs = len(collaborateurs_df[collaborateurs_df['Vœux Retenu'].isna() | (collaborateurs_df['Vœux Retenu'] == '')])
-        st.markdown(render_kpi("Collaborateurs à placer", f"{nb_candidats_actifs}", "Candidats en attente de décision", "#F59E0B"), unsafe_allow_html=True)
+        st.markdown(render_kpi("Valid. Collaborateur", validation_collaborateur, "Acceptations hors vœu 1 initial", "#F59E0B"), unsafe_allow_html=True)
+
+    col_k4, col_k5, col_k6 = st.columns(3)
+    with col_k4:
+        st.markdown(render_kpi("Positionnement Global", f"{taux_positionnement_global:.1f}%", f"{total_positionnes} dossiers finalisés", "#8B5CF6"), unsafe_allow_html=True)
+    with col_k5:
+        st.markdown(render_kpi("Libellés Saturés", postes_satures, "Postes où le quota est atteint", "#EF4444"), unsafe_allow_html=True)
+    with col_k6:
+        st.markdown(render_kpi("Candidats en Attente", candidats_en_attente, "Collaborateurs sans affectation", "#6B7280"), unsafe_allow_html=True)
 
     st.divider()
-
     # --- SECTION TABLEAU DE COMMISSION ---
     st.subheader("📋 Tableau de Commission - Vue par Poste")
 
@@ -3947,6 +3980,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
