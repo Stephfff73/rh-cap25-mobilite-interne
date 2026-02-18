@@ -1054,7 +1054,7 @@ page = st.sidebar.radio(
         "💻🔍 Candidatures/Poste",
         "🎯 Analyse par Poste", 
         "🗒️🔁 Tableau agrégé AM",
-        "🎯 Commission RH",
+        "🚀✨ Commission RH",
         "🌳 Référentiel Postes",
         "🏛️ Organigramme Cap25"
     ],
@@ -3563,11 +3563,10 @@ elif page == "🏛️ Organigramme Cap25":
 
 
 # ========================================
-# PAGE : COMMISSION RH (VERSION CORRIGÉE)
+# PAGE : COMMISSION RH 
 # ========================================
-# À INSÉRER APRÈS LA PAGE "🏛️ Organigramme Cap25" (ligne ~3450)
 
-elif page == "🎯 Commission RH":
+elif page == "🚀✨ Commission RH":
     st.title("🎯 Commission RH - Vue Consolidée pour Décisions")
     
     st.markdown("""
@@ -3575,151 +3574,125 @@ elif page == "🎯 Commission RH":
     - **Analyse par poste** : quota, retenus, candidats en attente
     - **Gestion des quotas** : identification des postes saturés
     - **Repositionnement** : candidats à rediriger vers d'autres vœux
-    - **Suivi des entretiens** : planning et réalisations
     """)
     
     st.divider()
     
-    # ========================================
-    # SECTION 1 : KPIs GLOBAUX (AVEC CARTES STYLISÉES)
-    # ========================================
+    # --- PRÉPARATION DES DONNÉES (FIABILISATION) ---
+    # Nettoyage des colonnes pour éviter les erreurs de comptage (espaces, NaN, Casse)
+    v1_clean = collaborateurs_df['Vœux 1'].fillna('').astype(str).str.strip()
+    v_retenu_clean = collaborateurs_df['Vœux Retenu'].fillna('').astype(str).str.strip()
     
-    st.subheader("📊 Indicateurs Clés de la Commission")
+    # --- CALCUL DES KPIs ---
     
-    # Calculs des KPIs CORRIGÉS
+    # 1. Postes ouverts
     total_postes_ouverts = int(postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]["Nombre total de postes"].sum())
     
-    # ✅ Vœu 1 exaucé : Vœux 1 non vide ET = Vœux Retenu
+    # 2. Vœu 1 exaucé (Vœu 1 == Vœu Retenu)
     voeu1_exauce = collaborateurs_df[
-        (collaborateurs_df['Vœux 1'].notna()) &
-        (collaborateurs_df['Vœux 1'] != '') &
-        (collaborateurs_df['Vœux 1'] != 'Positionnement manquant') &
-        (collaborateurs_df['Vœux Retenu'].notna()) &
-        (collaborateurs_df['Vœux Retenu'] != '') &
-        (collaborateurs_df['Vœux 1'] == collaborateurs_df['Vœux Retenu'])
+        (v1_clean != '') & 
+        (v1_clean.str.lower() != 'positionnement manquant') & 
+        (v_retenu_clean != '') & 
+        (v1_clean == v_retenu_clean)
     ].shape[0]
     
-    # 🔄 Validation du positionnement par le collaborateur : Vœux 1 vide ET Vœux Retenu non vide
+    # 3. Validation collaborateur (Vœu 1 vide/manquant mais Vœu Retenu rempli)
+    # C'est ici que vous récupérez vos 121 collaborateurs
     validation_collaborateur = collaborateurs_df[
         (
-            (collaborateurs_df['Vœux 1'].isna()) | 
-            (collaborateurs_df['Vœux 1'] == '') |
-            (collaborateurs_df['Vœux 1'] == 'Positionnement manquant')
-        ) &
-        (collaborateurs_df['Vœux Retenu'].notna()) &
-        (collaborateurs_df['Vœux Retenu'] != '')
+            (v1_clean == '') | 
+            (v1_clean.str.lower() == 'positionnement manquant')
+        ) & 
+        (v_retenu_clean != '')
     ].shape[0]
     
-    # Total des positionnements validés
+    # 4. Totaux et Taux
     total_positionnes = voeu1_exauce + validation_collaborateur
     
-    # Total des collaborateurs avec au moins un vœu 1 OU un vœux retenu
     total_collaborateurs_concernes = collaborateurs_df[
-        (
-            (collaborateurs_df['Vœux 1'].notna()) & 
-            (collaborateurs_df['Vœux 1'] != '') & 
-            (collaborateurs_df['Vœux 1'] != 'Positionnement manquant')
-        ) |
-        (
-            (collaborateurs_df['Vœux Retenu'].notna()) & 
-            (collaborateurs_df['Vœux Retenu'] != '')
-        )
+        (v1_clean != '') | (v_retenu_clean != '')
     ].shape[0]
     
-    # Pourcentage global de positionnement
     taux_positionnement_global = (total_positionnes / total_collaborateurs_concernes * 100) if total_collaborateurs_concernes > 0 else 0
     
-    # Postes pourvus
-    nb_collaborateurs_retenus = collaborateurs_df[
-        collaborateurs_df['Vœux Retenu'].notna() & 
-        (collaborateurs_df['Vœux Retenu'] != '')
-    ].shape[0]
-    
+    nb_collaborateurs_retenus = collaborateurs_df[v_retenu_clean != ''].shape[0]
     taux_postes_pourvus = (nb_collaborateurs_retenus / total_postes_ouverts * 100) if total_postes_ouverts > 0 else 0
     
-    # Postes saturés
+    # 5. Postes saturés (Quota atteint)
     postes_satures = 0
-    for _, poste_row in postes_df[postes_df["Mobilité interne"].str.lower() == "oui"].iterrows():
-        poste_name = poste_row["Poste"]
+    df_mobi = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
+    for _, poste_row in df_mobi.iterrows():
+        p_name = str(poste_row["Poste"]).strip()
         quota = int(poste_row.get("Nombre total de postes", 0))
-        nb_retenus = collaborateurs_df[collaborateurs_df['Vœux Retenu'] == poste_name].shape[0]
+        nb_retenus = collaborateurs_df[v_retenu_clean == p_name].shape[0]
         if nb_retenus >= quota:
             postes_satures += 1
-    
-    # Candidats en attente
-    candidats_en_attente = collaborateurs_df[
-        (collaborateurs_df['Vœux Retenu'].isna()) | 
-        (collaborateurs_df['Vœux Retenu'] == '')
-    ].shape[0]
-    
-    # Affichage des KPIs avec CARTES STYLISÉES
-    col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-    
-    with col_kpi1:
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>🎯 Taux de postes pourvus</h4>
-            <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{taux_postes_pourvus:.1f}%</h1>
-            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>{nb_collaborateurs_retenus} postes sur {total_postes_ouverts}</p>
+            
+    candidats_en_attente = collaborateurs_df[v_retenu_clean == ''].shape[0]
+
+    # --- STYLE CSS PREMIUM ---
+    st.markdown("""
+    <style>
+    .kpi-card {
+        background-color: white;
+        padding: 24px;
+        border-radius: 12px;
+        border-left: 5px solid #4F46E5;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        margin-bottom: 20px;
+    }
+    .kpi-title {
+        color: #6B7280;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+    }
+    .kpi-value {
+        color: #111827;
+        font-size: 2.2rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+    .kpi-subtitle {
+        color: #9CA3AF;
+        font-size: 0.85rem;
+        margin-top: 8px;
+        font-weight: 500;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    def render_kpi(title, value, subtitle, color="#4F46E5"):
+        return f"""
+        <div class="kpi-card" style="border-left-color: {color};">
+            <div class="kpi-title">{title}</div>
+            <div class="kpi-value">{value}</div>
+            <div class="kpi-subtitle">{subtitle}</div>
         </div>
-        """, unsafe_allow_html=True)
+        """
+
+    # --- AFFICHAGE DES CARTES ---
+    st.subheader("📊 Indicateurs de Performance de la Transformation")
     
-    with col_kpi2:
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
-                    padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>✅ Vœu 1 exaucé</h4>
-            <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{voeu1_exauce}</h1>
-            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>collaborateurs satisfaits</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_kpi3:
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
-                    padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>🔄 Validation positionnement</h4>
-            <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{validation_collaborateur}</h1>
-            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>par le collaborateur</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=True)
-    
-    # Deuxième ligne de KPIs
-    col_kpi4, col_kpi5, col_kpi6 = st.columns(3)
-    
-    with col_kpi4:
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); 
-                    padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>📊 Positionnement global</h4>
-            <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{taux_positionnement_global:.1f}%</h1>
-            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>{total_positionnes} sur {total_collaborateurs_concernes} concernés</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_kpi5:
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%); 
-                    padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>🟢 Libellé de poste pourvu totalement 💯</h4>
-            <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{postes_satures}</h1>
-            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>quota atteint</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_kpi6:
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); 
-                    padding: 24px; border-radius: 16px; color: #2c3e50; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-            <h4 style='margin:0; color: #2c3e50; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>⏳ En attente</h4>
-            <h1 style='margin:15px 0 10px 0; color: #2c3e50; font-size: 3rem; font-weight: 700;'>{candidats_en_attente}</h1>
-            <p style='margin:0; opacity: 0.8; font-size: 0.9rem;'>candidats</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
+    col_k1, col_k2, col_k3 = st.columns(3)
+    with col_k1:
+        st.markdown(render_kpi("Taux Postes Pourvus", f"{taux_postes_pourvus:.1f}%", f"{nb_collaborateurs_retenus} affectations / {total_postes_ouverts}", "#4F46E5"), unsafe_allow_html=True)
+    with col_k2:
+        st.markdown(render_kpi("Vœu 1 Exaucé", voeu1_exauce, "Candidats ayant eu leur 1er choix", "#10B981"), unsafe_allow_html=True)
+    with col_k3:
+        # ICI LES 121 APPARAÎTRONT
+        st.markdown(render_kpi("Valid. Collaborateur", validation_collaborateur, "Acceptations hors vœu 1 initial", "#F59E0B"), unsafe_allow_html=True)
+
+    col_k4, col_k5, col_k6 = st.columns(3)
+    with col_k4:
+        st.markdown(render_kpi("Positionnement Global", f"{taux_positionnement_global:.1f}%", f"{total_positionnes} dossiers finalisés", "#8B5CF6"), unsafe_allow_html=True)
+    with col_k5:
+        st.markdown(render_kpi("Libellés Saturés", postes_satures, "Postes où le quota est atteint", "#EF4444"), unsafe_allow_html=True)
+    with col_k6:
+        st.markdown(render_kpi("Candidats en Attente", candidats_en_attente, "Collaborateurs sans affectation", "#6B7280"), unsafe_allow_html=True)
+
     st.divider()
     
     # ========================================
@@ -4281,6 +4254,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
