@@ -3573,18 +3573,17 @@ elif page == "🚀✨ Commission RH":
     st.divider()
 
     # --- PRÉPARATION DES DONNÉES (FIABILISATION) ---
-    # Nettoyage des colonnes pour éviter les erreurs de comptage
     v1_clean = collaborateurs_df['Vœux 1'].fillna('').astype(str).str.strip()
     v2_clean = collaborateurs_df['Vœux 2'].fillna('').astype(str).str.strip()
     v3_clean = collaborateurs_df['Voeux 3'].fillna('').astype(str).str.strip()
     v4_clean = collaborateurs_df['Voeux 4'].fillna('').astype(str).str.strip()
 
-    # Calcul des KPIs globaux
+    # Calcul des KPIs globaux pour la transformation
     total_postes_ouverts = int(postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]["Nombre total de postes"].sum())
     nb_collaborateurs_retenus = len(collaborateurs_df[collaborateurs_df['Vœux Retenu'].notna() & (collaborateurs_df['Vœux Retenu'] != '')])
     taux_postes_pourvus = (nb_collaborateurs_retenus / total_postes_ouverts * 100) if total_postes_ouverts > 0 else 0
 
-    # --- AFFICHAGE DES CARTES KPI ---
+    # --- AFFICHAGE DES CARTES KPI (TRANSFORMATION) ---
     st.subheader("📊 Indicateurs de Performance de la Transformation")
     
     st.markdown("""
@@ -3616,6 +3615,8 @@ elif page == "🚀✨ Commission RH":
         st.markdown(render_kpi("Collaborateurs à placer", f"{nb_candidats_actifs}", "Candidats en attente de décision", "#F59E0B"), unsafe_allow_html=True)
 
     st.divider()
+
+    # --- SECTION TABLEAU DE COMMISSION ---
     st.subheader("📋 Tableau de Commission - Vue par Poste")
 
     # --- ZONE DES FILTRES ---
@@ -3624,25 +3625,23 @@ elif page == "🚀✨ Commission RH":
 
     with col_f1:
         directions_list = sorted(postes_df["Direction"].unique())
-        filtre_direction_commission = st.multiselect("Direction", options=directions_list)
+        filtre_direction_commission = st.multiselect("Direction", options=directions_list, key="dir_comm")
 
     with col_f2:
         postes_ouverts_df = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
         postes_filtres_liste = sorted(postes_ouverts_df[postes_ouverts_df["Direction"].isin(filtre_direction_commission)]["Poste"].unique()) if filtre_direction_commission else sorted(postes_ouverts_df["Poste"].unique())
-        filtre_poste_commission = st.multiselect("Poste", options=postes_filtres_liste)
+        filtre_poste_commission = st.multiselect("Poste", options=postes_filtres_liste, key="poste_comm")
 
     with col_f3:
-        filtre_priorite_commission = st.multiselect("Priorité", options=["Priorité 1", "Priorité 2", "Priorité 3", "Priorité 4"])
+        filtre_priorite_commission = st.multiselect("Priorité", options=["Priorité 1", "Priorité 2", "Priorité 3", "Priorité 4"], key="prio_comm")
 
     with col_f4:
-        filtre_voeu_commission = st.multiselect("N° de Vœu", options=["Vœu 1", "Vœu 2", "Vœu 3", "Vœu 4"])
+        filtre_voeu_commission = st.multiselect("N° de Vœu", options=["Vœu 1", "Vœu 2", "Vœu 3", "Vœu 4"], key="voeu_comm")
 
     with col_f5:
-        filtre_statut_commission = st.multiselect("Statut Poste", options=["🟢 POURVU 💯", "⚠️ Poste totalement vacant", "🟠 Presque pourvu", "🔴 Disponible"])
+        filtre_statut_commission = st.multiselect("Statut Poste", options=["🟢 POURVU 💯", "⚠️ Poste totalement vacant", "🟠 Presque pourvu", "🔴 Disponible"], key="statut_comm")
 
-    st.divider()
-
-    # --- CONSTRUCTION DES DONNÉES ---
+    # --- CONSTRUCTION DES DONNÉES DU TABLEAU ---
     commission_data = []
 
     for _, poste_row in postes_df[postes_df["Mobilité interne"].str.lower() == "oui"].iterrows():
@@ -3682,7 +3681,6 @@ elif page == "🚀✨ Commission RH":
         elif places_restantes <= 2: statut = "🟠 Presque pourvu"
         else: statut = "🔴 Disponible"
 
-        # Préparation des chaînes de noms pour l'affichage
         format_names = lambda l: "; ".join([c['nom'] for c in l])
 
         commission_data.append({
@@ -3739,35 +3737,31 @@ elif page == "🚀✨ Commission RH":
 
             # --- SECTION 3 : REPOSITIONNER ---
             st.divider()
-            st.subheader("🔄 Candidats à Repositionner (Postes pourvus)")
+            st.subheader("🔄 Candidats à Repositionner (Postes saturés)")
             
             candidats_a_repositionner = []
-            postes_satures = df_commission[df_commission['Retenus'] >= df_commission['Quota']]['Poste'].tolist()
-
-            for _, row in df_commission.iterrows():
-                poste_p = row['Poste']
-                if poste_p in postes_satures:
-                    for label, data_key in [("Vœu 1", 'Candidats_V1_Data'), ("Vœu 2", 'Candidats_V2_Data'), ("Voeux 3", 'Candidats_V3_Data'), ("Voeux 4", 'Candidats_V4_Data')]:
-                        for cand in row[data_key]:
+            for _, row_comm in df_commission.iterrows():
+                if row_comm['Statut'] == "🟢 POURVU 💯":
+                    p_sature = row_comm['Poste']
+                    for label, key in [("Vœu 1", 'Candidats_V1_Data'), ("Vœu 2", 'Candidats_V2_Data'), ("Vœu 3", 'Candidats_V3_Data'), ("Vœu 4", 'Candidats_V4_Data')]:
+                        for cand in row_comm[key]:
                             candidats_a_repositionner.append({
                                 'Nom': cand['nom'],
-                                'Poste saturé': poste_p,
+                                'Poste saturé': p_sature,
                                 'Vœu bloqué': label,
                                 'Priorité': cand['priorite'],
                                 'Matricule': cand['matricule']
                             })
 
             if candidats_a_repositionner:
-                df_repositionner = pd.DataFrame(candidats_a_repositionner)
-                df_repositionner['Vœux alternatifs'] = df_repositionner.apply(
-                    lambda r: get_voeux_alternatifs(collaborateurs_df, r['Matricule'], r['Vœu bloqué']), axis=1
-                )
-                st.warning(f"⚠️ **{len(df_repositionner)} candidat(s)** à repositionner (Vœu ciblant un poste pourvu)")
-                st.dataframe(df_repositionner.drop(columns=['Matricule']), use_container_width=True, hide_index=True)
+                df_repo = pd.DataFrame(candidats_a_repositionner)
+                df_repo['Vœux alternatifs'] = df_repo.apply(lambda r: get_voeux_alternatifs(collaborateurs_df, r['Matricule'], r['Vœu bloqué']), axis=1)
+                st.warning(f"⚠️ **{len(df_repo)} candidat(s)** à repositionner car leur vœu cible un poste saturé")
+                st.dataframe(df_repo.drop(columns=['Matricule']), use_container_width=True, hide_index=True)
             else:
                 st.success("✅ Aucun candidat à repositionner")
         else:
-            st.info("Aucun poste ne correspond aux filtres de statut sélectionnés.")
+            st.info("Aucun poste ne correspond aux filtres de statut.")
     else:
         st.info("Aucun poste ne correspond aux filtres sélectionnés.")
     
@@ -3953,6 +3947,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
