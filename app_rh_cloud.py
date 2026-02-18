@@ -3559,33 +3559,73 @@ elif page == "🏛️ Organigramme Cap25":
 
 
 # ========================================
-# PAGE : COMMISSION RH
+# PAGE : COMMISSION RH 
 # ========================================
+
 elif page == "🚀✨ Commission RH":
     st.title("🎯 Commission RH - Vue Consolidée pour Décisions")
+    
     st.markdown("""
     Cette page offre une vue complète pour les décisions de la commission RH :
     - **Analyse par poste** : quota, retenus, candidats en attente
     - **Gestion des quotas** : identification des postes saturés
     - **Repositionnement** : candidats à rediriger vers d'autres vœux
     """)
-
-    st.divider()
-
-    # --- PRÉPARATION DES DONNÉES (FIABILISATION) ---
-    v1_clean = collaborateurs_df['Vœux 1'].fillna('').astype(str).str.strip()
-    v2_clean = collaborateurs_df['Vœux 2'].fillna('').astype(str).str.strip()
-    v3_clean = collaborateurs_df['Voeux 3'].fillna('').astype(str).str.strip()
-    v4_clean = collaborateurs_df['Voeux 4'].fillna('').astype(str).str.strip()
-
-    # Calcul des KPIs globaux pour la transformation
-    total_postes_ouverts = int(postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]["Nombre total de postes"].sum())
-    nb_collaborateurs_retenus = len(collaborateurs_df[collaborateurs_df['Vœux Retenu'].notna() & (collaborateurs_df['Vœux Retenu'] != '')])
-    taux_postes_pourvus = (nb_collaborateurs_retenus / total_postes_ouverts * 100) if total_postes_ouverts > 0 else 0
-
-    # --- AFFICHAGE DES CARTES KPI (TRANSFORMATION) ---
-    st.subheader("📊 Indicateurs de Performance de la Transformation")
     
+    st.divider()
+    
+    # --- PRÉPARATION DES DONNÉES (FIABILISATION) ---
+    # Nettoyage des colonnes pour éviter les erreurs de comptage (espaces, NaN, Casse)
+    v1_clean = collaborateurs_df['Vœux 1'].fillna('').astype(str).str.strip()
+    v_retenu_clean = collaborateurs_df['Vœux Retenu'].fillna('').astype(str).str.strip()
+    
+    # --- CALCUL DES KPIs ---
+    
+    # 1. Postes ouverts
+    total_postes_ouverts = int(postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]["Nombre total de postes"].sum())
+    
+    # 2. Vœu 1 exaucé (Vœu 1 == Vœu Retenu)
+    voeu1_exauce = collaborateurs_df[
+        (v1_clean != '') & 
+        (v1_clean.str.lower() != 'positionnement manquant') & 
+        (v_retenu_clean != '') & 
+        (v1_clean == v_retenu_clean)
+    ].shape[0]
+    
+    # 3. Validation collaborateur (Vœu 1 vide/manquant mais Vœu Retenu rempli)
+    # C'est ici que vous récupérez vos 121 collaborateurs
+    validation_collaborateur = collaborateurs_df[
+        (
+            (v1_clean == '') | 
+            (v1_clean.str.lower() == 'positionnement manquant')
+        ) & 
+        (v_retenu_clean != '')
+    ].shape[0]
+    
+    # 4. Totaux et Taux
+    total_positionnes = voeu1_exauce + validation_collaborateur
+    
+    total_collaborateurs_concernes = collaborateurs_df[
+        (v1_clean != '') | (v_retenu_clean != '')
+    ].shape[0]
+    
+    taux_positionnement_global = (total_positionnes / total_collaborateurs_concernes * 100) if total_collaborateurs_concernes > 0 else 0
+    
+    nb_collaborateurs_retenus = collaborateurs_df[v_retenu_clean != ''].shape[0]
+    taux_postes_pourvus = (nb_collaborateurs_retenus / total_postes_ouverts * 100) if total_postes_ouverts > 0 else 0
+    
+    # 5. Postes saturés (Quota atteint)
+    postes_satures = 0
+    df_mobi = postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]
+    for _, poste_row in df_mobi.iterrows():
+        p_name = str(poste_row["Poste"]).strip()
+        quota = int(poste_row.get("Nombre total de postes", 0))
+        nb_retenus = collaborateurs_df[v_retenu_clean == p_name].shape[0]
+        if nb_retenus >= quota:
+            postes_satures += 1
+            
+    candidats_en_attente = collaborateurs_df[v_retenu_clean == ''].shape[0]
+
     # --- STYLE CSS PREMIUM ---
     st.markdown("""
     <style>
@@ -3638,6 +3678,7 @@ elif page == "🚀✨ Commission RH":
     with col_k2:
         st.markdown(render_kpi("Vœu 1 Exaucé", voeu1_exauce, "Candidats ayant eu leur 1er choix", "#10B981"), unsafe_allow_html=True)
     with col_k3:
+        # ICI LES 121 APPARAÎTRONT
         st.markdown(render_kpi("Valid. Collaborateur", validation_collaborateur, "Acceptations hors vœu 1 initial", "#F59E0B"), unsafe_allow_html=True)
 
     col_k4, col_k5, col_k6 = st.columns(3)
@@ -3649,6 +3690,7 @@ elif page == "🚀✨ Commission RH":
         st.markdown(render_kpi("Candidats en Attente", candidats_en_attente, "Collaborateurs sans affectation", "#6B7280"), unsafe_allow_html=True)
 
     st.divider()
+    
     # --- SECTION TABLEAU DE COMMISSION ---
     st.subheader("📋 Tableau de Commission - Vue par Poste")
 
@@ -3980,6 +4022,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
