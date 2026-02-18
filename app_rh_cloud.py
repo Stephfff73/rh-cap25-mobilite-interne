@@ -3772,13 +3772,13 @@ elif page == "🚀✨ Commission RH":
         st.info("Aucun poste ne correspond aux filtres sélectionnés.")
     
 # ========================================
-# SECTION 4 : SUIVI DES ENTRETIENS (AVEC KPIs)
-# ========================================
+    # SECTION 4 : SUIVI DES ENTRETIENS (AVEC KPIs)
+    # ========================================
 
     st.markdown("---")
     st.subheader("🗓️ Suivi des Entretiens RH")
 
-# --- Filtres ---
+    # --- Filtres ---
     col_ent1, col_ent2 = st.columns([2, 1])
 
     with col_ent1:
@@ -3796,10 +3796,10 @@ elif page == "🚀✨ Commission RH":
             key="statut_entretien"
         )
 
-# --- Préparation des données ---
+    # --- Préparation des données ---
     df_entretiens_all = collaborateurs_df.copy()
 
-# Appliquer le filtre de direction pour les KPIs
+    # Appliquer le filtre de direction pour les KPIs
     if filtre_direction_entretien:
         df_entretiens_kpi = df_entretiens_all[df_entretiens_all['Direction libellé'].isin(filtre_direction_entretien)]
     else:
@@ -3807,11 +3807,11 @@ elif page == "🚀✨ Commission RH":
 
     today = datetime.now().date()
 
-# Calcul des indicateurs
-total_entretiens = 0
-entretiens_a_venir = 0
-entretiens_realises = 0
-entretiens_aujourd_hui = 0
+    # Calcul des indicateurs
+    total_entretiens = 0
+    entretiens_a_venir = 0
+    entretiens_realises = 0
+    entretiens_aujourd_hui = 0
 
     for _, row in df_entretiens_kpi.iterrows():
         date_rdv = parse_date(get_safe_value(row.get('Date de rdv', '')))
@@ -3824,117 +3824,117 @@ entretiens_aujourd_hui = 0
             elif date_rdv == today:
                 entretiens_aujourd_hui += 1
 
-taux_realises = (entretiens_realises / total_entretiens * 100) if total_entretiens > 0 else 0
+    taux_realises = (entretiens_realises / total_entretiens * 100) if total_entretiens > 0 else 0
 
-# --- Affichage des KPIs Harmonisés ---
-st.markdown(f"##### 📊 Tableau de bord des entretiens {' - ' + ', '.join(filtre_direction_entretien) if filtre_direction_entretien else ''}")
+    # --- Affichage des KPIs Harmonisés ---
+    st.markdown(f"##### 📊 Tableau de bord des entretiens {' - ' + ', '.join(filtre_direction_entretien) if filtre_direction_entretien else ''}")
 
-col_k1, col_k2, col_k3, col_k4 = st.columns(4)
+    col_k1, col_k2, col_k3, col_k4 = st.columns(4)
 
-# KPI 1 : Total
-with col_k1:
-    st.markdown(f"""
-    <div style='background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); 
-                padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-        <h4 style='margin:0; font-size: 0.85rem; opacity: 0.9; font-weight: 400;'>📅 TOTAL</h4>
-        <h2 style='margin:10px 0; font-size: 2.2rem; font-weight: 700;'>{total_entretiens}</h2>
-        <div style='font-size: 0.8rem; background: rgba(255,255,255,0.2); display: inline-block; padding: 2px 8px; border-radius: 10px;'>Programmé(s)</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # KPI 1 : Total
+    with col_k1:
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); 
+                    padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; font-size: 0.85rem; opacity: 0.9; font-weight: 400;'>📅 TOTAL</h4>
+            <h2 style='margin:10px 0; font-size: 2.2rem; font-weight: 700;'>{total_entretiens}</h2>
+            <div style='font-size: 0.8rem; background: rgba(255,255,255,0.2); display: inline-block; padding: 2px 8px; border-radius: 10px;'>Programmé(s)</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-# KPI 2 : À Venir
-with col_k2:
-    st.markdown(f"""
-    <div style='background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%); 
-                padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-        <h4 style='margin:0; font-size: 0.85rem; opacity: 0.9; font-weight: 400;'>⏳ À VENIR</h4>
-        <h2 style='margin:10px 0; font-size: 2.2rem; font-weight: 700;'>{entretiens_a_venir}</h2>
-        <div style='font-size: 0.8rem; background: rgba(255,255,255,0.2); display: inline-block; padding: 2px 8px; border-radius: 10px;'>Restant(s)</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # KPI 2 : À Venir
+    with col_k2:
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%); 
+                    padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; font-size: 0.85rem; opacity: 0.9; font-weight: 400;'>⏳ À VENIR</h4>
+            <h2 style='margin:10px 0; font-size: 2.2rem; font-weight: 700;'>{entretiens_a_venir}</h2>
+            <div style='font-size: 0.8rem; background: rgba(255,255,255,0.2); display: inline-block; padding: 2px 8px; border-radius: 10px;'>Restant(s)</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-# KPI 3 : Réalisés
-with col_k3:
-    st.markdown(f"""
-    <div style='background: linear-gradient(135deg, #10b981 0%, #34d399 100%); 
-                padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-        <h4 style='margin:0; font-size: 0.85rem; opacity: 0.9; font-weight: 400;'>✅ RÉALISÉS</h4>
-        <h2 style='margin:10px 0; font-size: 2.2rem; font-weight: 700;'>{entretiens_realises}</h2>
-        <div style='font-size: 0.8rem; background: rgba(255,255,255,0.2); display: inline-block; padding: 2px 8px; border-radius: 10px;'>Taux : {taux_realises:.0f}%</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # KPI 3 : Réalisés
+    with col_k3:
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #10b981 0%, #34d399 100%); 
+                    padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; font-size: 0.85rem; opacity: 0.9; font-weight: 400;'>✅ RÉALISÉS</h4>
+            <h2 style='margin:10px 0; font-size: 2.2rem; font-weight: 700;'>{entretiens_realises}</h2>
+            <div style='font-size: 0.8rem; background: rgba(255,255,255,0.2); display: inline-block; padding: 2px 8px; border-radius: 10px;'>Taux : {taux_realises:.0f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-# KPI 4 : Aujourd'hui (Urgence)
-bg_today = "linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)" if entretiens_aujourd_hui > 0 else "linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)"
-with col_k4:
-    st.markdown(f"""
-    <div style='background: {bg_today}; 
-                padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-        <h4 style='margin:0; font-size: 0.85rem; opacity: 0.9; font-weight: 400;'>⏰ AUJOURD'HUI</h4>
-        <h2 style='margin:10px 0; font-size: 2.2rem; font-weight: 700;'>{entretiens_aujourd_hui}</h2>
-        <div style='font-size: 0.8rem; background: rgba(255,255,255,0.2); display: inline-block; padding: 2px 8px; border-radius: 10px;'>Rendez-vous</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # KPI 4 : Aujourd'hui (Urgence)
+    bg_today = "linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)" if entretiens_aujourd_hui > 0 else "linear-gradient(135deg, #94a3b8 0%, #cbd5e1 100%)"
+    with col_k4:
+        st.markdown(f"""
+        <div style='background: {bg_today}; 
+                    padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; font-size: 0.85rem; opacity: 0.9; font-weight: 400;'>⏰ AUJOURD'HUI</h4>
+            <h2 style='margin:10px 0; font-size: 2.2rem; font-weight: 700;'>{entretiens_aujourd_hui}</h2>
+            <div style='font-size: 0.8rem; background: rgba(255,255,255,0.2); display: inline-block; padding: 2px 8px; border-radius: 10px;'>Rendez-vous</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-# --- Filtrage du tableau de données ---
-df_table = df_entretiens_kpi.copy()
+    # --- Filtrage du tableau de données ---
+    df_table = df_entretiens_kpi.copy()
 
-# Filtrer par statut sélectionné
-if statut_entretien == "À venir":
-    df_table = df_table[df_table['Date de rdv'].apply(lambda x: parse_date(x) > today if parse_date(x) else False)]
-elif statut_entretien == "Réalisés":
-    df_table = df_table[df_table['Date de rdv'].apply(lambda x: parse_date(x) < today if parse_date(x) else False)]
-elif statut_entretien == "Aujourd'hui":
-    df_table = df_table[df_table['Date de rdv'].apply(lambda x: parse_date(x) == today if parse_date(x) else False)]
+    # Filtrer par statut sélectionné
+    if statut_entretien == "À venir":
+        df_table = df_table[df_table['Date de rdv'].apply(lambda x: parse_date(x) > today if parse_date(x) else False)]
+    elif statut_entretien == "Réalisés":
+        df_table = df_table[df_table['Date de rdv'].apply(lambda x: parse_date(x) < today if parse_date(x) else False)]
+    elif statut_entretien == "Aujourd'hui":
+        df_table = df_table[df_table['Date de rdv'].apply(lambda x: parse_date(x) == today if parse_date(x) else False)]
 
-# Préparation finale pour affichage
-entretiens_display = []
-for _, row in df_table.iterrows():
-    date_val = get_safe_value(row.get('Date de rdv', ''))
-    if date_val and date_val.strip() != '':
-        entretiens_display.append({
-            'Date': date_val,
-            'Heure': get_safe_value(row.get('Heure de rdv', '')),
-            'Collaborateur': f"{get_safe_value(row.get('Prénom', ''))} {get_safe_value(row.get('NOM', ''))}".upper(),
-            'Direction': get_safe_value(row.get('Direction libellé', '')),
-            'RRH': get_safe_value(row.get('Référente RH', '')),
-            'Vœu Retenu': get_safe_value(row.get('Vœux Retenu', '')),
-            'Mail': get_safe_value(row.get('Mail', '')),
-            'Priorité': get_safe_value(row.get('Priorité', ''))
-        })
+    # Préparation finale pour affichage
+    entretiens_display = []
+    for _, row in df_table.iterrows():
+        date_val = get_safe_value(row.get('Date de rdv', ''))
+        if date_val and date_val.strip() != '':
+            entretiens_display.append({
+                'Date': date_val,
+                'Heure': get_safe_value(row.get('Heure de rdv', '')),
+                'Collaborateur': f"{get_safe_value(row.get('Prénom', ''))} {get_safe_value(row.get('NOM', ''))}".upper(),
+                'Direction': get_safe_value(row.get('Direction libellé', '')),
+                'RRH': get_safe_value(row.get('Référente RH', '')),
+                'Vœu Retenu': get_safe_value(row.get('Vœux Retenu', '')),
+                'Mail': get_safe_value(row.get('Mail', '')),
+                'Priorité': get_safe_value(row.get('Priorité', ''))
+            })
 
-if entretiens_display:
-    df_final = pd.DataFrame(entretiens_display).sort_values(by=['Date', 'Heure'])
-    
-    st.write(f"🔍 **{len(df_final)}** entretien(s) trouvé(s)")
-    st.dataframe(
-        df_final,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Date": st.column_config.TextColumn("📅 Date"),
-            "Heure": st.column_config.TextColumn("🕒 Heure"),
-            "Collaborateur": st.column_config.TextColumn("👤 Collaborateur"),
-            "Vœu Retenu": st.column_config.TextColumn("🎯 Décision/Vœu"),
-            "Priorité": st.column_config.TextColumn("⚡ Prio")
-        }
-    )
-    
-    # Export harmonisé
-    col_exp1, col_exp2 = st.columns([4, 1])
-    with col_exp2:
-        excel_data = to_excel(df_final)
-        st.download_button(
-            label="📥 Exporter la liste (.xlsx)",
-            data=excel_data,
-            file_name=f"Sherlock_Entretiens_{datetime.now().strftime('%d%m%Y')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
+    if entretiens_display:
+        df_final = pd.DataFrame(entretiens_display).sort_values(by=['Date', 'Heure'])
+        
+        st.write(f"🔍 **{len(df_final)}** entretien(s) trouvé(s)")
+        st.dataframe(
+            df_final,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Date": st.column_config.TextColumn("📅 Date"),
+                "Heure": st.column_config.TextColumn("🕒 Heure"),
+                "Collaborateur": st.column_config.TextColumn("👤 Collaborateur"),
+                "Vœu Retenu": st.column_config.TextColumn("🎯 Décision/Vœu"),
+                "Priorité": st.column_config.TextColumn("⚡ Prio")
+            }
         )
-else:
-    st.info("ℹ️ Aucun entretien ne correspond à vos critères de recherche.")
+        
+        # Export harmonisé
+        col_exp1, col_exp2 = st.columns([4, 1])
+        with col_exp2:
+            excel_data = to_excel(df_final)
+            st.download_button(
+                label="📥 Exporter la liste (.xlsx)",
+                data=excel_data,
+                file_name=f"Sherlock_Entretiens_{datetime.now().strftime('%d%m%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+    else:
+        st.info("ℹ️ Aucun entretien ne correspond à vos critères de recherche.")
 
 # --- FOOTER ---
 st.divider()
@@ -3953,6 +3953,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
