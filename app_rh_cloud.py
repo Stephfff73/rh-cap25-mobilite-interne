@@ -3563,9 +3563,9 @@ elif page == "🏛️ Organigramme Cap25":
 
 
 # ========================================
-# PAGE : COMMISSION RH
+# PAGE : COMMISSION RH (VERSION CORRIGÉE)
 # ========================================
-
+# À INSÉRER APRÈS LA PAGE "🏛️ Organigramme Cap25" (ligne ~3450)
 
 elif page == "🎯 Commission RH":
     st.title("🎯 Commission RH - Vue Consolidée pour Décisions")
@@ -3581,44 +3581,26 @@ elif page == "🎯 Commission RH":
     st.divider()
     
     # ========================================
-    # SECTION 1 : KPIs GLOBAUX
+    # SECTION 1 : KPIs GLOBAUX (AVEC CARTES STYLISÉES)
     # ========================================
     
     st.subheader("📊 Indicateurs Clés de la Commission")
     
-    # Calculs des KPIs
+    # Calculs des KPIs CORRIGÉS
     total_postes_ouverts = int(postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]["Nombre total de postes"].sum())
     
-    # Postes pourvus
-    postes_avec_retenu = collaborateurs_df[
-        collaborateurs_df['Vœux Retenu'].notna() & 
-        (collaborateurs_df['Vœux Retenu'] != '')
-    ]['Vœux Retenu'].value_counts()
-    nb_postes_pourvus = len(postes_avec_retenu)
-    nb_collaborateurs_retenus = collaborateurs_df[
-        collaborateurs_df['Vœux Retenu'].notna() & 
-        (collaborateurs_df['Vœux Retenu'] != '')
-    ].shape[0]
-    
-    taux_postes_pourvus = (nb_collaborateurs_retenus / total_postes_ouverts * 100) if total_postes_ouverts > 0 else 0
-    
-    # Vœu 1 exaucé
+    # ✅ Vœu 1 exaucé : Vœux 1 non vide ET = Vœux Retenu
     voeu1_exauce = collaborateurs_df[
         (collaborateurs_df['Vœux 1'].notna()) &
+        (collaborateurs_df['Vœux 1'] != '') &
+        (collaborateurs_df['Vœux 1'] != 'Positionnement manquant') &
         (collaborateurs_df['Vœux Retenu'].notna()) &
+        (collaborateurs_df['Vœux Retenu'] != '') &
         (collaborateurs_df['Vœux 1'] == collaborateurs_df['Vœux Retenu'])
     ].shape[0]
     
-    total_avec_voeu1 = collaborateurs_df[
-        collaborateurs_df['Vœux 1'].notna() & 
-        (collaborateurs_df['Vœux 1'] != '') &
-        (collaborateurs_df['Vœux 1'] != 'Positionnement manquant')
-    ].shape[0]
-    
-    taux_voeu1_exauce = (voeu1_exauce / total_avec_voeu1 * 100) if total_avec_voeu1 > 0 else 0
-    
-    # Collaborateurs sans vœu initial mais avec Vœux Retenu
-    sans_voeu_mais_retenu = collaborateurs_df[
+    # 🔄 Validation du positionnement par le collaborateur : Vœux 1 vide ET Vœux Retenu non vide
+    validation_collaborateur = collaborateurs_df[
         (
             (collaborateurs_df['Vœux 1'].isna()) | 
             (collaborateurs_df['Vœux 1'] == '') |
@@ -3628,7 +3610,34 @@ elif page == "🎯 Commission RH":
         (collaborateurs_df['Vœux Retenu'] != '')
     ].shape[0]
     
-    # Postes saturés (quota atteint)
+    # Total des positionnements validés
+    total_positionnes = voeu1_exauce + validation_collaborateur
+    
+    # Total des collaborateurs avec au moins un vœu 1 OU un vœux retenu
+    total_collaborateurs_concernes = collaborateurs_df[
+        (
+            (collaborateurs_df['Vœux 1'].notna()) & 
+            (collaborateurs_df['Vœux 1'] != '') & 
+            (collaborateurs_df['Vœux 1'] != 'Positionnement manquant')
+        ) |
+        (
+            (collaborateurs_df['Vœux Retenu'].notna()) & 
+            (collaborateurs_df['Vœux Retenu'] != '')
+        )
+    ].shape[0]
+    
+    # Pourcentage global de positionnement
+    taux_positionnement_global = (total_positionnes / total_collaborateurs_concernes * 100) if total_collaborateurs_concernes > 0 else 0
+    
+    # Postes pourvus
+    nb_collaborateurs_retenus = collaborateurs_df[
+        collaborateurs_df['Vœux Retenu'].notna() & 
+        (collaborateurs_df['Vœux Retenu'] != '')
+    ].shape[0]
+    
+    taux_postes_pourvus = (nb_collaborateurs_retenus / total_postes_ouverts * 100) if total_postes_ouverts > 0 else 0
+    
+    # Postes saturés
     postes_satures = 0
     for _, poste_row in postes_df[postes_df["Mobilité interne"].str.lower() == "oui"].iterrows():
         poste_name = poste_row["Poste"]
@@ -3637,47 +3646,79 @@ elif page == "🎯 Commission RH":
         if nb_retenus >= quota:
             postes_satures += 1
     
-    # Affichage des KPIs
-    col_kpi1, col_kpi2, col_kpi3, col_kpi4, col_kpi5 = st.columns(5)
+    # Candidats en attente
+    candidats_en_attente = collaborateurs_df[
+        (collaborateurs_df['Vœux Retenu'].isna()) | 
+        (collaborateurs_df['Vœux Retenu'] == '')
+    ].shape[0]
+    
+    # Affichage des KPIs avec CARTES STYLISÉES
+    col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
     
     with col_kpi1:
-        st.metric(
-            "🎯 Taux de postes pourvus",
-            f"{taux_postes_pourvus:.1f}%",
-            f"{nb_collaborateurs_retenus}/{total_postes_ouverts}"
-        )
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                    padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>🎯 Taux de postes pourvus</h4>
+            <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{taux_postes_pourvus:.1f}%</h1>
+            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>{nb_collaborateurs_retenus} postes sur {total_postes_ouverts}</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col_kpi2:
-        st.metric(
-            "✅ Vœu 1 exaucé",
-            f"{taux_voeu1_exauce:.1f}%",
-            f"{voeu1_exauce}/{total_avec_voeu1}"
-        )
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                    padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>✅ Vœu 1 exaucé</h4>
+            <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{voeu1_exauce}</h1>
+            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>collaborateurs satisfaits</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col_kpi3:
-        st.metric(
-            "🔄 Repositionnés",
-            f"{sans_voeu_mais_retenu}",
-            "sans vœu initial"
-        )
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
+                    padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>🔄 Validation positionnement</h4>
+            <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{validation_collaborateur}</h1>
+            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>par le collaborateur</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=True)
+    
+    # Deuxième ligne de KPIs
+    col_kpi4, col_kpi5, col_kpi6 = st.columns(3)
     
     with col_kpi4:
-        st.metric(
-            "🔴 Postes saturés",
-            f"{postes_satures}",
-            f"sur {nb_postes_pourvus}"
-        )
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); 
+                    padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>📊 Positionnement global</h4>
+            <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{taux_positionnement_global:.1f}%</h1>
+            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>{total_positionnes} sur {total_collaborateurs_concernes} concernés</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col_kpi5:
-        candidats_en_attente = collaborateurs_df[
-            (collaborateurs_df['Vœux Retenu'].isna()) | 
-            (collaborateurs_df['Vœux Retenu'] == '')
-        ].shape[0]
-        st.metric(
-            "⏳ En attente",
-            f"{candidats_en_attente}",
-            "candidats"
-        )
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%); 
+                    padding: 24px; border-radius: 16px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; color: white; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>🔴 Postes saturés</h4>
+            <h1 style='margin:15px 0 10px 0; color: white; font-size: 3rem; font-weight: 700;'>{postes_satures}</h1>
+            <p style='margin:0; opacity: 0.9; font-size: 0.9rem;'>quota atteint</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_kpi6:
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); 
+                    padding: 24px; border-radius: 16px; color: #2c3e50; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; color: #2c3e50; font-size: 0.95rem; opacity: 0.95; font-weight: 500;'>⏳ En attente</h4>
+            <h1 style='margin:15px 0 10px 0; color: #2c3e50; font-size: 3rem; font-weight: 700;'>{candidats_en_attente}</h1>
+            <p style='margin:0; opacity: 0.8; font-size: 0.9rem;'>candidats</p>
+        </div>
+        """, unsafe_allow_html=True)
     
     st.divider()
     
@@ -4032,11 +4073,12 @@ elif page == "🎯 Commission RH":
     st.divider()
     
     # ========================================
-    # SECTION 4 : SUIVI DES ENTRETIENS
+    # SECTION 4 : SUIVI DES ENTRETIENS (AVEC KPIs)
     # ========================================
     
     st.subheader("🗓️ Suivi des Entretiens RH")
     
+    # Filtres
     col_ent1, col_ent2 = st.columns(2)
     
     with col_ent1:
@@ -4054,15 +4096,90 @@ elif page == "🎯 Commission RH":
             key="statut_entretien"
         )
     
-    # Filtrer les données
+    # Préparer les données AVANT le filtrage pour les KPIs globaux
+    df_entretiens_all = collaborateurs_df.copy()
+    
+    # Appliquer le filtre de direction pour les KPIs
+    if filtre_direction_entretien:
+        df_entretiens_kpi = df_entretiens_all[df_entretiens_all['Direction libellé'].isin(filtre_direction_entretien)]
+    else:
+        df_entretiens_kpi = df_entretiens_all.copy()
+    
+    # Calculer les KPIs des entretiens
+    today = date.today()
+    
+    total_entretiens = 0
+    entretiens_a_venir = 0
+    entretiens_realises = 0
+    entretiens_aujourd_hui = 0
+    
+    for _, row in df_entretiens_kpi.iterrows():
+        date_rdv = parse_date(get_safe_value(row.get('Date de rdv', '')))
+        if date_rdv:
+            total_entretiens += 1
+            if date_rdv > today:
+                entretiens_a_venir += 1
+            elif date_rdv < today:
+                entretiens_realises += 1
+            elif date_rdv == today:
+                entretiens_aujourd_hui += 1
+    
+    taux_realises = (entretiens_realises / total_entretiens * 100) if total_entretiens > 0 else 0
+    
+    # Afficher les KPIs des entretiens
+    st.markdown("##### 📊 Indicateurs des entretiens" + (f" - Direction(s) : {', '.join(filtre_direction_entretien)}" if filtre_direction_entretien else ""))
+    
+    col_ent_kpi1, col_ent_kpi2, col_ent_kpi3, col_ent_kpi4 = st.columns(4)
+    
+    with col_ent_kpi1:
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); 
+                    padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; color: white; font-size: 0.9rem; opacity: 0.95; font-weight: 500;'>📅 Total entretiens</h4>
+            <h1 style='margin:12px 0 8px 0; color: white; font-size: 2.5rem; font-weight: 700;'>{total_entretiens}</h1>
+            <p style='margin:0; opacity: 0.9; font-size: 0.85rem;'>programmés</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_ent_kpi2:
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%); 
+                    padding: 20px; border-radius: 12px; color: #2c3e50; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; color: #2c3e50; font-size: 0.9rem; opacity: 0.95; font-weight: 500;'>⏳ À venir</h4>
+            <h1 style='margin:12px 0 8px 0; color: #2c3e50; font-size: 2.5rem; font-weight: 700;'>{entretiens_a_venir}</h1>
+            <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>à planifier</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_ent_kpi3:
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%); 
+                    padding: 20px; border-radius: 12px; color: #2c3e50; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; color: #2c3e50; font-size: 0.9rem; opacity: 0.95; font-weight: 500;'>✅ Réalisés</h4>
+            <h1 style='margin:12px 0 8px 0; color: #2c3e50; font-size: 2.5rem; font-weight: 700;'>{entretiens_realises}</h1>
+            <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>{taux_realises:.0f}% du total</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_ent_kpi4:
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); 
+                    padding: 20px; border-radius: 12px; color: #2c3e50; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <h4 style='margin:0; color: #2c3e50; font-size: 0.9rem; opacity: 0.95; font-weight: 500;'>⏰ Aujourd'hui</h4>
+            <h1 style='margin:12px 0 8px 0; color: #2c3e50; font-size: 2.5rem; font-weight: 700;'>{entretiens_aujourd_hui}</h1>
+            <p style='margin:0; opacity: 0.8; font-size: 0.85rem;'>en cours</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=True)
+    
+    # Filtrer les données pour le tableau
     df_entretiens = collaborateurs_df.copy()
     
     if filtre_direction_entretien:
         df_entretiens = df_entretiens[df_entretiens['Direction libellé'].isin(filtre_direction_entretien)]
     
     # Filtrer par statut d'entretien
-    today = date.today()
-    
     if statut_entretien == "À venir":
         df_entretiens = df_entretiens[df_entretiens['Date de rdv'].apply(
             lambda x: parse_date(x) > today if parse_date(x) else False
@@ -4107,7 +4224,7 @@ elif page == "🎯 Commission RH":
         # Trier par date
         df_entretiens_display = df_entretiens_display.sort_values('Date')
         
-        st.markdown(f"**{len(df_entretiens_display)} entretien(s)** programmé(s)")
+        st.markdown(f"**{len(df_entretiens_display)} entretien(s)** affiché(s)")
         
         st.dataframe(
             df_entretiens_display,
@@ -4147,47 +4264,6 @@ elif page == "🎯 Commission RH":
     else:
         st.info("Aucun entretien programmé avec les filtres sélectionnés")
 
-
-# ========================================
-# FONCTION UTILITAIRE POUR VŒUX ALTERNATIFS
-# ========================================
-# À INSÉRER APRÈS LA FONCTION to_excel() (ligne ~870)
-
-def get_voeux_alternatifs(df_collabs, matricule, voeu_bloque):
-    """
-    Retourne les vœux alternatifs d'un candidat
-    (les vœux autres que celui qui est bloqué)
-    """
-    collab = df_collabs[df_collabs['Matricule'] == matricule]
-    if collab.empty:
-        return ""
-    
-    collab = collab.iloc[0]
-    
-    voeux = []
-    
-    if voeu_bloque != "Vœu 1":
-        v1 = get_safe_value(collab.get('Vœux 1', ''))
-        if v1 and v1 != 'Positionnement manquant':
-            voeux.append(f"V1: {v1}")
-    
-    if voeu_bloque != "Vœu 2":
-        v2 = get_safe_value(collab.get('Vœux 2', ''))
-        if v2 and v2 != 'Positionnement manquant':
-            voeux.append(f"V2: {v2}")
-    
-    if voeu_bloque != "Vœu 3":
-        v3 = get_safe_value(collab.get('Voeux 3', ''))
-        if v3 and v3 != 'Positionnement manquant':
-            voeux.append(f"V3: {v3}")
-    
-    if voeu_bloque != "Vœu 4":
-        v4 = get_safe_value(collab.get('Voeux 4', ''))
-        if v4 and v4 != 'Positionnement manquant':
-            voeux.append(f"V4: {v4}")
-    
-    return " | ".join(voeux) if voeux else "Aucun vœu alternatif"
-
 # --- FOOTER ---
 st.divider()
 
@@ -4205,6 +4281,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
