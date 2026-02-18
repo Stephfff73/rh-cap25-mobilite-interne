@@ -619,10 +619,6 @@ def to_excel(df):
     return output.getvalue()
 
 def get_voeux_alternatifs(df_collabs, matricule, voeu_bloque):
-    """
-    Retourne les vœux alternatifs d'un candidat
-    (les vœux autres que celui qui est bloqué)
-    """
     collab = df_collabs[df_collabs['Matricule'] == matricule]
     if collab.empty:
         return ""
@@ -3896,7 +3892,7 @@ elif page == "🚀✨ Commission RH":
     
     if not df_commission.empty:
         # Trier par statut puis par direction
-        ordre_statut = {"🔴 SATURÉ": 1, "🟠 Presque saturé": 2, "🟢 Disponible": 3, "⚪ Libre": 4}
+        ordre_statut = {"🟢 POURVU 💯": 1, "🟠 Presque pourvu": 2, "🔴 Disponible": 3, "⚠️ Poste totalement vacant": 4}
         df_commission['_ordre'] = df_commission['Statut'].map(ordre_statut)
         df_commission = df_commission.sort_values(['_ordre', 'Direction', 'Poste'])
         df_commission = df_commission.drop(columns=['_ordre'])
@@ -3971,7 +3967,7 @@ elif page == "🚀✨ Commission RH":
         candidats_a_repositionner = []
         
         for _, row_comm in df_commission.iterrows():
-            if row_comm['Statut'] == "🔴 SATURÉ":
+            if row_comm['Statut'] == "🟢 POURVU 💯":
                 poste_sature = row_comm['Poste']
                 
                 # V1
@@ -4228,6 +4224,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
