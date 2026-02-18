@@ -3858,12 +3858,17 @@ elif page == "🚀✨ Commission RH":
         nb_retenus = len(retenus_df)
         liste_retenus = [f"{get_safe_value(ret.get('Prénom', ''))} {get_safe_value(ret.get('NOM', ''))}" for _, ret in retenus_df.iterrows()]
 
-        # Lecture de "Proposition Comité de mobilité" depuis CAP 2025 pour les retenus de ce poste
+        # Collaborateurs dont "Proposition Comité de mobilité" cible ce poste
         col_proposition = "Proposition Comité de mobilité"
-        if col_proposition in retenus_df.columns:
-            propositions = retenus_df[col_proposition].dropna().astype(str).str.strip()
-            propositions = propositions[propositions != ''].unique()
-            proposition_comite = "; ".join(propositions)
+        if col_proposition in collaborateurs_df.columns:
+            df_prop = collaborateurs_df[
+                collaborateurs_df[col_proposition].fillna('').astype(str).str.strip() == poste_name
+            ]
+            noms_proposition = [
+                f"{get_safe_value(r.get('Prénom', ''))} {get_safe_value(r.get('NOM', ''))}".strip()
+                for _, r in df_prop.iterrows()
+            ]
+            proposition_comite = "; ".join([n for n in noms_proposition if n])
         else:
             proposition_comite = ""
 
@@ -4184,3 +4189,4 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
