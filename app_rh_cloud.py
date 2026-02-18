@@ -3813,16 +3813,16 @@ entretiens_a_venir = 0
 entretiens_realises = 0
 entretiens_aujourd_hui = 0
 
-for _, row in df_entretiens_kpi.iterrows():
-    date_rdv = parse_date(get_safe_value(row.get('Date de rdv', '')))
-    if date_rdv:
-        total_entretiens += 1
-        if date_rdv > today:
-            entretiens_a_venir += 1
-        elif date_rdv < today:
-            entretiens_realises += 1
-        elif date_rdv == today:
-            entretiens_aujourd_hui += 1
+    for _, row in df_entretiens_kpi.iterrows():
+        date_rdv = parse_date(get_safe_value(row.get('Date de rdv', '')))
+        if date_rdv:
+            total_entretiens += 1
+            if date_rdv > today:
+                entretiens_a_venir += 1
+            elif date_rdv < today:
+                entretiens_realises += 1
+            elif date_rdv == today:
+                entretiens_aujourd_hui += 1
 
 taux_realises = (entretiens_realises / total_entretiens * 100) if total_entretiens > 0 else 0
 
@@ -3953,6 +3953,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
