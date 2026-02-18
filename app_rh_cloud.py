@@ -3925,7 +3925,7 @@ elif page == "🚀✨ Commission RH":
         st.markdown("""
         <style>
         /* Mise en évidence des lignes saturées */
-        [data-testid="stDataFrame"] tbody tr:has(td:first-child:contains("🔴")) {
+        [data-testid="stDataFrame"] tbody tr:has(td:first-child:contains("🟢")) {
             background-color: rgba(239, 68, 68, 0.1) !important;
         }
         </style>
@@ -4224,6 +4224,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
