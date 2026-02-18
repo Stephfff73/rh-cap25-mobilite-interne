@@ -3568,7 +3568,7 @@ elif page == "🚀✨ Commission RH":
     st.markdown("""
     Cette page offre une vue complète pour les décisions de la commission RH :
     - **Analyse par poste** : quota, retenus, candidats en attente
-    - **Gestion des quotas** : identification des postes saturés
+    - **Gestion des quotas** : identification des postes pourvus
     - **Repositionnement** : candidats à rediriger vers d'autres vœux
     """)
     
@@ -4022,6 +4022,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
