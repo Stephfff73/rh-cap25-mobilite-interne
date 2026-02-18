@@ -3671,14 +3671,41 @@ elif page == "🚀✨ Commission RH":
 
     # --- AFFICHAGE DES CARTES ---
     st.subheader("📊 Indicateurs de Performance de la Transformation")
-    
+
+    # --- FILTRES DIRECTION / POSTE pour les KPIs ---
+    col_kf1, col_kf2 = st.columns(2)
+    with col_kf1:
+        directions_kpi_list = sorted(collaborateurs_df['Direction libellé'].dropna().astype(str).unique())
+        filtre_direction_kpi = st.multiselect(
+            "🏢 Filtrer par Direction",
+            options=directions_kpi_list,
+            default=[],
+            key="filtre_dir_kpi"
+        )
+    with col_kf2:
+        postes_kpi_list = sorted(collaborateurs_df['Poste libellé'].dropna().astype(str).unique())
+        if filtre_direction_kpi:
+            postes_kpi_list = sorted(
+                collaborateurs_df[collaborateurs_df['Direction libellé'].isin(filtre_direction_kpi)]['Poste libellé']
+                .dropna().astype(str).unique()
+            )
+        filtre_poste_kpi = st.multiselect(
+            "💼 Filtrer par Poste",
+            options=postes_kpi_list,
+            default=[],
+            key="filtre_poste_kpi"
+        )
+
+    kpi_filtres_actifs = bool(filtre_direction_kpi) or bool(filtre_poste_kpi)
+
+    # --- KPIs GLOBAUX ---
+    st.markdown("##### 🌐 Vue Globale")
     col_k1, col_k2, col_k3 = st.columns(3)
     with col_k1:
         st.markdown(render_kpi("Taux Postes Pourvus", f"{taux_postes_pourvus:.1f}%", f"{nb_collaborateurs_retenus} affectations / {total_postes_ouverts}", "#4F46E5"), unsafe_allow_html=True)
     with col_k2:
         st.markdown(render_kpi("Vœu 1 Exaucé", voeu1_exauce, "Candidats ayant eu leur 1er choix", "#10B981"), unsafe_allow_html=True)
     with col_k3:
-        # ICI LES 121 APPARAÎTRONT
         st.markdown(render_kpi("Valid. Collaborateur", validation_collaborateur, "Acceptations hors vœu 1 initial", "#F59E0B"), unsafe_allow_html=True)
 
     col_k4, col_k5, col_k6 = st.columns(3)
@@ -3688,6 +3715,106 @@ elif page == "🚀✨ Commission RH":
         st.markdown(render_kpi("Libellés Saturés", postes_satures, "Postes où le quota est atteint", "#EF4444"), unsafe_allow_html=True)
     with col_k6:
         st.markdown(render_kpi("Candidats en Attente", candidats_en_attente, "Collaborateurs sans affectation", "#6B7280"), unsafe_allow_html=True)
+
+    # --- VUE FILTRÉE DES KPIs ---
+    if kpi_filtres_actifs:
+        st.markdown("<br>", unsafe_allow_html=True)
+        filtre_label_parts = []
+        if filtre_direction_kpi:
+            filtre_label_parts.append(", ".join(filtre_direction_kpi))
+        if filtre_poste_kpi:
+            filtre_label_parts.append(", ".join(filtre_poste_kpi))
+        st.markdown(f"##### 🔍 Vue Filtrée — {' | '.join(filtre_label_parts)}")
+
+        # Application des filtres sur collaborateurs_df
+        df_kpi_filtre = collaborateurs_df.copy()
+        if filtre_direction_kpi:
+            df_kpi_filtre = df_kpi_filtre[df_kpi_filtre['Direction libellé'].isin(filtre_direction_kpi)]
+        if filtre_poste_kpi:
+            df_kpi_filtre = df_kpi_filtre[df_kpi_filtre['Poste libellé'].isin(filtre_poste_kpi)]
+
+        v1_clean_f = df_kpi_filtre['Vœux 1'].fillna('').astype(str).str.strip()
+        v_retenu_clean_f = df_kpi_filtre['Vœux Retenu'].fillna('').astype(str).str.strip()
+
+        # Recalcul des KPIs filtrés
+        f_voeu1_exauce = df_kpi_filtre[
+            (v1_clean_f != '') &
+            (v1_clean_f.str.lower() != 'positionnement manquant') &
+            (v_retenu_clean_f != '') &
+            (v1_clean_f == v_retenu_clean_f)
+        ].shape[0]
+
+        f_validation_collaborateur = df_kpi_filtre[
+            ((v1_clean_f == '') | (v1_clean_f.str.lower() == 'positionnement manquant')) &
+            (v_retenu_clean_f != '')
+        ].shape[0]
+
+        f_total_positionnes = f_voeu1_exauce + f_validation_collaborateur
+        f_total_concernes = df_kpi_filtre[(v1_clean_f != '') | (v_retenu_clean_f != '')].shape[0]
+        f_taux_positionnement = (f_total_positionnes / f_total_concernes * 100) if f_total_concernes > 0 else 0
+
+        f_nb_retenus = df_kpi_filtre[v_retenu_clean_f != ''].shape[0]
+        f_taux_postes_pourvus = (f_nb_retenus / total_postes_ouverts * 100) if total_postes_ouverts > 0 else 0
+
+        f_postes_satures = 0
+        for _, poste_row in df_mobi.iterrows():
+            p_name = str(poste_row["Poste"]).strip()
+            quota = int(poste_row.get("Nombre total de postes", 0))
+            nb_r = df_kpi_filtre[v_retenu_clean_f == p_name].shape[0]
+            if nb_r >= quota:
+                f_postes_satures += 1
+
+        f_candidats_en_attente = df_kpi_filtre[v_retenu_clean_f == ''].shape[0]
+
+        def pct_label(val_f, val_g):
+            pct = (val_f / val_g * 100) if val_g > 0 else 0
+            return f"{pct:.0f}% du total global"
+
+        col_fk1, col_fk2, col_fk3 = st.columns(3)
+        with col_fk1:
+            st.markdown(render_kpi(
+                "Taux Postes Pourvus",
+                f"{f_taux_postes_pourvus:.1f}%",
+                f"{f_nb_retenus} affectations — {pct_label(f_nb_retenus, nb_collaborateurs_retenus)}",
+                "#4F46E5"
+            ), unsafe_allow_html=True)
+        with col_fk2:
+            st.markdown(render_kpi(
+                "Vœu 1 Exaucé",
+                f_voeu1_exauce,
+                pct_label(f_voeu1_exauce, voeu1_exauce),
+                "#10B981"
+            ), unsafe_allow_html=True)
+        with col_fk3:
+            st.markdown(render_kpi(
+                "Valid. Collaborateur",
+                f_validation_collaborateur,
+                pct_label(f_validation_collaborateur, validation_collaborateur),
+                "#F59E0B"
+            ), unsafe_allow_html=True)
+
+        col_fk4, col_fk5, col_fk6 = st.columns(3)
+        with col_fk4:
+            st.markdown(render_kpi(
+                "Positionnement Global",
+                f"{f_taux_positionnement:.1f}%",
+                f"{f_total_positionnes} dossiers — {pct_label(f_total_positionnes, total_positionnes)}",
+                "#8B5CF6"
+            ), unsafe_allow_html=True)
+        with col_fk5:
+            st.markdown(render_kpi(
+                "Libellés Saturés",
+                f_postes_satures,
+                pct_label(f_postes_satures, postes_satures) if postes_satures > 0 else "Aucun poste saturé global",
+                "#EF4444"
+            ), unsafe_allow_html=True)
+        with col_fk6:
+            st.markdown(render_kpi(
+                "Candidats en Attente",
+                f_candidats_en_attente,
+                pct_label(f_candidats_en_attente, candidats_en_attente),
+                "#6B7280"
+            ), unsafe_allow_html=True)
 
     st.divider()
     
@@ -3730,6 +3857,15 @@ elif page == "🚀✨ Commission RH":
         retenus_df = collaborateurs_df[collaborateurs_df['Vœux Retenu'] == poste_name]
         nb_retenus = len(retenus_df)
         liste_retenus = [f"{get_safe_value(ret.get('Prénom', ''))} {get_safe_value(ret.get('NOM', ''))}" for _, ret in retenus_df.iterrows()]
+
+        # Lecture de "Proposition Comité de mobilité" depuis CAP 2025 pour les retenus de ce poste
+        col_proposition = "Proposition Comité de mobilité"
+        if col_proposition in retenus_df.columns:
+            propositions = retenus_df[col_proposition].dropna().astype(str).str.strip()
+            propositions = propositions[propositions != ''].unique()
+            proposition_comite = "; ".join(propositions)
+        else:
+            proposition_comite = ""
 
         candidats_v1, candidats_v2, candidats_v3, candidats_v4 = [], [], [], []
         
@@ -3774,6 +3910,7 @@ elif page == "🚀✨ Commission RH":
             "Candidats V3": format_names(candidats_v3),
             "V4": len(candidats_v4),
             "Candidats V4": format_names(candidats_v4),
+            "Proposition Comité de Mobilité": proposition_comite,
             "Candidats_V1_Data": candidats_v1,
             "Candidats_V2_Data": candidats_v2,
             "Candidats_V3_Data": candidats_v3,
@@ -3807,8 +3944,33 @@ elif page == "🚀✨ Commission RH":
                     "Candidats V3": st.column_config.TextColumn("Détail V3", width="medium"),
                     "V4": st.column_config.NumberColumn("Nb V4", width="micro"),
                     "Candidats V4": st.column_config.TextColumn("Détail V4", width="medium"),
+                    "Proposition Comité de Mobilité": st.column_config.TextColumn("🏛️ Proposition Comité de Mobilité", width="medium"),
                 }
             )
+
+            # --- EXPORT EXCEL ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            col_export1, col_export2 = st.columns([3, 1])
+            commission_filtres_actifs = bool(filtre_direction_commission) or bool(filtre_poste_commission) or bool(filtre_priorite_commission) or bool(filtre_voeu_commission) or bool(filtre_statut_commission)
+            df_commission_export = df_commission.drop(columns=['Candidats_V1_Data', 'Candidats_V2_Data', 'Candidats_V3_Data', 'Candidats_V4_Data'])
+
+            with col_export1:
+                if commission_filtres_actifs:
+                    st.info("💡 Le fichier exporté contiendra les données **filtrées** affichées dans le tableau ci-dessus.")
+
+            with col_export2:
+                paris_tz_exp = pytz.timezone('Europe/Paris')
+                export_time_comm = datetime.now(paris_tz_exp)
+                filename_comm = f"Commission_RH_{export_time_comm.strftime('%d-%m-%Y_%Hh%M')}.xlsx"
+                excel_data_comm = to_excel(df_commission_export)
+                st.download_button(
+                    label="📥 Télécharger en Excel",
+                    data=excel_data_comm,
+                    file_name=filename_comm,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary",
+                    use_container_width=True
+                )
 
             # --- SECTION 3 : REPOSITIONNER ---
             st.divider()
@@ -4022,20 +4184,3 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
