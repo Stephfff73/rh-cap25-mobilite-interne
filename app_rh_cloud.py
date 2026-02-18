@@ -3775,37 +3775,37 @@ elif page == "🚀✨ Commission RH":
 # SECTION 4 : SUIVI DES ENTRETIENS (AVEC KPIs)
 # ========================================
 
-st.markdown("---")
-st.subheader("🗓️ Suivi des Entretiens RH")
+    st.markdown("---")
+    st.subheader("🗓️ Suivi des Entretiens RH")
 
 # --- Filtres ---
-col_ent1, col_ent2 = st.columns([2, 1])
+    col_ent1, col_ent2 = st.columns([2, 1])
 
-with col_ent1:
-    filtre_direction_entretien = st.multiselect(
-        "📍 Filtrer par Direction",
-        options=sorted(collaborateurs_df['Direction libellé'].dropna().unique()),
-        default=[],
-        key="filtre_dir_entretien"
-    )
+    with col_ent1:
+        filtre_direction_entretien = st.multiselect(
+            "📍 Filtrer par Direction",
+            options=sorted(collaborateurs_df['Direction libellé'].dropna().unique()),
+            default=[],
+            key="filtre_dir_entretien"
+        )
 
-with col_ent2:
-    statut_entretien = st.selectbox(
-        "🚥 Statut de l'entretien",
-        options=["Tous", "À venir", "Réalisés", "Aujourd'hui"],
-        key="statut_entretien"
-    )
+    with col_ent2:
+        statut_entretien = st.selectbox(
+            "🚥 Statut de l'entretien",
+            options=["Tous", "À venir", "Réalisés", "Aujourd'hui"],
+            key="statut_entretien"
+        )
 
 # --- Préparation des données ---
-df_entretiens_all = collaborateurs_df.copy()
+    df_entretiens_all = collaborateurs_df.copy()
 
 # Appliquer le filtre de direction pour les KPIs
-if filtre_direction_entretien:
-    df_entretiens_kpi = df_entretiens_all[df_entretiens_all['Direction libellé'].isin(filtre_direction_entretien)]
-else:
-    df_entretiens_kpi = df_entretiens_all.copy()
+    if filtre_direction_entretien:
+        df_entretiens_kpi = df_entretiens_all[df_entretiens_all['Direction libellé'].isin(filtre_direction_entretien)]
+    else:
+        df_entretiens_kpi = df_entretiens_all.copy()
 
-today = datetime.now().date()
+    today = datetime.now().date()
 
 # Calcul des indicateurs
 total_entretiens = 0
@@ -3953,6 +3953,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
