@@ -12,6 +12,14 @@ import plotly.graph_objects as go
 import plotly.express as px
 from collections import defaultdict
 
+# ── Imports pour organigrammes annotés ────────────────────────────────────────
+try:
+    import pypdfium2 as _pdfium
+    from PIL import Image as _PILImage, ImageDraw as _PILDraw, ImageFont as _PILFont
+    _HAS_PDF_ANNOTE = True
+except ImportError:
+    _HAS_PDF_ANNOTE = False
+
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -3105,11 +3113,12 @@ elif page == "🏛️ Organigramme Cap25":
     """)
     
     # Onglets pour différentes vues
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Vue d'ensemble",
         "🔄 Flux de mobilité",
         "📈 Comparaison détaillée",
-        "👥 Mouvements individuels"
+        "👥 Mouvements individuels",
+        "📌 Organigrammes Annotés"
     ])
     
     # ========================================
@@ -3556,6 +3565,301 @@ elif page == "🏛️ Organigramme Cap25":
                 type="primary",
                 use_container_width=True
             )
+
+    # ========================================
+    # TAB 5 : ORGANIGRAMMES ANNOTÉS
+    # ========================================
+    with tab5:
+        if not _HAS_PDF_ANNOTE:
+            st.error("⚠️ Les librairies `pypdfium2` et `Pillow` sont requises. Ajoutez-les à requirements.txt.")
+        else:
+            import os as _os
+
+            _PDF_PATH = "260127_-_CAP_2025_-_Organigramme_projete_CAP25.pdf"
+            _FONT_BOLD = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+            _FONT_REG  = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+
+            _PAGES_CFG = {
+                4:  "📂 Gestion de Portefeuille",
+                7:  "📈 Direction Ventes",
+                10: "🏪 Direction Commerciale",
+                13: "📞 Centre Relation Client",
+                16: "⚙️ Direction Opérations Clients",
+                20: "🏢 Pôle Professionnel",
+                23: "🗺️ Exploitation & Territoire (synthèse)",
+                24: "🗺️ Exploitation - Pôles Territoriaux",
+                29: "🔧 DTPI",
+            }
+
+            _POS_MAP = {
+                4: {
+                    "Responsable de Portefeuille - Monopropriété Abordable": [280, 468, 215, 72],
+                    "Responsable de Portefeuille - Monopropriété Evolutive": [495, 468, 215, 72],
+                    "Responsable de Portefeuille - Monopropriété Premium":   [710, 468, 215, 72],
+                    "Responsable de Portefeuille - En copropriété":          [925, 468, 215, 72],
+                    "Business Analyst Senior":                               [368, 385, 195, 48],
+                    "Assistant(e) de Direction":                             [1050, 285, 200, 48],
+                },
+                7: {
+                    "Directeur(ice) Ventes":                       [490, 243, 220, 65],
+                    "Directeur(ice) Adjoint Ventes":               [270, 338, 200, 55],
+                    "Assistant(e) de Direction":                   [870, 265, 195, 48],
+                    "Analyste Valorisation":                       [870, 323, 195, 48],
+                    "Responsable Force de Ventes":                 [158, 453, 200, 58],
+                    "Chargé(e)s des Ventes (Interne)":            [243, 570, 200, 65],
+                    "Responsable Administration des Ventes":       [662, 453, 208, 58],
+                    "Gestionnaires Administration des Ventes":     [660, 570, 212, 65],
+                    "Chargé(e)s de Montage juridique":            [480, 480, 200, 65],
+                    "Responsables Projet Ventes en bloc":          [1110, 490, 215, 65],
+                },
+                10: {
+                    "Directeur(ice) Commercial":                   [600, 228, 215, 62],
+                    "Assistant(e) de Direction":                   [870, 255, 195, 48],
+                    "Directeur(ice) Développement Commercial":     [185, 375, 210, 65],
+                    "Responsable Commercial (Dév.)":               [130, 455, 185, 58],
+                    "Responsable Commercial (Locatif 1)":          [415, 443, 185, 55],
+                    "Responsable Commercial (Locatif 2)":          [625, 443, 185, 55],
+                    "Responsable Commercial (Locatif 3)":          [835, 443, 185, 55],
+                    "Responsable Pôle Entrées & Sorties locataires": [1120, 448, 215, 65],
+                    "Responsable Service Social Mobilité":         [835, 568, 190, 58],
+                },
+                13: {
+                    "Responsable Relation Clients":                [617, 295, 220, 75],
+                    "Chef(fe) de Projet Service Relation Clients": [392, 300, 195, 58],
+                    "Manager CRC - Digital & Commercial":          [235, 518, 195, 55],
+                    "Manager CRC - Administratif":                 [490, 518, 195, 55],
+                    "Manager CRC - Technique SAV":                 [745, 518, 195, 55],
+                    "Chargé(e) de l'Expérience Client":           [965, 595, 200, 58],
+                },
+                16: {
+                    "Directeur(ice) Opérations Clients":           [600, 155, 220, 70],
+                    "Assistant(e) de Direction":                   [870, 198, 195, 48],
+                    "Responsable Pôle Base Patrimoine et Quittancement": [155, 350, 215, 65],
+                    "Responsable Pôle Charges Locatives":          [435, 350, 215, 65],
+                    "Responsable Pôle Recouvrement et Action Sociale": [730, 350, 215, 65],
+                    "Responsable Pôle Affaires Immobilières":      [1030, 350, 215, 65],
+                },
+                20: {
+                    "Chargé(e) d'Affaires Résidences Gérées":     [545, 570, 215, 68],
+                    "Chargé(e)s d'Affaires Commerces et Professionnels": [545, 680, 215, 65],
+                },
+                23: {
+                    "Directeur(ice) de l'Exploitation et du Territoire": [570, 375, 235, 75],
+                    "Assistant(e) de Direction":                   [335, 408, 195, 55],
+                    "Coordinateur(ice) MAH":                       [895, 390, 195, 48],
+                    "Coordinateur(ice) Territorial":               [895, 445, 195, 48],
+                },
+                24: {
+                    "Directeur(ice) Territorial(e) - Zone 93":    [175, 378, 185, 58],
+                    "Directeur(ice) Territorial(e) - Zones 60-78-95": [405, 378, 185, 58],
+                    "Directeur(ice) Territorial(e) - Zones 77-91-94": [635, 378, 185, 58],
+                    "Directeur(ice) Territorial(e) - Zones 75-92": [865, 378, 185, 58],
+                    "Responsable Pôle Technique Territorial":      [1150, 378, 185, 58],
+                },
+                29: {
+                    "Directeur(ice) DTPI":                         [540, 155, 235, 75],
+                    "Directeur(ice) Opérationnel(le) Contrats":   [235, 365, 205, 65],
+                    "Directeur(ice) Opérationnel(le) Réhabilitation": [620, 365, 205, 65],
+                    "Responsable Stratégie Patrimoniale et Programmation": [1025, 365, 215, 65],
+                    "Responsable de Service Equipements Techniques": [170, 545, 195, 55],
+                    "Responsable Contrats de Services":            [360, 545, 195, 55],
+                    "Responsable Opérations Patrimoine":           [570, 545, 195, 55],
+                    "Directeur(ice) de Projets":                   [785, 545, 195, 55],
+                },
+            }
+
+            def _build_candidats(df):
+                res = {}
+                col_voeu = "Vœux Retenu"
+                if col_voeu not in df.columns:
+                    return res
+                sub = df[df[col_voeu].notna() & (df[col_voeu] != "")]
+                for _, row in sub.iterrows():
+                    poste = str(row[col_voeu]).strip()
+                    nom = str(row.get("Nom", "")).strip()
+                    prenom = str(row.get("Prénom", "")).strip()
+                    if prenom and nom:
+                        affiche = f"{prenom} {nom}"
+                    elif nom:
+                        affiche = nom
+                    else:
+                        affiche = str(row.get("Collaborateur", row.get("Nom Collaborateur", "?"))).strip()
+                    if poste not in res:
+                        res[poste] = []
+                    if affiche not in res[poste]:
+                        res[poste].append(affiche)
+                return res
+
+            def _find_noms(candidats, pos_name):
+                pn = pos_name.lower().strip()
+                for pk, nl in candidats.items():
+                    pk2 = pk.lower().strip()
+                    if pk2 == pn or pk2 in pn or pn in pk2:
+                        return nl
+                return None
+
+            def _render_page(page_idx, candidats, scale):
+                import pypdfium2 as pdfium
+                from PIL import Image, ImageDraw, ImageFont
+
+                try:
+                    fb = _PILFont.truetype(_FONT_BOLD, max(10, int(13 * scale)))
+                    fr = _PILFont.truetype(_FONT_REG,  max(9, int(11 * scale)))
+                except Exception:
+                    fb = fr = _PILFont.load_default()
+
+                doc  = pdfium.PdfDocument(_PDF_PATH)
+                page = doc[page_idx]
+                bmp  = page.render(scale=scale)
+                img  = bmp.to_pil().convert("RGBA")
+                ov   = _PILImage.new("RGBA", img.size, (0,0,0,0))
+                d    = _PILDraw.Draw(ov, "RGBA")
+
+                badge_h = max(22, int(22 * scale))
+                for pos_name, (px, py, pw, ph) in _POS_MAP.get(page_idx, {}).items():
+                    x1, y1 = int(px*scale), int(py*scale)
+                    x2, y2 = int((px+pw)*scale), int((py+ph)*scale)
+                    noms = _find_noms(candidats, pos_name)
+                    if noms is None:
+                        d.rectangle([x1, y2-badge_h, x2, y2], fill=(160,160,160,195))
+                        d.text((x1+6, y2-badge_h+4), "Poste vacant", fill=(70,70,70,240), font=fr)
+                    else:
+                        d.rectangle([x1, y2-badge_h, x2, y2], fill=(0,175,152,218))
+                        label = "  ·  ".join(noms)
+                        max_c = max(1, int((x2-x1-14)/8))
+                        if len(label) > max_c:
+                            label = label[:max_c-1] + "…"
+                        d.text((x1+6, y2-badge_h+4), f"✓ {label}", fill=(255,255,255,255), font=fb)
+
+                out = _PILImage.alpha_composite(img, ov).convert("RGB")
+                buf = io.BytesIO()
+                out.save(buf, format="PNG")
+                buf.seek(0)
+                return buf.read()
+
+            # ── Interface ──────────────────────────────────────────────────
+            st.markdown("""
+            <div style='background:linear-gradient(135deg,#00af98,#007d6e);
+                        padding:16px 22px;border-radius:12px;margin-bottom:18px;'>
+                <h3 style='color:white;margin:0;font-size:1.25rem;'>
+                    📌 Organigrammes annotés avec les candidats retenus
+                </h3>
+                <p style='color:rgba(255,255,255,.88);margin:5px 0 0 0;font-size:.9rem;'>
+                    Les noms de la colonne <strong>Vœux Retenu</strong> sont affichés
+                    directement sur chaque boîte de poste dans l'organigramme CAP25.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            candidats_map = _build_candidats(collaborateurs_df)
+            nb_ret = sum(len(v) for v in candidats_map.values())
+            total_map = sum(len(v) for v in _POS_MAP.values())
+            nb_pourvus = sum(
+                1 for pidx in _POS_MAP for pn in _POS_MAP[pidx]
+                if _find_noms(candidats_map, pn) is not None
+            )
+
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("👥 Candidats retenus", nb_ret)
+            m2.metric("📋 Postes pourvus", nb_pourvus)
+            m3.metric("🗺️ Postes mappés", total_map)
+            m4.metric("✅ Taux de remplissage", f"{round(nb_pourvus/max(total_map,1)*100)}%")
+
+            st.divider()
+
+            cs, cz = st.columns([3, 1])
+            with cs:
+                dir_label = st.selectbox(
+                    "📂 Choisir une direction",
+                    list(_PAGES_CFG.values()),
+                    key="org_ann_dir"
+                )
+            with cz:
+                zoom = st.select_slider("🔍 Zoom", [1.0, 1.25, 1.5, 2.0], value=1.5, key="org_ann_zoom")
+
+            page_idx_sel = [k for k,v in _PAGES_CFG.items() if v == dir_label][0]
+
+            st.markdown("""
+            <div style='display:flex;gap:14px;margin:8px 0 14px 0;font-size:.85rem;'>
+                <span style='background:#00af98;color:white;padding:2px 10px;border-radius:4px;'>
+                    ✓ Candidat(e) retenu(e)
+                </span>
+                <span style='background:#a0a0a0;color:white;padding:2px 10px;border-radius:4px;'>
+                    Poste vacant
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            if not _os.path.exists(_PDF_PATH):
+                st.error(f"⚠️ PDF introuvable : `{_PDF_PATH}`. Placez-le à la racine du projet.")
+            else:
+                with st.spinner("Rendu en cours…"):
+                    try:
+                        img_bytes = _render_page(page_idx_sel, candidats_map, zoom)
+                        st.image(img_bytes, use_container_width=True)
+                    except Exception as _e:
+                        st.error(f"Erreur de rendu : {_e}")
+
+                # Tableau récap
+                positions_page = _POS_MAP.get(page_idx_sel, {})
+                if positions_page:
+                    st.divider()
+                    st.markdown("#### 📋 Récapitulatif")
+                    _rows = []
+                    for pn in positions_page:
+                        noms = _find_noms(candidats_map, pn)
+                        _rows.append({
+                            "Poste": pn,
+                            "Candidat(s) retenu(s)": ", ".join(noms) if noms else "—",
+                            "Statut": "✅ Pourvu" if noms else "⬜ Vacant",
+                        })
+                    st.dataframe(
+                        pd.DataFrame(_rows),
+                        hide_index=True,
+                        column_config={
+                            "Poste": st.column_config.TextColumn("Poste", width="large"),
+                            "Candidat(s) retenu(s)": st.column_config.TextColumn("Candidat(s)", width="medium"),
+                            "Statut": st.column_config.TextColumn("Statut", width="small"),
+                        },
+                        use_container_width=True,
+                    )
+
+                # Export PDF
+                st.divider()
+                st.markdown("#### 📥 Export PDF toutes directions")
+                if st.button("🖨️ Générer le PDF annoté complet", type="primary", key="gen_pdf_btn"):
+                    with st.spinner("Génération… (30-60 secondes)"):
+                        try:
+                            import img2pdf as _img2pdf
+                            _pages = []
+                            for _pidx in sorted(_POS_MAP.keys()):
+                                _pages.append(_render_page(_pidx, candidats_map, 1.5))
+                            _pdf_out = _img2pdf.convert(_pages)
+                            st.success("✅ PDF prêt !")
+                            st.download_button(
+                                "📥 Télécharger l'organigramme annoté",
+                                data=_pdf_out,
+                                file_name=f"Organigrammes_CAP25_Annotes_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                                mime="application/pdf",
+                                type="primary",
+                                use_container_width=True,
+                            )
+                        except Exception as _e:
+                            st.error(f"Erreur export : {_e}")
+
+                with st.expander("🔧 Outil de calibration", expanded=False):
+                    st.markdown("""
+                    **Ajuster les coordonnées d'un poste :**  
+                    - Page PDF = **1440 × 810 points**  
+                    - Format : `[x_gauche, y_haut, largeur, hauteur]` depuis le coin **haut-gauche**  
+                    - Modifiez le dictionnaire `_POS_MAP` dans le code de l'application
+                    """)
+                    if positions_page:
+                        st.dataframe(
+                            pd.DataFrame([{"Poste": k, "x": v[0], "y": v[1], "w": v[2], "h": v[3]}
+                                          for k, v in positions_page.items()]),
+                            hide_index=True, use_container_width=True
+                        )
 
 
 # ========================================
@@ -4196,7 +4500,6 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
-
 
 
 
