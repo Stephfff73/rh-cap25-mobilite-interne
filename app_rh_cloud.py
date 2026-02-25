@@ -3712,7 +3712,7 @@ elif page == "🚀✨ Commission RH":
     with col_k4:
         st.markdown(render_kpi("Positionnement Global", f"{taux_positionnement_global:.1f}%", f"{total_positionnes} dossiers finalisés", "#8B5CF6"), unsafe_allow_html=True)
     with col_k5:
-        st.markdown(render_kpi("Libellés Saturés", postes_satures, "Postes où le quota est atteint", "#EF4444"), unsafe_allow_html=True)
+        st.markdown(render_kpi("Libellés pourvus", postes_satures, "Postes où le quota est atteint", "#EF4444"), unsafe_allow_html=True)
     with col_k6:
         st.markdown(render_kpi("Candidats en Attente", candidats_en_attente, "Collaborateurs sans affectation", "#6B7280"), unsafe_allow_html=True)
 
@@ -3803,9 +3803,9 @@ elif page == "🚀✨ Commission RH":
             ), unsafe_allow_html=True)
         with col_fk5:
             st.markdown(render_kpi(
-                "Libellés Saturés",
+                "Libellés pourvus 💯",
                 f_postes_satures,
-                pct_label(f_postes_satures, postes_satures) if postes_satures > 0 else "Aucun poste saturé global",
+                pct_label(f_postes_satures, postes_satures) if postes_satures > 0 else "Aucun poste pourvu totalement",
                 "#EF4444"
             ), unsafe_allow_html=True)
         with col_fk6:
@@ -3986,7 +3986,7 @@ elif page == "🚀✨ Commission RH":
                 )
             # --- SECTION 3 : REPOSITIONNER ---
             st.divider()
-            st.subheader("🔄 Candidats à Repositionner (Postes saturés)")
+            st.subheader("🔄 Candidats à Repositionner - Postes déjà pourvus")
             
             candidats_a_repositionner = []
             for _, row_comm in df_commission.iterrows():
@@ -3996,7 +3996,7 @@ elif page == "🚀✨ Commission RH":
                         for cand in row_comm[key]:
                             candidats_a_repositionner.append({
                                 'Nom': cand['nom'],
-                                'Poste saturé': p_sature,
+                                'Poste pourvu': p_sature,
                                 'Vœu bloqué': label,
                                 'Priorité': cand['priorite'],
                                 'Matricule': cand['matricule']
@@ -4005,7 +4005,7 @@ elif page == "🚀✨ Commission RH":
             if candidats_a_repositionner:
                 df_repo = pd.DataFrame(candidats_a_repositionner)
                 df_repo['Vœux alternatifs'] = df_repo.apply(lambda r: get_voeux_alternatifs(collaborateurs_df, r['Matricule'], r['Vœu bloqué']), axis=1)
-                st.warning(f"⚠️ **{len(df_repo)} candidat(s)** à repositionner car leur vœu cible un poste saturé")
+                st.warning(f"⚠️ **{len(df_repo)} candidat(s)** à repositionner car leur vœu cible un poste déjà pourvu")
                 st.dataframe(df_repo.drop(columns=['Matricule']), use_container_width=True, hide_index=True)
             else:
                 st.success("✅ Aucun candidat à repositionner")
@@ -4196,5 +4196,6 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
