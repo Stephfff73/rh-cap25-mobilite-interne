@@ -3843,7 +3843,7 @@ elif page == "🚀✨ Commission RH":
     with col_f5:
         filtre_statut_commission = st.multiselect("Statut Poste", options=["🟢 POURVU 💯", "⚠️ Poste totalement vacant", "🟠 Presque pourvu", "🔴 Disponible"], key="statut_comm")
 
-    # --- CONSTRUCTION DES DONNÉES DU TABLEAU ---
+# --- CONSTRUCTION DES DONNÉES DU TABLEAU ---
     commission_data = []
 
     for _, poste_row in postes_df[postes_df["Mobilité interne"].str.lower() == "oui"].iterrows():
@@ -3868,9 +3868,12 @@ elif page == "🚀✨ Commission RH":
                 f"{get_safe_value(r.get('Prénom', ''))} {get_safe_value(r.get('NOM', ''))}".strip()
                 for _, r in df_prop.iterrows()
             ]
-            proposition_comite = "; ".join([n for n in noms_proposition if n])
+            noms_proposition_clean = [n for n in noms_proposition if n]
+            proposition_comite = "; ".join(noms_proposition_clean)
+            nb_proposition_comite = len(noms_proposition_clean)  # ← NOUVEAU
         else:
             proposition_comite = ""
+            nb_proposition_comite = 0  # ← NOUVEAU
 
         candidats_v1, candidats_v2, candidats_v3, candidats_v4 = [], [], [], []
         
@@ -3906,6 +3909,7 @@ elif page == "🚀✨ Commission RH":
             "Quota": quota,
             "Retenus": nb_retenus,
             "Places": places_restantes,
+            "Nbre Prop CM": nb_proposition_comite,  # ← NOUVEAU
             "Liste des retenus": "; ".join(liste_retenus),
             "V1": len(candidats_v1),
             "Candidats V1": format_names(candidats_v1),
@@ -3940,6 +3944,10 @@ elif page == "🚀✨ Commission RH":
                 column_config={
                     "Statut": st.column_config.TextColumn("Statut", width="small"),
                     "Poste": st.column_config.TextColumn("Poste", width="medium"),
+                    "Quota": st.column_config.NumberColumn("Quota", width="micro"),
+                    "Retenus": st.column_config.NumberColumn("Retenus", width="micro"),
+                    "Places": st.column_config.NumberColumn("Places", width="micro"),
+                    "Nbre Prop CM": st.column_config.NumberColumn("Nbre Prop CM", width="micro"),  # ← NOUVEAU
                     "Liste des retenus": st.column_config.TextColumn("Collaborateurs retenus", width="medium"),
                     "V1": st.column_config.NumberColumn("Nb V1", width="micro"),
                     "Candidats V1": st.column_config.TextColumn("Détail V1", width="medium"),
@@ -3976,7 +3984,6 @@ elif page == "🚀✨ Commission RH":
                     type="primary",
                     use_container_width=True
                 )
-
             # --- SECTION 3 : REPOSITIONNER ---
             st.divider()
             st.subheader("🔄 Candidats à Repositionner (Postes saturés)")
@@ -4189,4 +4196,5 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
