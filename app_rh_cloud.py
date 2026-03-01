@@ -3113,12 +3113,13 @@ elif page == "🏛️ Organigramme Cap25":
     """)
     
     # Onglets pour différentes vues
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📊 Vue d'ensemble",
         "🔄 Flux de mobilité",
         "📈 Comparaison détaillée",
         "👥 Mouvements individuels",
-        "📌 Organigrammes Annotés"
+        "📌 Organigrammes Annotés",
+        "🚀 Organigrammes dynamiques"
     ])
     
     # ========================================
@@ -3861,7 +3862,7 @@ elif page == "🏛️ Organigramme Cap25":
                             hide_index=True, use_container_width=True
                         )
     # ========================================
-    # TAB 5 : ORGANIGRAMMES DYNAMIQUES GRAPHVIZ
+    # TAB 6 : ORGANIGRAMMES DYNAMIQUES GRAPHVIZ
     # ========================================
     with tab6:
         try:
@@ -5174,6 +5175,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
