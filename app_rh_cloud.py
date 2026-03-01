@@ -4275,57 +4275,68 @@ elif page == "🏛️ Organigramme Cap25":
                         .replace("\\n", "<BR/>"))
 
             def _html_top(title, c):
-                """Nœud Directeur(ice) — fond bleu clair, bandeau teal."""
+                """Nœud Directeur(ice) — grande carte premium."""
                 t = _esc(title)
                 return (
-                    f'<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" '
-                    f'CELLPADDING="0" COLOR="{c["teal"]}" BGCOLOR="{c["teal"]}" STYLE="ROUNDED">'
-                    f'<TR><TD BGCOLOR="{c["teal"]}" WIDTH="220" ALIGN="CENTER" CELLPADDING="3">'
-                    f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="8"><B>{t}</B></FONT>'
+                    f'<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" '
+                    f'CELLPADDING="0" BGCOLOR="{c["brunswick"]}" STYLE="ROUNDED">'
+                    # Bandeau titre principal
+                    f'<TR><TD BGCOLOR="{c["brunswick"]}" WIDTH="260" ALIGN="CENTER" CELLPADDING="12">'
+                    f'<FONT COLOR="white" FACE="Helvetica-Bold" POINT-SIZE="13"><B>{t}</B></FONT>'
                     f'</TD></TR>'
-                    f'<TR><TD BGCOLOR="{c["lightblue"]}" ALIGN="CENTER" CELLPADDING="7">'
-                    f'<FONT COLOR="{c["darktext"]}" FACE="Helvetica" POINT-SIZE="11"><B>{t}</B></FONT>'
-                    f'</TD></TR>'
+                    # Bande décorative teal en bas
+                    f'<TR><TD BGCOLOR="{c["teal"]}" HEIGHT="5" CELLPADDING="0"></TD></TR>'
                     f'</TABLE>>'
                 )
 
             def _html_group(title, c):
-                """Nœud Pôle / Département — fond gris perle, coins droits."""
+                """Nœud Pôle / Département — carte structurelle sobre."""
                 t = _esc(title)
                 return (
-                    f'<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" '
-                    f'CELLPADDING="8" COLOR="#AAAAAA" BGCOLOR="#DEDEDE">'
-                    f'<TR><TD WIDTH="200" ALIGN="CENTER">'
-                    f'<FONT COLOR="#444444" FACE="Helvetica-Bold" POINT-SIZE="10"><B>{t}</B></FONT>'
+                    f'<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" '
+                    f'CELLPADDING="0" COLOR="{c["teal"]}" BGCOLOR="white" STYLE="ROUNDED">'
+                    f'<TR><TD BGCOLOR="{c["teal"]}" WIDTH="240" ALIGN="CENTER" CELLPADDING="3">'
+                    f'<FONT COLOR="white" FACE="Helvetica-Bold" POINT-SIZE="8"><B>PÔLE / DÉPARTEMENT</B></FONT>'
+                    f'</TD></TR>'
+                    f'<TR><TD BGCOLOR="white" ALIGN="CENTER" CELLPADDING="10">'
+                    f'<FONT COLOR="{c["brunswick"]}" FACE="Helvetica-Bold" POINT-SIZE="11"><B>{t}</B></FONT>'
                     f'</TD></TR>'
                     f'</TABLE>>'
                 )
 
             def _html_poste(title, candidats, mobile, total, vacants, c):
-                """Nœud poste opérationnel — rendu selon statut."""
+                """Nœud poste opérationnel — carte riche selon statut."""
                 t = _esc(title)
-                has_cands   = bool(candidats)
-                is_vacant   = mobile and vacants > 0 and not has_cands
+                has_cands = bool(candidats)
+                is_vacant = mobile and vacants > 0 and not has_cands
+                is_mobile_open = mobile and not has_cands and not is_vacant
 
-                # Couleurs selon statut
+                # Palette selon statut
                 if has_cands:
-                    hdr_bg, hdr_fg, brd = c["keppel"], "white", c["brunswick"]
-                    cand_bg              = c["brunswick"]
+                    hdr_bg, hdr_fg = c["keppel"], "white"
+                    cand_bg = c["brunswick"]
+                    brd = c["brunswick"]
+                    status_tag = None
                 elif is_vacant:
-                    hdr_bg, hdr_fg, brd = "#FFF0F5", c["amarante"], c["pink"]
-                    cand_bg              = c["pink"]
-                elif mobile:
-                    hdr_bg, hdr_fg, brd = c["gray"], c["teal"], c["teal"]
-                    cand_bg              = c["teal"]
+                    hdr_bg, hdr_fg = "#FFF3F7", c["bordeaux"]
+                    cand_bg = c["pink"]
+                    brd = c["pink"]
+                    status_tag = ("POSTE VACANT", c["pink"], "white")
+                elif is_mobile_open:
+                    hdr_bg, hdr_fg = "#E8F6F4", c["teal"]
+                    cand_bg = c["teal"]
+                    brd = c["teal"]
+                    status_tag = ("OUVERT À LA MOBILITÉ", c["teal"], "white")
                 else:
-                    hdr_bg, hdr_fg, brd = "#F0F0F0", "#666666", "#BBBBBB"
-                    cand_bg              = "#BBBBBB"
+                    hdr_bg, hdr_fg = "#F5F5F5", "#5A5A6A"
+                    cand_bg = "#9E9E9E"
+                    brd = "#CCCCCC"
+                    status_tag = None
 
-                # Comptage postes
                 count_parts = []
                 if total > 0:
                     count_parts.append(f"{total} poste{'s' if total > 1 else ''}")
-                if vacants > 0 and has_cands:
+                if vacants > 0:
                     count_parts.append(f"{vacants} vacant{'s' if vacants > 1 else ''}")
                 count_str = " · ".join(count_parts)
 
@@ -4333,46 +4344,46 @@ elif page == "🏛️ Organigramme Cap25":
                     f'<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" '
                     f'CELLPADDING="0" COLOR="{brd}" BGCOLOR="{hdr_bg}" STYLE="ROUNDED">'
                 )
-                # Ligne titre
+                # Titre poste
                 html += (
-                    f'<TR><TD BGCOLOR="{hdr_bg}" WIDTH="200" ALIGN="CENTER" CELLPADDING="8">'
-                    f'<FONT COLOR="{hdr_fg}" FACE="Helvetica" POINT-SIZE="10"><B>{t}</B></FONT>'
+                    f'<TR><TD BGCOLOR="{hdr_bg}" WIDTH="240" ALIGN="CENTER" CELLPADDING="10">'
+                    f'<FONT COLOR="{hdr_fg}" FACE="Helvetica-Bold" POINT-SIZE="10"><B>{t}</B></FONT>'
                     f'</TD></TR>'
                 )
-                # Séparateur
-                html += f'<TR><TD BGCOLOR="{brd}" HEIGHT="1" CELLPADDING="0"></TD></TR>'
+                # Ligne séparateur couleur
+                html += f'<TR><TD BGCOLOR="{brd}" HEIGHT="2" CELLPADDING="0"></TD></TR>'
 
-                # Lignes candidats
+                # Candidats retenus
                 if has_cands:
-                    for nom in candidats[:4]:
+                    for nom in candidats[:5]:
                         n = _esc(nom)
                         html += (
-                            f'<TR><TD BGCOLOR="{cand_bg}" ALIGN="CENTER" CELLPADDING="5">'
-                            f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="9">✓ {n}</FONT>'
+                            f'<TR><TD BGCOLOR="{cand_bg}" ALIGN="LEFT" CELLPADDING="6">'
+                            f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="9"> ✓  {n}</FONT>'
                             f'</TD></TR>'
                         )
-                    if len(candidats) > 4:
-                        more = len(candidats) - 4
+                    if len(candidats) > 5:
+                        more = len(candidats) - 5
                         html += (
                             f'<TR><TD BGCOLOR="{cand_bg}" ALIGN="CENTER" CELLPADDING="4">'
                             f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="8">'
                             f'<I>+ {more} autre(s)</I></FONT></TD></TR>'
                         )
-                elif is_vacant:
+                elif status_tag:
+                    tag_lbl, tag_bg, tag_fg = status_tag
                     html += (
-                        f'<TR><TD BGCOLOR="{c["pink"]}" ALIGN="CENTER" CELLPADDING="5">'
-                        f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="9">'
-                        f'<B>⬜ POSTE VACANT</B></FONT></TD></TR>'
+                        f'<TR><TD BGCOLOR="{tag_bg}" ALIGN="CENTER" CELLPADDING="5">'
+                        f'<FONT COLOR="{tag_fg}" FACE="Helvetica-Bold" POINT-SIZE="8">'
+                        f'<B>◉ {_esc(tag_lbl)}</B></FONT></TD></TR>'
                     )
 
-                # Pied de nœud : comptage
+                # Pied : quota
                 if count_str:
                     html += (
-                        f'<TR><TD BGCOLOR="#F8F8F8" ALIGN="CENTER" CELLPADDING="4">'
-                        f'<FONT COLOR="#888888" FACE="Helvetica" POINT-SIZE="8">'
-                        f'<I>[{_esc(count_str)}]</I></FONT></TD></TR>'
+                        f'<TR><TD BGCOLOR="#F0F0F0" ALIGN="CENTER" CELLPADDING="4">'
+                        f'<FONT COLOR="#777777" FACE="Helvetica" POINT-SIZE="8">'
+                        f'<I>{_esc(count_str)}</I></FONT></TD></TR>'
                     )
-
                 html += '</TABLE>>'
                 return html
 
@@ -4383,22 +4394,23 @@ elif page == "🏛️ Organigramme Cap25":
                         "rankdir":   "TB",
                         "bgcolor":   "white",
                         "fontname":  "Helvetica",
-                        "splines":   "ortho",
-                        "nodesep":   "0.55",
-                        "ranksep":   "0.85",
-                        "pad":       "0.5",
-                        "dpi":       "120",
+                        "splines":   "polyline",
+                        "nodesep":   "0.7",
+                        "ranksep":   "1.0",
+                        "pad":       "0.8",
+                        "dpi":       "150",
                         "overlap":   "false",
+                        "concentrate": "false",
                     },
                     node_attr={
-                        "shape":    "none",   # HTML labels gèrent leur propre forme
+                        "shape":    "none",
                         "margin":   "0",
                         "penwidth": "0",
                     },
                     edge_attr={
-                        "color":     "#90A4AE",
-                        "arrowsize": "0.65",
-                        "penwidth":  "1.4",
+                        "color":     "#B0BEC5",
+                        "arrowsize": "0.7",
+                        "penwidth":  "1.6",
                         "arrowhead": "open",
                     },
                 )
@@ -4494,10 +4506,117 @@ elif page == "🏛️ Organigramme Cap25":
                 {_org_data['subtitle']}
             </p>""", unsafe_allow_html=True)
 
-            # Génération et affichage
+            # Génération et affichage interactif
             with st.spinner("Génération de l'organigramme…"):
                 _dot = _build_dot(_dir_sel, _org_data, _candidats_map, postes_df, _C)
-                st.graphviz_chart(_dot.source, use_container_width=True)
+                try:
+                    import os as _os
+                    _svg_raw = _dot.pipe(format="svg").decode("utf-8")
+                    # Injecter pan/zoom interactif via svg-pan-zoom
+                    _viewer_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ background: #F7F9FB; font-family: Helvetica, Arial, sans-serif; overflow: hidden; }}
+  #toolbar {{
+    display: flex; align-items: center; gap: 8px;
+    background: linear-gradient(90deg, #00594E, #269A87);
+    padding: 8px 16px; border-bottom: 2px solid #00AF98;
+    flex-wrap: wrap;
+  }}
+  .tb-btn {{
+    background: rgba(255,255,255,0.18); color: white; border: 1.5px solid rgba(255,255,255,0.4);
+    border-radius: 6px; padding: 5px 14px; cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s; white-space: nowrap;
+  }}
+  .tb-btn:hover {{ background: rgba(255,255,255,0.32); border-color: white; }}
+  .tb-sep {{ width: 1px; height: 24px; background: rgba(255,255,255,0.3); margin: 0 4px; }}
+  #zoom-label {{
+    color: rgba(255,255,255,0.9); font-size: 12px; min-width: 52px; text-align: center;
+  }}
+  #hint {{
+    color: rgba(255,255,255,0.75); font-size: 11px; margin-left: auto;
+  }}
+  #svg-container {{
+    width: 100%; height: calc(100vh - 52px); overflow: hidden; cursor: grab;
+    background: white;
+    background-image: radial-gradient(circle, #d0dde8 1px, transparent 1px);
+    background-size: 24px 24px;
+  }}
+  #svg-container:active {{ cursor: grabbing; }}
+  #svg-container svg {{
+    width: 100%; height: 100%;
+    display: block;
+  }}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <button class="tb-btn" onclick="pz.zoomIn()">＋ Zoom in</button>
+  <button class="tb-btn" onclick="pz.zoomOut()">－ Zoom out</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="pz.resetZoom(); pz.resetPan();">⊡ Réinitialiser</button>
+  <button class="tb-btn" onclick="fitScreen()">⊞ Plein écran</button>
+  <div class="tb-sep"></div>
+  <span id="zoom-label">100%</span>
+  <span id="hint">🖱 Molette = zoom · Glisser = déplacer</span>
+</div>
+<div id="svg-container">
+{_svg_raw}
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/svg.pan-zoom/3.6.1/svg-pan-zoom.min.js"></script>
+<script>
+  var svgEl = document.querySelector('#svg-container svg');
+  // Make SVG fill the container
+  svgEl.removeAttribute('width');
+  svgEl.removeAttribute('height');
+  svgEl.style.width  = '100%';
+  svgEl.style.height = '100%';
+
+  var pz = svgPanZoom(svgEl, {{
+    zoomEnabled: true,
+    controlIconsEnabled: false,
+    fit: true,
+    center: true,
+    minZoom: 0.05,
+    maxZoom: 8,
+    zoomScaleSensitivity: 0.3,
+    onZoom: function(scale) {{
+      document.getElementById('zoom-label').innerText = Math.round(scale * 100) + '%';
+    }}
+  }});
+
+  function fitScreen() {{
+    pz.resetZoom(); pz.resetPan(); pz.fit(); pz.center();
+  }}
+
+  // Touch support
+  var lastDist = null;
+  svgEl.addEventListener('touchmove', function(e) {{
+    if (e.touches.length === 2) {{
+      var d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      if (lastDist) pz.zoomBy(d / lastDist);
+      lastDist = d;
+      e.preventDefault();
+    }}
+  }}, {{passive: false}});
+  svgEl.addEventListener('touchend', function() {{ lastDist = null; }});
+</script>
+</body>
+</html>
+"""
+                    import streamlit.components.v1 as _components
+                    _components.html(_viewer_html, height=680, scrolling=False)
+                except Exception as _svg_err:
+                    # Fallback si dot non disponible
+                    st.graphviz_chart(_dot.source, use_container_width=True)
+                    st.caption(f"ℹ️ Vue interactive indisponible ({_svg_err}). Installez graphviz dans packages.txt.")
 
             # Tableau récapitulatif
             st.divider()
@@ -4530,119 +4649,78 @@ elif page == "🏛️ Organigramme Cap25":
                     use_container_width=True,
                 )
 
-            # Export SVG / DOT source (sans dépendance binaire `dot`)
+            # ── Export PDF ────────────────────────────────────────────────────
             st.divider()
-            st.markdown("#### 📥 Export")
+            st.markdown("#### 📥 Export PDF")
 
-            with st.expander("ℹ️  **Note sur l'export PDF**", expanded=False):
-                st.markdown("""
-                L'export PDF natif nécessite que le binaire système **Graphviz** (`dot`)  
-                soit installé sur le serveur (ajoutez `graphviz` dans votre `packages.txt`).  
-                En attendant, deux alternatives sont disponibles ci-dessous :
-                - **Export SVG** → image vectorielle haute qualité, imprimable en PDF depuis le navigateur  
-                - **Export source DOT** → ouvrable dans Graphviz Desktop, draw.io, ou n'importe quel viewer Graphviz
-                """)
-
-            _col_exp1, _col_exp2, _col_exp3 = st.columns([2, 1, 1])
+            _col_exp1, _col_exp2 = st.columns([3, 1])
             with _col_exp1:
                 _dir_pdf = st.selectbox(
-                    "Direction à exporter",
-                    ["Toutes les directions"] + _dir_choices,
+                    "Direction(s) à exporter",
+                    ["📦 Toutes les directions"] + _dir_choices,
                     key="org_gv_export_dir",
                 )
-
-            _dirs_to_export = (
-                _dir_choices if _dir_pdf == "Toutes les directions" else [_dir_pdf]
-            )
-
-            # ── Bouton Export SVG ──────────────────────────────────────────────
             with _col_exp2:
                 st.write("")
                 st.write("")
-                if st.button("🖼️ Exporter SVG", type="primary",
-                             key="org_gv_svg_btn", use_container_width=True):
-                    with st.spinner("Génération SVG…"):
+                if st.button("🖨️ Générer PDF", type="primary",
+                             key="org_gv_pdf_btn", use_container_width=True):
+                    _dirs_to_export = (
+                        _dir_choices if _dir_pdf == "📦 Toutes les directions"
+                        else [_dir_pdf]
+                    )
+                    with st.spinner(f"Génération PDF ({len(_dirs_to_export)} direction(s))…"):
                         try:
-                            import os as _os, subprocess as _sp, io as _io
+                            import io as _io
 
-                            # Ajouter les chemins courants de graphviz au PATH
-                            _gv_paths = [
-                                "/usr/bin", "/usr/local/bin",
-                                "/opt/homebrew/bin",
-                                "/opt/local/bin",
-                                "/usr/share/graphviz/bin",
-                            ]
-                            _env = _os.environ.copy()
-                            _env["PATH"] = ":".join(_gv_paths) + ":" + _env.get("PATH", "")
-
-                            _svg_pages = []
+                            # Générer un PDF par direction
+                            _pdf_pages = []
                             for _dk in _dirs_to_export:
                                 _d = _build_dot(_dk, _ORGS[_dk], _candidats_map, postes_df, _C)
-                                # Essayer pipe SVG (nécessite le binaire dot)
+                                _pdf_pages.append(_d.pipe(format="pdf"))
+
+                            # Fusionner si plusieurs pages
+                            if len(_pdf_pages) == 1:
+                                _final_pdf = _pdf_pages[0]
+                            else:
                                 try:
-                                    _svg = _d.pipe(format="svg", engine="dot",
-                                                   env={"PATH": _env["PATH"]})
-                                    _svg_pages.append((_dk, _svg))
-                                except Exception:
-                                    # Fallback : stocker la source DOT
-                                    _svg_pages.append((_dk, None))
-
-                            # Assembler un HTML multi-organigrammes
-                            _html_parts = [
-                                "<html><head><meta charset='utf-8'>"
-                                "<style>body{font-family:Helvetica,sans-serif;margin:24px;}"
-                                "h2{color:#00594E;}hr{border-color:#269A87;}</style></head><body>",
-                                f"<h1 style='color:#00594E'>Organigrammes CAP 2025</h1>",
-                                f"<p style='color:#666'>Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}</p>",
-                            ]
-                            _has_svg = False
-                            for _dk, _svg in _svg_pages:
-                                _html_parts.append(f"<hr/><h2>{_dk}</h2>")
-                                if _svg:
-                                    _has_svg = True
-                                    _html_parts.append(_svg.decode("utf-8") if isinstance(_svg, bytes) else _svg)
+                                    from pypdf import PdfWriter as _PdfWriter, PdfReader as _PdfReader
+                                except ImportError:
+                                    from PyPDF2 import PdfMerger as _PdfMerger2
+                                    _m = _PdfMerger2()
+                                    for _pb in _pdf_pages:
+                                        _m.append(_io.BytesIO(_pb))
+                                    _buf = _io.BytesIO()
+                                    _m.write(_buf)
+                                    _final_pdf = _buf.getvalue()
                                 else:
-                                    # Fallback : afficher source DOT
-                                    _dot_src = _build_dot(_dk, _ORGS[_dk], _candidats_map, postes_df, _C).source
-                                    _html_parts.append(
-                                        f"<pre style='background:#f4f4f4;padding:12px;border-radius:6px;"
-                                        f"font-size:11px;overflow-x:auto'>{_dot_src}</pre>"
-                                    )
-                            _html_parts.append("</body></html>")
-                            _final_html = "\n".join(_html_parts).encode("utf-8")
+                                    _writer = _PdfWriter()
+                                    for _pb in _pdf_pages:
+                                        _reader = _PdfReader(_io.BytesIO(_pb))
+                                        for _page in _reader.pages:
+                                            _writer.add_page(_page)
+                                    _buf = _io.BytesIO()
+                                    _writer.write(_buf)
+                                    _final_pdf = _buf.getvalue()
 
-                            _label = "📄 Télécharger HTML (imprimable → PDF)" if _has_svg else "📄 Télécharger HTML (source DOT)"
-                            st.success("✅ Export prêt ! Ouvrez le fichier dans votre navigateur, puis Fichier → Imprimer → Enregistrer en PDF.")
+                            st.success(f"✅ PDF prêt — {len(_dirs_to_export)} direction(s) générée(s) !")
+                            _fname = (
+                                f"Organigrammes_CAP25_Toutes_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                                if len(_dirs_to_export) > 1
+                                else f"Organigramme_{_dirs_to_export[0][:25].strip()}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+                            )
                             st.download_button(
-                                _label,
-                                data=_final_html,
-                                file_name=f"Organigrammes_CAP25_{datetime.now().strftime('%Y%m%d_%H%M')}.html",
-                                mime="text/html",
+                                "📥 Télécharger le PDF",
+                                data=_final_pdf,
+                                file_name=_fname,
+                                mime="application/pdf",
                                 type="primary",
                                 use_container_width=True,
-                                key="org_gv_html_dl",
+                                key="org_gv_pdf_dl",
                             )
-                        except Exception as _ex:
-                            st.error(f"Erreur export SVG : {_ex}")
-
-            # ── Bouton Export source DOT ──────────────────────────────────────
-            with _col_exp3:
-                st.write("")
-                st.write("")
-                if st.button("📋 Source DOT", key="org_gv_dot_btn",
-                             use_container_width=True):
-                    _dot_sources = []
-                    for _dk in _dirs_to_export:
-                        _d = _build_dot(_dk, _ORGS[_dk], _candidats_map, postes_df, _C)
-                        _dot_sources.append(f"/* === {_dk} === */\n{_d.source}")
-                    _dot_full = "\n\n".join(_dot_sources).encode("utf-8")
-                    st.download_button(
-                        "📥 Télécharger .gv (Graphviz)",
-                        data=_dot_full,
-                        file_name=f"Organigrammes_CAP25_{datetime.now().strftime('%Y%m%d_%H%M')}.gv",
-                        mime="text/plain",
-                        key="org_gv_dot_dl",
-                    )
+                        except Exception as _e_pdf:
+                            st.error(f"Erreur export PDF : {_e_pdf}")
+                            st.info("Vérifiez que `graphviz` est bien dans votre `packages.txt`.")
 
 
 
@@ -5287,4 +5365,3 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
-
