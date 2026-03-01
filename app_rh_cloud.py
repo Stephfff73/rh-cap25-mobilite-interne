@@ -4510,13 +4510,35 @@ elif page == "🏛️ Organigramme Cap25":
             with st.spinner("Génération de l'organigramme…"):
                 _dot = _build_dot(_dir_sel, _org_data, _candidats_map, postes_df, _C)
                 try:
+                    import re as _re
                     _svg_raw = _dot.pipe(format="svg").decode("utf-8")
 
-                    # Nettoyer le SVG : retirer width/height fixes pour qu'il soit fluide
-                    import re as _re
+                    # ── Extraire les dimensions réelles du SVG ──────────────────
+                    # Graphviz écrit toujours width="...pt" height="...pt" (points)
+                    # 1 pt = 1.3333 px (96 dpi / 72 pt)
+                    _PT2PX = 96.0 / 72.0
+                    def _pt(val):
+                        val = val.strip()
+                        if val.endswith('pt'):
+                            return float(val[:-2]) * _PT2PX
+                        return float(val)
+
+                    _w_match = _re.search(r'<svg\b[^>]*\bwidth="([^"]+)"',  _svg_raw)
+                    _h_match = _re.search(r'<svg\b[^>]*\bheight="([^"]+)"', _svg_raw)
+                    _vb_match = _re.search(r'<svg\b[^>]*\bviewBox="([^"]+)"', _svg_raw)
+
+                    if _w_match and _h_match:
+                        _svg_w = int(_pt(_w_match.group(1))) + 40
+                        _svg_h = int(_pt(_h_match.group(1))) + 40
+                    elif _vb_match:
+                        _vb = [float(x) for x in _vb_match.group(1).split()]
+                        _svg_w = int(_vb[2]) + 40
+                        _svg_h = int(_vb[3]) + 40
+                    else:
+                        _svg_w, _svg_h = 1600, 900
+
+                    # Ajouter id au SVG et laisser ses dimensions naturelles
                     _svg_clean = _re.sub(r'<svg\b', '<svg id="the-svg"', _svg_raw, count=1)
-                    _svg_clean = _re.sub(r'\bwidth="[^"]*"', 'width="100%"', _svg_clean, count=1)
-                    _svg_clean = _re.sub(r'\bheight="[^"]*"', 'height="100%"', _svg_clean, count=1)
 
                     _viewer_html = f"""<!DOCTYPE html>
 <html>
@@ -4529,7 +4551,7 @@ elif page == "🏛️ Organigramme Cap25":
 
   #toolbar {{
     position: fixed; top: 0; left: 0; right: 0; z-index: 999;
-    height: 48px;
+    height: 46px;
     display: flex; align-items: center; gap: 6px;
     background: linear-gradient(90deg, #00594E 0%, #269A87 100%);
     padding: 0 14px;
@@ -4537,43 +4559,41 @@ elif page == "🏛️ Organigramme Cap25":
     user-select: none;
   }}
   .tb-btn {{
-    background: rgba(255,255,255,0.15);
-    color: #fff;
+    background: rgba(255,255,255,0.15); color: #fff;
     border: 1.5px solid rgba(255,255,255,0.35);
-    border-radius: 7px;
-    padding: 5px 13px;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: .3px;
+    border-radius: 7px; padding: 5px 13px;
+    cursor: pointer; font-size: 12px; font-weight: 700;
+    letter-spacing: .3px; white-space: nowrap; outline: none;
     transition: background .12s, border-color .12s;
-    white-space: nowrap;
-    outline: none;
   }}
   .tb-btn:hover  {{ background: rgba(255,255,255,0.30); border-color: #fff; }}
   .tb-btn:active {{ background: rgba(255,255,255,0.45); }}
-  .tb-sep {{ width: 1px; height: 22px; background: rgba(255,255,255,0.25); margin: 0 3px; flex-shrink:0; }}
-  #zoom-pct {{ color: rgba(255,255,255,.95); font-size: 12px; font-weight:700;
-               min-width: 46px; text-align: center; }}
+  .tb-sep {{ width: 1px; height: 20px; background: rgba(255,255,255,0.25); margin: 0 3px; flex-shrink:0; }}
+  #zoom-pct {{ color: #fff; font-size: 12px; font-weight:700; min-width: 46px; text-align:center; }}
   #hint {{ margin-left: auto; color: rgba(255,255,255,.7); font-size: 11px; white-space: nowrap; }}
 
   #vp {{
-    position: fixed; top: 48px; left: 0; right: 0; bottom: 0;
-    overflow: hidden;
-    cursor: grab;
+    position: fixed; top: 46px; left: 0; right: 0; bottom: 0;
+    overflow: hidden; cursor: grab;
     background-color: #fff;
     background-image: radial-gradient(circle, #CBD8E5 1px, transparent 1px);
     background-size: 22px 22px;
   }}
   #vp.grabbing {{ cursor: grabbing; }}
 
+  /* Le scene a exactement la taille du SVG — pas de recadrage */
   #scene {{
     position: absolute;
     top: 0; left: 0;
+    width: {_svg_w}px;
+    height: {_svg_h}px;
     transform-origin: 0 0;
-    /* transform set by JS */
   }}
-  #scene svg {{ display: block; }}
+  #the-svg {{
+    display: block;
+    width: {_svg_w}px;
+    height: {_svg_h}px;
+  }}
 </style>
 </head>
 <body>
@@ -4582,7 +4602,7 @@ elif page == "🏛️ Organigramme Cap25":
   <button class="tb-btn" id="btn-zi">＋&nbsp;Zoom+</button>
   <button class="tb-btn" id="btn-zo">－&nbsp;Zoom−</button>
   <div class="tb-sep"></div>
-  <button class="tb-btn" id="btn-fit">⊞&nbsp;Ajuster</button>
+  <button class="tb-btn" id="btn-fit">⊞&nbsp;Tout afficher</button>
   <button class="tb-btn" id="btn-rst">⊙&nbsp;Réinit.</button>
   <div class="tb-sep"></div>
   <span id="zoom-pct">—</span>
@@ -4601,131 +4621,104 @@ elif page == "🏛️ Organigramme Cap25":
   var scene = document.getElementById('scene');
   var label = document.getElementById('zoom-pct');
 
-  var tx = 0, ty = 0, scale = 1;
-  var MIN_SCALE = 0.04, MAX_SCALE = 10;
+  // Dimensions réelles du SVG, passées depuis Python
+  var SVG_W = {_svg_w};
+  var SVG_H = {_svg_h};
 
-  /* ── apply transform ─────────────────────────────── */
+  var tx = 0, ty = 0, scale = 1;
+  var MIN_SCALE = 0.03, MAX_SCALE = 12;
+
   function apply() {{
     scene.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
     label.textContent = Math.round(scale * 100) + '%';
   }}
 
-  /* ── initial fit ─────────────────────────────────── */
   function fit() {{
-    var svg = scene.querySelector('svg');
-    if (!svg) return;
-    var sw = svg.getBoundingClientRect().width  || svg.viewBox.baseVal.width  || 800;
-    var sh = svg.getBoundingClientRect().height || svg.viewBox.baseVal.height || 600;
-    /* use viewBox if rendered size is 0 (hidden) */
-    if (!sw) {{ var vb = svg.viewBox.baseVal; sw = vb ? vb.width  : 800; sh = vb ? vb.height : 600; }}
-    var vpW = vp.clientWidth, vpH = vp.clientHeight;
-    scale = Math.min(vpW / sw, vpH / sh) * 0.92;
+    var vpW = vp.clientWidth  || window.innerWidth;
+    var vpH = vp.clientHeight || (window.innerHeight - 46);
+    // Calcule le scale pour que TOUT le SVG soit visible avec 4% de marge
+    scale = Math.min(vpW / SVG_W, vpH / SVG_H) * 0.96;
     scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
-    tx = (vpW - sw * scale) / 2;
-    ty = (vpH - sh * scale) / 2;
+    // Centre dans le viewport
+    tx = (vpW - SVG_W * scale) / 2;
+    ty = (vpH - SVG_H * scale) / 2;
     apply();
   }}
 
-  /* give the SVG a tick to render before fitting */
-  setTimeout(fit, 80);
+  // Ajustement initial après le rendu du DOM
+  setTimeout(fit, 60);
   window.addEventListener('resize', fit);
 
-  /* ── zoom around a point ─────────────────────────── */
   function zoomAt(cx, cy, factor) {{
     var newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
-    var ratio    = newScale / scale;
-    tx = cx - ratio * (cx - tx);
-    ty = cy - ratio * (cy - ty);
+    var r = newScale / scale;
+    tx = cx - r * (cx - tx);
+    ty = cy - r * (cy - ty);
     scale = newScale;
     apply();
   }}
 
-  /* ── toolbar buttons ─────────────────────────────── */
-  var vpCx = function() {{ return vp.clientWidth  / 2; }};
-  var vpCy = function() {{ return vp.clientHeight / 2; }};
-
-  document.getElementById('btn-zi').onclick  = function() {{ zoomAt(vpCx(), vpCy(), 1.30); }};
-  document.getElementById('btn-zo').onclick  = function() {{ zoomAt(vpCx(), vpCy(), 1/1.30); }};
+  document.getElementById('btn-zi').onclick  = function() {{ zoomAt(vp.clientWidth/2, vp.clientHeight/2, 1.35); }};
+  document.getElementById('btn-zo').onclick  = function() {{ zoomAt(vp.clientWidth/2, vp.clientHeight/2, 1/1.35); }};
   document.getElementById('btn-fit').onclick = fit;
   document.getElementById('btn-rst').onclick = function() {{ scale=1; tx=0; ty=0; apply(); }};
 
-  /* ── mouse wheel zoom ────────────────────────────── */
+  // Molette souris
   vp.addEventListener('wheel', function(e) {{
     e.preventDefault();
-    var rect   = vp.getBoundingClientRect();
-    var cx     = e.clientX - rect.left;
-    var cy     = e.clientY - rect.top;
-    var factor = e.deltaY < 0 ? 1.12 : 1/1.12;
-    zoomAt(cx, cy, factor);
+    var r    = vp.getBoundingClientRect();
+    var factor = e.deltaY < 0 ? 1.13 : 1/1.13;
+    zoomAt(e.clientX - r.left, e.clientY - r.top, factor);
   }}, {{ passive: false }});
 
-  /* ── mouse drag ──────────────────────────────────── */
-  var dragging = false, startX = 0, startY = 0, startTx = 0, startTy = 0;
-
+  // Drag souris
+  var dragging = false, mx0 = 0, my0 = 0, tx0 = 0, ty0 = 0;
   vp.addEventListener('mousedown', function(e) {{
     if (e.button !== 0) return;
-    dragging = true;
-    startX = e.clientX; startY = e.clientY;
-    startTx = tx; startTy = ty;
-    vp.classList.add('grabbing');
-    e.preventDefault();
+    dragging = true; mx0 = e.clientX; my0 = e.clientY; tx0 = tx; ty0 = ty;
+    vp.classList.add('grabbing'); e.preventDefault();
   }});
   window.addEventListener('mousemove', function(e) {{
     if (!dragging) return;
-    tx = startTx + (e.clientX - startX);
-    ty = startTy + (e.clientY - startY);
+    tx = tx0 + e.clientX - mx0;
+    ty = ty0 + e.clientY - my0;
     apply();
   }});
-  window.addEventListener('mouseup', function() {{
-    dragging = false;
-    vp.classList.remove('grabbing');
-  }});
+  window.addEventListener('mouseup', function() {{ dragging=false; vp.classList.remove('grabbing'); }});
 
-  /* ── touch pinch + drag ──────────────────────────── */
-  var touches = {{}};
-  var lastPinchDist = null, pinchCx = 0, pinchCy = 0;
-  var touchStartTx = 0, touchStartTy = 0, touchStartX = 0, touchStartY = 0;
-
+  // Touch pinch + drag
+  var pts = {{}}, lastD = null, pCx = 0, pCy = 0, ttx0 = 0, tty0 = 0, tpx0 = 0, tpy0 = 0;
   vp.addEventListener('touchstart', function(e) {{
-    Array.from(e.changedTouches).forEach(function(t) {{ touches[t.identifier] = t; }});
-    var ids = Object.keys(touches);
-    if (ids.length === 1) {{
-      var t = touches[ids[0]];
-      touchStartX = t.clientX; touchStartY = t.clientY;
-      touchStartTx = tx; touchStartTy = ty;
+    [].forEach.call(e.changedTouches, function(t) {{ pts[t.identifier]=t; }});
+    var ids = Object.keys(pts);
+    if (ids.length===1) {{
+      var t=pts[ids[0]]; tpx0=t.clientX; tpy0=t.clientY; ttx0=tx; tty0=ty;
     }}
-    if (ids.length === 2) {{
-      var t1 = touches[ids[0]], t2 = touches[ids[1]];
-      lastPinchDist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
-      var rect = vp.getBoundingClientRect();
-      pinchCx = ((t1.clientX+t2.clientX)/2) - rect.left;
-      pinchCy = ((t1.clientY+t2.clientY)/2) - rect.top;
+    if (ids.length===2) {{
+      var t1=pts[ids[0]], t2=pts[ids[1]];
+      lastD=Math.hypot(t1.clientX-t2.clientX,t1.clientY-t2.clientY);
+      var r=vp.getBoundingClientRect();
+      pCx=((t1.clientX+t2.clientX)/2)-r.left;
+      pCy=((t1.clientY+t2.clientY)/2)-r.top;
     }}
     e.preventDefault();
-  }}, {{ passive:false }});
-
+  }}, {{passive:false}});
   vp.addEventListener('touchmove', function(e) {{
-    Array.from(e.changedTouches).forEach(function(t) {{ touches[t.identifier] = t; }});
-    var ids = Object.keys(touches);
-    if (ids.length === 1) {{
-      var t = touches[ids[0]];
-      tx = touchStartTx + (t.clientX - touchStartX);
-      ty = touchStartTy + (t.clientY - touchStartY);
-      apply();
-    }} else if (ids.length === 2) {{
-      var t1 = touches[ids[0]], t2 = touches[ids[1]];
-      var dist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
-      if (lastPinchDist) zoomAt(pinchCx, pinchCy, dist / lastPinchDist);
-      lastPinchDist = dist;
+    [].forEach.call(e.changedTouches, function(t) {{ pts[t.identifier]=t; }});
+    var ids=Object.keys(pts);
+    if (ids.length===1) {{
+      var t=pts[ids[0]]; tx=ttx0+(t.clientX-tpx0); ty=tty0+(t.clientY-tpy0); apply();
+    }} else if (ids.length===2) {{
+      var t1=pts[ids[0]], t2=pts[ids[1]];
+      var d=Math.hypot(t1.clientX-t2.clientX,t1.clientY-t2.clientY);
+      if (lastD) zoomAt(pCx, pCy, d/lastD); lastD=d;
     }}
     e.preventDefault();
-  }}, {{ passive:false }});
-
+  }}, {{passive:false}});
   vp.addEventListener('touchend', function(e) {{
-    Array.from(e.changedTouches).forEach(function(t) {{ delete touches[t.identifier]; }});
-    lastPinchDist = null;
+    [].forEach.call(e.changedTouches, function(t) {{ delete pts[t.identifier]; }});
+    lastD=null;
   }});
-
 }})();
 </script>
 </body>
