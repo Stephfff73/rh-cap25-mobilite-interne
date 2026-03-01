@@ -4227,8 +4227,12 @@ elif page == "🏛️ Organigramme Cap25":
                     if p == pk or pk in p or p in pk:
                         mobile = str(row.get("Mobilité interne", "")).lower().strip() == "oui"
                         total  = int(row.get("Nombre total de postes", 0) or 0)
-                        vac_raw = row.get("Nombre de postes vacants", None)
-                        vacants = int(vac_raw) if vac_raw not in (None, "", float("nan")) else 0
+                        # Robustesse : le nom de colonne peut avoir un espace final
+                        vac_raw = row.get("Nombre de postes vacants ", row.get("Nombre de postes vacants", None))
+                        try:
+                            vacants = int(float(vac_raw)) if vac_raw not in (None, "", float("nan")) else 0
+                        except (ValueError, TypeError):
+                            vacants = 0
                         return mobile, total, vacants
                 return False, 0, 0
 
@@ -4408,7 +4412,8 @@ elif page == "🏛️ Organigramme Cap25":
 
             # KPIs globaux
             _total_postes_mob = int(postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]["Nombre total de postes"].sum()) if not postes_df.empty else 0
-            _total_vacants    = postes_df["Nombre de postes vacants"].fillna(0).astype(float).sum() if not postes_df.empty else 0
+            _col_vac = next((c for c in postes_df.columns if c.strip() == "Nombre de postes vacants"), None)
+            _total_vacants    = postes_df[_col_vac].fillna(0).astype(float).sum() if (not postes_df.empty and _col_vac) else 0
 
             m1, m2, m3 = st.columns(3)
             m1.metric("👥 Candidats positionnés (Vœux Retenu)", _nb_retenus)
@@ -4533,6 +4538,8 @@ elif page == "🏛️ Organigramme Cap25":
                                 st.error(f"Erreur export : {_e3}")
                         except Exception as _e2:
                             st.error(f"Erreur génération PDF : {_e2}")
+
+
 
 
 
@@ -5175,6 +5182,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
