@@ -3860,6 +3860,680 @@ elif page == "🏛️ Organigramme Cap25":
                                           for k, v in positions_page.items()]),
                             hide_index=True, use_container_width=True
                         )
+    # ========================================
+    # TAB 5 : ORGANIGRAMMES DYNAMIQUES GRAPHVIZ
+    # ========================================
+    with tab6:
+        try:
+            import graphviz as _gv
+            _HAS_GV = True
+        except ImportError:
+            _HAS_GV = False
+
+        if not _HAS_GV:
+            st.error("⚠️ La librairie `graphviz` est requise. Ajoutez `graphviz` à requirements.txt.")
+        else:
+            # ── Charte graphique in'li ─────────────────────────────────────────
+            _C = {
+                "teal":      "#269A87",
+                "pink":      "#E82473",
+                "keppel":    "#00AF98",
+                "gray":      "#F2F2F2",
+                "brunswick": "#00594E",
+                "amarante":  "#B90745",
+                "bordeaux":  "#9C0C35",
+                "lightblue": "#C8DBE8",
+                "darkgray":  "#C8C8C8",
+                "white":     "#FFFFFF",
+                "darktext":  "#1A1A2E",
+            }
+
+            # ── Hiérarchies hardcodées par direction ───────────────────────────
+            # Format nodes: id → {label, poste_key (None=groupe), type}
+            # type: "top"|"group"|"poste"
+            # edges: list of (parent_id, child_id)
+            _ORGS = {
+
+                "📂 Gestion de Portefeuille": {
+                    "subtitle": "La nouvelle organisation de la Gestion de Portefeuille",
+                    "nodes": {
+                        "dir_perf":    {"label": "Directeur(ice) Performance\nImmobilière et Engagements Clients",    "poste": None, "type": "top"},
+                        "asst_dir":    {"label": "Assistant(e) de Direction",      "poste": "Assistant(e) de Direction", "type": "poste"},
+                        "gp":          {"label": "Gestion de Portefeuille",         "poste": None, "type": "group"},
+                        "ba_senior":   {"label": "Business Analyst Senior",         "poste": "Business Analyst Senior",   "type": "poste"},
+                        "rp_abord":    {"label": "Responsable de Portefeuille\n— Monopropriété Abordable",  "poste": "Responsable de Portefeuille", "type": "poste"},
+                        "rp_evol":     {"label": "Responsable de Portefeuille\n— Monopropriété Evolutive",  "poste": "Responsable de Portefeuille", "type": "poste"},
+                        "rp_prem":     {"label": "Responsable de Portefeuille\n— Monopropriété Premium",    "poste": "Responsable de Portefeuille", "type": "poste"},
+                        "rp_copro":    {"label": "Responsable de Portefeuille\n— En copropriété",           "poste": "Responsable de Portefeuille", "type": "poste"},
+                        "ref_copro":   {"label": "Référent(e)s Copropriété",        "poste": "Référent(e) Copropriété",   "type": "poste"},
+                        "resp_adm":    {"label": "Responsable Administratif\net Budgétaire Copropriété",    "poste": "Responsable Administratif et Budgétaire Copropriété", "type": "poste"},
+                    },
+                    "edges": [
+                        ("dir_perf", "asst_dir"),
+                        ("dir_perf", "gp"),
+                        ("gp", "ba_senior"),
+                        ("gp", "rp_abord"),
+                        ("gp", "rp_evol"),
+                        ("gp", "rp_prem"),
+                        ("gp", "rp_copro"),
+                        ("rp_copro", "ref_copro"),
+                        ("rp_copro", "resp_adm"),
+                    ],
+                },
+
+                "📈 Direction Ventes": {
+                    "subtitle": "La nouvelle organisation de la Direction des Ventes",
+                    "nodes": {
+                        "dir_v":        {"label": "Directeur(ice) Ventes",               "poste": "Directeur(ice) Ventes",            "type": "top"},
+                        "dir_adj":      {"label": "Directeur(ice) Adjoint(e) Ventes",    "poste": "Directeur(ice) Adjoint(e) Ventes", "type": "poste"},
+                        "asst":         {"label": "Assistant(e) de Direction",            "poste": "Assistant(e) de Direction",        "type": "poste"},
+                        "analyste":     {"label": "Analyste Valorisation",                "poste": "Analyste Valorisation",            "type": "poste"},
+                        "dept_unite":   {"label": "Département\nVentes à l'Unité",        "poste": None, "type": "group"},
+                        "pole_montage": {"label": "Pôle Montage",                         "poste": None, "type": "group"},
+                        "pole_admin":   {"label": "Pôle Administration\net après-vente",  "poste": None, "type": "group"},
+                        "dept_bloc":    {"label": "Département\nVentes en Bloc",          "poste": None, "type": "group"},
+                        "resp_force":   {"label": "Responsable Force de Vente",           "poste": "Responsable Force de Vente",       "type": "poste"},
+                        "ref_comm":     {"label": "Référent(e)s Commercialisateurs\n(Externe × 2)", "poste": "Référent(e) Commercialisateurs", "type": "poste"},
+                        "charges_v":    {"label": "Chargé(e)s des Ventes (Interne)",     "poste": "Chargé(e) des Ventes (interne)",   "type": "poste"},
+                        "ch_mont_jur":  {"label": "Chargé(e)s de Montage Juridique × 3", "poste": "Chargé(e) de Montage Juridique",   "type": "poste"},
+                        "ch_mont_tech": {"label": "Chargé(e) Montage Technique\net Administratif", "poste": "Chargé(e) de Montage Technique et Administratif", "type": "poste"},
+                        "ch_gest_doc":  {"label": "Chargé(e) de Gestion Documentaire",   "poste": "Chargé(e) de Gestion Documentaire","type": "poste"},
+                        "resp_adm_v":   {"label": "Responsable Administration des Ventes","poste": "Responsable Administration des Ventes", "type": "poste"},
+                        "gest_adm_v":   {"label": "Gestionnaires Administration\ndes Ventes × 3", "poste": "Gestionnaire Administration des Ventes", "type": "poste"},
+                        "resp_bloc":    {"label": "Responsable(s) Projet\nVentes en bloc × 3", "poste": "Responsable Projet Ventes en bloc", "type": "poste"},
+                    },
+                    "edges": [
+                        ("dir_v", "dir_adj"),
+                        ("dir_v", "asst"),
+                        ("dir_v", "analyste"),
+                        ("dir_v", "dept_unite"),
+                        ("dir_v", "pole_montage"),
+                        ("dir_v", "pole_admin"),
+                        ("dir_v", "dept_bloc"),
+                        ("dept_unite", "resp_force"),
+                        ("resp_force", "ref_comm"),
+                        ("resp_force", "charges_v"),
+                        ("pole_montage", "ch_mont_jur"),
+                        ("pole_montage", "ch_mont_tech"),
+                        ("pole_montage", "ch_gest_doc"),
+                        ("pole_admin", "resp_adm_v"),
+                        ("pole_admin", "gest_adm_v"),
+                        ("dept_bloc", "resp_bloc"),
+                    ],
+                },
+
+                "🏪 Direction Commerciale": {
+                    "subtitle": "La nouvelle Direction Commerciale",
+                    "nodes": {
+                        "dir_c":        {"label": "Directeur(ice) Commercial",            "poste": "Directeur(ice) Commercial",          "type": "top"},
+                        "asst":         {"label": "Assistant(e) de Direction",             "poste": "Assistant(e) de Direction",          "type": "poste"},
+                        "dev_com":      {"label": "Direction Développement\nCommercial",   "poste": None, "type": "group"},
+                        "loc":          {"label": "Commercial Locatif",                    "poste": None, "type": "group"},
+                        "entrees_sort": {"label": "Gestion des Entrées\n& Sorties",        "poste": None, "type": "group"},
+                        "dir_dev":      {"label": "Directeur(ice)\nDéveloppement Commercial","poste": "Directeur(ice) Développement Commercial", "type": "poste"},
+                        "resp_com_dev": {"label": "Responsable Commercial",                "poste": "Responsable Commercial",             "type": "poste"},
+                        "dev_com2":     {"label": "Développeur(se) Commercial × 2",        "poste": "Développeur(se) Commercial",         "type": "poste"},
+                        "asst_spe":     {"label": "Assistant(e) Spécialisé(e)",            "poste": "Assistant(e) Spécialisé(e)",         "type": "poste"},
+                        "cons_com_dev": {"label": "Conseiller(e)s Commerciaux × 4",        "poste": "Conseiller(e) Commercial",           "type": "poste"},
+                        "resp_com_loc1":{"label": "Responsable Commercial × 3",            "poste": "Responsable Commercial",             "type": "poste"},
+                        "cons_loc":     {"label": "Conseiller(e)s Commerciaux",            "poste": "Conseiller(e) Commercial",           "type": "poste"},
+                        "svc_social":   {"label": "Service Social Mobilité",               "poste": None, "type": "group"},
+                        "resp_social":  {"label": "Responsable Service Social Mobilité",   "poste": "Responsable Service Social Mobilité","type": "poste"},
+                        "cons_social":  {"label": "Conseiller(e)s Social(e) × 2",          "poste": "Conseiller(e) Social(e)",            "type": "poste"},
+                        "resp_es":      {"label": "Responsable Pôle\nEntrées & Sorties Locataires","poste": "Responsable Pôle Entrées & Sorties locataires", "type": "poste"},
+                        "gest_es":      {"label": "Gestionnaire Entrées\net sorties locataires × 12","poste": "Gestionnaire Entrées et sorties locataires", "type": "poste"},
+                    },
+                    "edges": [
+                        ("dir_c", "asst"),
+                        ("dir_c", "dev_com"),
+                        ("dir_c", "loc"),
+                        ("dir_c", "entrees_sort"),
+                        ("dev_com", "dir_dev"),
+                        ("dir_dev", "resp_com_dev"),
+                        ("resp_com_dev", "cons_com_dev"),
+                        ("dir_dev", "dev_com2"),
+                        ("dir_dev", "asst_spe"),
+                        ("loc", "resp_com_loc1"),
+                        ("resp_com_loc1", "cons_loc"),
+                        ("loc", "svc_social"),
+                        ("svc_social", "resp_social"),
+                        ("resp_social", "cons_social"),
+                        ("entrees_sort", "resp_es"),
+                        ("entrees_sort", "gest_es"),
+                    ],
+                },
+
+                "📞 Centre Relation Client": {
+                    "subtitle": "Vers un Centre de Relation Clients",
+                    "nodes": {
+                        "resp_rc":      {"label": "Responsable\nCentre Relation Clients",  "poste": "Responsable Centre Relation Clients","type": "top"},
+                        "chef_proj":    {"label": "Chef(fe) de Projet\nService Relation Clients","poste": "Chef(fe) de projet Service Relation Clients","type": "poste"},
+                        "pole_dig":     {"label": "Pôle Digital\n& Commercial",             "poste": None, "type": "group"},
+                        "pole_adm":     {"label": "Pôle Administratif",                     "poste": None, "type": "group"},
+                        "pole_tech":    {"label": "Pôle Technique SAV",                     "poste": None, "type": "group"},
+                        "mgr_dig":      {"label": "Manager CRC\n— Digital & Commercial",    "poste": "Manager CRC",                       "type": "poste"},
+                        "mgr_adm":      {"label": "Manager CRC\n— Administratif",           "poste": "Manager CRC",                       "type": "poste"},
+                        "mgr_tech":     {"label": "Manager CRC\n— Technique SAV",           "poste": "Manager CRC",                       "type": "poste"},
+                        "cons_dig":     {"label": "Conseiller(e)s Clientèle × 10",          "poste": "Conseiller(e) Clientèle",            "type": "poste"},
+                        "cons_adm":     {"label": "Conseiller(e)s Clientèle × 10",          "poste": "Conseiller(e) Clientèle",            "type": "poste"},
+                        "cons_tech":    {"label": "Conseiller(e)s Clientèle × 4+2",         "poste": "Conseiller(e) Clientèle",            "type": "poste"},
+                        "ch_exp":       {"label": "Chargé(e) de l'Expérience Client",       "poste": "Chargé(e) de l'Expérience Client",   "type": "poste"},
+                    },
+                    "edges": [
+                        ("resp_rc", "chef_proj"),
+                        ("resp_rc", "pole_dig"),
+                        ("resp_rc", "pole_adm"),
+                        ("resp_rc", "pole_tech"),
+                        ("resp_rc", "ch_exp"),
+                        ("pole_dig", "mgr_dig"),
+                        ("mgr_dig", "cons_dig"),
+                        ("pole_adm", "mgr_adm"),
+                        ("mgr_adm", "cons_adm"),
+                        ("pole_tech", "mgr_tech"),
+                        ("mgr_tech", "cons_tech"),
+                    ],
+                },
+
+                "⚙️ Direction Opérations Clients": {
+                    "subtitle": "La nouvelle Direction Opérations Clients",
+                    "nodes": {
+                        "dir_oc":       {"label": "Directeur(ice)\nOpérations Clients",    "poste": "Directeur(ice) des Opérations Clients","type": "top"},
+                        "asst":         {"label": "Assistant(e) de Direction",              "poste": "Assistant(e) de Direction",          "type": "poste"},
+                        "pole_bp":      {"label": "Pôle Base Patrimoine\net Quittancement", "poste": None, "type": "group"},
+                        "pole_cl":      {"label": "Pôle Charges Locatives",                 "poste": None, "type": "group"},
+                        "pole_rec":     {"label": "Pôle Recouvrement\net Action Sociale",   "poste": None, "type": "group"},
+                        "pole_ai":      {"label": "Pôle Affaires Immobilières",             "poste": None, "type": "group"},
+                        "resp_bp":      {"label": "Responsable Pôle Base\nPatrimoine et Quittancement","poste": "Responsable Pôle Base Patrimoine et Quittancement","type": "poste"},
+                        "resp_adj_bp":  {"label": "Responsable Adjoint(e)\nPôle Base Patrimoine","poste": "Responsable Adjoint(e) Pôle Base Patrimoine et Quittancement","type": "poste"},
+                        "chef_gl":      {"label": "Chef(fe) de projet GL",                  "poste": "Chef(fe) de projet GL",              "type": "poste"},
+                        "gest_bp":      {"label": "Gestionnaires Base\nPatrimoine × 3",     "poste": "Gestionnaire Base Patrimoine et Quittancement","type": "poste"},
+                        "ch_fact":      {"label": "Chargé(e) de Facturation",               "poste": "Chargé(e) de Facturation",           "type": "poste"},
+                        "resp_cl":      {"label": "Responsable Pôle\nCharges Locatives",    "poste": "Responsable Pôle Charges Locatives", "type": "poste"},
+                        "resp_eq_cl":   {"label": "Responsable d'Équipe\nCharges Locatives × 2","poste": "Responsable d'Equipe Charges Locatives","type": "poste"},
+                        "gest_cl":      {"label": "Gestionnaires de\nCharges Locatives",    "poste": "Gestionnaire de Charges Locatives",  "type": "poste"},
+                        "expert_cl":    {"label": "Expert(e)s Charges × 2",                 "poste": "Expert(e) Charges",                  "type": "poste"},
+                        "resp_rec":     {"label": "Responsable Pôle\nRecouvrement et Action Sociale","poste": "Responsable Pôle Recouvrement et Action Sociale","type": "poste"},
+                        "resp_eq_rec":  {"label": "Responsable d'Équipe\nRecouvrement × 2","poste": "Responsable d'Equipe Recouvrement et Action Sociale","type": "poste"},
+                        "ch_rec":       {"label": "Chargé(e)s Recouvrement\nAmiable × 6",  "poste": "Chargé(e) de Recouvrement Amiable",  "type": "poste"},
+                        "gest_cont":    {"label": "Gestionnaires Recouvrement\nContentieux × 8","poste": "Gestionnaire Recouvrement Contentieux","type": "poste"},
+                        "cons_social":  {"label": "Conseiller(e)s Social(e) × 4",           "poste": "Conseiller(e) Social(e)",            "type": "poste"},
+                        "resp_ai":      {"label": "Responsable Pôle\nAffaires Immobilières","poste": "Responsable Pôle Affaires Immobilières","type": "poste"},
+                        "ch_ai":        {"label": "Chargé(e)s d'Affaires\nImmobilières × 5","poste": "Chargé(e) d'Affaires Immobilières",  "type": "poste"},
+                        "ch_bail":      {"label": "Chargé(e)s Renouvellement\ndes Baux × 2","poste": "Chargé(e) de mission Renouvellement des Baux","type": "poste"},
+                    },
+                    "edges": [
+                        ("dir_oc", "asst"),
+                        ("dir_oc", "pole_bp"),
+                        ("dir_oc", "pole_cl"),
+                        ("dir_oc", "pole_rec"),
+                        ("dir_oc", "pole_ai"),
+                        ("pole_bp", "resp_bp"),
+                        ("resp_bp", "resp_adj_bp"),
+                        ("resp_bp", "chef_gl"),
+                        ("resp_adj_bp", "gest_bp"),
+                        ("resp_adj_bp", "ch_fact"),
+                        ("pole_cl", "resp_cl"),
+                        ("resp_cl", "resp_eq_cl"),
+                        ("resp_eq_cl", "gest_cl"),
+                        ("resp_cl", "expert_cl"),
+                        ("pole_rec", "resp_rec"),
+                        ("resp_rec", "resp_eq_rec"),
+                        ("resp_eq_rec", "ch_rec"),
+                        ("resp_eq_rec", "gest_cont"),
+                        ("resp_eq_rec", "cons_social"),
+                        ("pole_ai", "resp_ai"),
+                        ("resp_ai", "ch_ai"),
+                        ("resp_ai", "ch_bail"),
+                    ],
+                },
+
+                "🏢 Pôle Professionnel": {
+                    "subtitle": "Le nouveau Pôle Professionnel",
+                    "nodes": {
+                        "adj_perf":     {"label": "Adjoint(e) au/à la\nDirecteur(ice) Performance Immobilière\net Engagements Clients", "poste": None, "type": "top"},
+                        "pole_pro":     {"label": "Pôle Professionnel",                    "poste": None, "type": "group"},
+                        "ch_res":       {"label": "Chargé(e) d'Affaires\nRésidences Gérées","poste": "Chargé(e) d'Affaires Résidences Gérées","type": "poste"},
+                        "ch_com":       {"label": "Chargé(e)s d'Affaires\nCommerces et Professionnels","poste": "Chargé(e) d'Affaires Commerces et Professionnels","type": "poste"},
+                    },
+                    "edges": [
+                        ("adj_perf", "pole_pro"),
+                        ("pole_pro", "ch_res"),
+                        ("pole_pro", "ch_com"),
+                    ],
+                },
+
+                "🗺️ Direction Exploitation & Territoire": {
+                    "subtitle": "La nouvelle Direction de l'Exploitation et du Territoire",
+                    "nodes": {
+                        "dir_det":      {"label": "Directeur(ice)\nExploitation et Territoire","poste": "Directeur(ice) Exploitation et Territoire","type": "top"},
+                        "asst_det":     {"label": "Assistant(e) de Direction DET",         "poste": "Assistant(e) de Direction DET",      "type": "poste"},
+                        "coord_mah":    {"label": "Coordinateur(ice) MAH",                 "poste": "Coordinateur(ice) MAH",              "type": "poste"},
+                        "coord_ter":    {"label": "Coordinateur(ice) Territorial",          "poste": "Coordinateur(ice) Territorial",      "type": "poste"},
+                        "pt_z93":       {"label": "Pôle Territorial\nZone 93",             "poste": None, "type": "group"},
+                        "pt_z60":       {"label": "Pôle Territorial\nZones 60-78-95",      "poste": None, "type": "group"},
+                        "pt_z77":       {"label": "Pôle Territorial\nZones 77-91-94",      "poste": None, "type": "group"},
+                        "pt_z75":       {"label": "Pôle Territorial\nZones 75-92",         "poste": None, "type": "group"},
+                        "pole_tech_ter":{"label": "Pôle Technique\nTerritorial",           "poste": None, "type": "group"},
+                        "dir_ter_z93":  {"label": "Directeur(ice)\nPôle Territorial — Zone 93","poste": "Directeur(ice) Pôle Territorial","type": "poste"},
+                        "dir_ter_z60":  {"label": "Directeur(ice)\nPôle Territorial — Zones 60-78","poste": "Directeur(ice) Pôle Territorial","type": "poste"},
+                        "dir_ter_z77":  {"label": "Directeur(ice)\nPôle Territorial — Zones 77-91","poste": "Directeur(ice) Pôle Territorial","type": "poste"},
+                        "dir_ter_z75":  {"label": "Directeur(ice)\nPôle Territorial — Zones 75-92","poste": "Directeur(ice) Pôle Territorial","type": "poste"},
+                        "asst_gt":      {"label": "Assistant(e) de Gestion\nTerritorial × 5","poste": "Assistant(e) de Gestion Territorial","type": "poste"},
+                        "resp_ai":      {"label": "Responsable d'Actifs\nImmobiliers × 24","poste": "Responsable d'Actifs Immobiliers",   "type": "poste"},
+                        "resp_em":      {"label": "Responsable Exploitation\net Maintenance × 6-12","poste": "Responsable Exploitation et Maintenance","type": "poste"},
+                        "resp_ptt":     {"label": "Responsable Pôle\nTechnique Territorial","poste": "Responsable Pôle Technique Territorial","type": "poste"},
+                        "ch_miss_exp":  {"label": "Chargé(e)s Mission\nExploitation × 3",  "poste": "Chargé(e) de mission Exploitation et Services","type": "poste"},
+                        "ch_miss_sec":  {"label": "Chargé(e)s Mission\nSécurité × 2",     "poste": "Chargé(e) de mission Sécurité / Sûreté","type": "poste"},
+                        "ctt":          {"label": "Cadres Techniques\nTerritoriaux × 4",   "poste": "Cadre Technique Territorial",        "type": "poste"},
+                    },
+                    "edges": [
+                        ("dir_det", "asst_det"),
+                        ("dir_det", "coord_mah"),
+                        ("dir_det", "coord_ter"),
+                        ("dir_det", "pt_z93"),
+                        ("dir_det", "pt_z60"),
+                        ("dir_det", "pt_z77"),
+                        ("dir_det", "pt_z75"),
+                        ("dir_det", "pole_tech_ter"),
+                        ("pt_z93", "dir_ter_z93"),
+                        ("pt_z60", "dir_ter_z60"),
+                        ("pt_z77", "dir_ter_z77"),
+                        ("pt_z75", "dir_ter_z75"),
+                        ("dir_ter_z93", "asst_gt"),
+                        ("dir_ter_z93", "resp_ai"),
+                        ("dir_ter_z93", "resp_em"),
+                        ("pole_tech_ter", "resp_ptt"),
+                        ("resp_ptt", "ch_miss_exp"),
+                        ("resp_ptt", "ch_miss_sec"),
+                        ("resp_ptt", "ctt"),
+                    ],
+                },
+
+                "🔧 Direction Technique du Patrimoine Immobilier": {
+                    "subtitle": "La nouvelle Direction Technique du Patrimoine Immobilier (DTPI)",
+                    "nodes": {
+                        "dir_dtpi":     {"label": "Directeur(ice)\nTechnique du Patrimoine Immobilier","poste": "Directeur(ice) Technique du Patrimoine Immobilier","type": "top"},
+                        "pole_cnt":     {"label": "Pôle Contrats",                         "poste": None, "type": "group"},
+                        "pole_reh":     {"label": "Pôle Réhabilitation",                   "poste": None, "type": "group"},
+                        "svc_strat":    {"label": "Service Stratégie\nPatrimoniale et Programmation","poste": None, "type": "group"},
+                        "dir_op_cnt":   {"label": "Directeur(ice)\nOpérationnel(le) Contrats","poste": "Directeur(ice) Opérationnel(le) Contrats","type": "poste"},
+                        "gest_fin":     {"label": "Gestionnaire Financier(e)\nMarchés et Contrats","poste": "Gestionnaire Financier(e) Marchés et Contrats","type": "poste"},
+                        "svc_equip":    {"label": "Service Équipements\nTechniques",        "poste": None, "type": "group"},
+                        "svc_ctr_svc":  {"label": "Service Contrats\nde Service",           "poste": None, "type": "group"},
+                        "resp_equip":   {"label": "Responsable\nÉquipements Techniques",   "poste": "Responsable Equipements Techniques","type": "poste"},
+                        "ch_equip":     {"label": "Chargé(e)s Mission\nÉquipements × 5",   "poste": "Chargé(e) de mission Equipements Techniques","type": "poste"},
+                        "asst_equip":   {"label": "Assistant(e) Technique\n— Équipements × 2","poste": "Assistant(e) Technique – Equipements Techniques","type": "poste"},
+                        "resp_ctr":     {"label": "Responsable\nContrats Services",         "poste": "Responsable Contrats Services",      "type": "poste"},
+                        "ch_ctr":       {"label": "Chargé(e)s Mission\nContrats Services × 3","poste": "Chargé(e) de mission Contrats de Services","type": "poste"},
+                        "asst_ctr":     {"label": "Assistant(e) Technique\n— Contrats",    "poste": "Assistant(e) Technique – Contrats",  "type": "poste"},
+                        "dir_op_reh":   {"label": "Directeur(ice)\nOpérationnel(le) Réhabilitation","poste": "Directeur(ice) Opérationnel(le) Réhabilitation","type": "poste"},
+                        "ch_acc_soc":   {"label": "Chargé(e) Mission\nAccompagnement Social Chantiers","poste": "Chargé(e) de mission Accompagnement Social des Chantiers","type": "poste"},
+                        "chef_proj_val":{"label": "Chef(fe) de Projet\nValorisation",      "poste": "Chef(fe) de projet Valorisation",    "type": "poste"},
+                        "svc_ops":      {"label": "Service Opérations",                    "poste": None, "type": "group"},
+                        "svc_proj":     {"label": "Service Projets",                       "poste": None, "type": "group"},
+                        "resp_ops":     {"label": "Responsable Opérations\nPatrimoine",    "poste": "Responsable Opérations Patrimoine",  "type": "poste"},
+                        "ch_ops":       {"label": "Chargé(e)s d'Opérations × 6",           "poste": "Chargé(e) d'Opérations",             "type": "poste"},
+                        "asst_reh":     {"label": "Assistant(e)s Technique\n— Réhabilitation × 4","poste": "Assistant(e) Technique – Réhabilitation","type": "poste"},
+                        "dir_proj":     {"label": "Directeur(ice) de Projets",             "poste": "Directeur(ice) de Projets",          "type": "poste"},
+                        "chef_proj_imm":{"label": "Chef(fe)s de Projets\nImmobiliers × 6", "poste": "Chef(fe) de Projets Immobiliers",    "type": "poste"},
+                        "resp_strat":   {"label": "Responsable Stratégie\nPatrimoniale et Programmation","poste": "Responsable Stratégie Patrimoniale et Programmation","type": "poste"},
+                        "chef_prog":    {"label": "Chef(fe)s Projet\nProgrammation et CSP × 2","poste": "Chef(fe) de projet Programmation et CSP","type": "poste"},
+                        "chef_outil":   {"label": "Chef(fe) Projet Métier\nOutils Base Patrimoine","poste": "Chef(fe) de projet Métier Outils Base Patrimoine","type": "poste"},
+                        "analyte_data": {"label": "Analystes DATA × 2",                    "poste": "Analyste DATA",                      "type": "poste"},
+                        "asst_tech":    {"label": "Assistant(e) Technique",                "poste": "Assistant(e) Technique",             "type": "poste"},
+                    },
+                    "edges": [
+                        ("dir_dtpi", "pole_cnt"),
+                        ("dir_dtpi", "pole_reh"),
+                        ("dir_dtpi", "svc_strat"),
+                        ("pole_cnt", "dir_op_cnt"),
+                        ("dir_op_cnt", "gest_fin"),
+                        ("dir_op_cnt", "svc_equip"),
+                        ("dir_op_cnt", "svc_ctr_svc"),
+                        ("svc_equip", "resp_equip"),
+                        ("resp_equip", "ch_equip"),
+                        ("resp_equip", "asst_equip"),
+                        ("svc_ctr_svc", "resp_ctr"),
+                        ("resp_ctr", "ch_ctr"),
+                        ("resp_ctr", "asst_ctr"),
+                        ("pole_reh", "dir_op_reh"),
+                        ("dir_op_reh", "ch_acc_soc"),
+                        ("dir_op_reh", "chef_proj_val"),
+                        ("dir_op_reh", "svc_ops"),
+                        ("dir_op_reh", "svc_proj"),
+                        ("svc_ops", "resp_ops"),
+                        ("resp_ops", "ch_ops"),
+                        ("resp_ops", "asst_reh"),
+                        ("svc_proj", "dir_proj"),
+                        ("dir_proj", "chef_proj_imm"),
+                        ("svc_strat", "resp_strat"),
+                        ("resp_strat", "chef_prog"),
+                        ("resp_strat", "chef_outil"),
+                        ("resp_strat", "analyte_data"),
+                        ("resp_strat", "asst_tech"),
+                    ],
+                },
+            }  # fin _ORGS
+
+            # ── Lookup postes_df ───────────────────────────────────────────────
+            def _get_poste_info(poste_key, postes_df):
+                """Retourne (mobile: bool, total: int, vacants: int)"""
+                if poste_key is None or postes_df.empty:
+                    return False, 0, 0
+                pk = poste_key.lower().strip()
+                for _, row in postes_df.iterrows():
+                    p = str(row.get("Poste", "")).lower().strip()
+                    if p == pk or pk in p or p in pk:
+                        mobile = str(row.get("Mobilité interne", "")).lower().strip() == "oui"
+                        total  = int(row.get("Nombre total de postes", 0) or 0)
+                        vac_raw = row.get("Nombre de postes vacants", None)
+                        vacants = int(vac_raw) if vac_raw not in (None, "", float("nan")) else 0
+                        return mobile, total, vacants
+                return False, 0, 0
+
+            # ── Candidats depuis collaborateurs_df ────────────────────────────
+            def _build_candidats_map(df):
+                res = {}
+                col = "Vœux Retenu"
+                if col not in df.columns:
+                    return res
+                sub = df[df[col].notna() & (df[col] != "")]
+                for _, row in sub.iterrows():
+                    poste = str(row[col]).strip()
+                    nom    = str(row.get("NOM", "")).strip()
+                    prenom = str(row.get("Prénom", "")).strip()
+                    affiche = f"{prenom} {nom}".strip() if (prenom or nom) else "?"
+                    res.setdefault(poste, [])
+                    if affiche not in res[poste]:
+                        res[poste].append(affiche)
+                return res
+
+            def _find_candidats(candidats_map, poste_key):
+                if not poste_key:
+                    return []
+                pk = poste_key.lower().strip()
+                for k, v in candidats_map.items():
+                    if k.lower().strip() == pk or pk in k.lower() or k.lower() in pk:
+                        return v
+                return []
+
+            # ── Génération du graphe DOT ──────────────────────────────────────
+            def _build_dot(direction_key, org, candidats_map, postes_df, c):
+                dot = _gv.Digraph(
+                    comment=direction_key,
+                    graph_attr={
+                        "rankdir":  "TB",
+                        "bgcolor":  "white",
+                        "fontname": "Helvetica",
+                        "splines":  "ortho",
+                        "nodesep":  "0.5",
+                        "ranksep":  "0.7",
+                        "pad":      "0.4",
+                    },
+                    node_attr={
+                        "fontname": "Helvetica",
+                        "fontsize": "11",
+                        "margin":   "0.18,0.12",
+                        "penwidth": "1.5",
+                    },
+                    edge_attr={
+                        "color":     "#666666",
+                        "arrowsize": "0.7",
+                        "penwidth":  "1.2",
+                    },
+                )
+
+                for node_id, nd in org["nodes"].items():
+                    label     = nd["label"]
+                    poste_key = nd.get("poste")
+                    ntype     = nd.get("type", "poste")
+
+                    if ntype == "top":
+                        # Nœud directeur : bleu clair comme dans le PDF
+                        dot.node(node_id, label=label,
+                                 shape="box", style="filled,rounded",
+                                 fillcolor=c["lightblue"], color=c["teal"],
+                                 fontcolor=c["darktext"], fontsize="12", penwidth="2")
+
+                    elif ntype == "group":
+                        # Pôle / département : gris foncé, coins droits
+                        dot.node(node_id, label=label,
+                                 shape="box", style="filled",
+                                 fillcolor=c["darkgray"], color="#888888",
+                                 fontcolor=c["darktext"], fontsize="11")
+
+                    else:
+                        # Poste opérationnel
+                        mobile, total, vacants = _get_poste_info(poste_key, postes_df)
+                        candidats = _find_candidats(candidats_map, poste_key)
+
+                        # Construction du label enrichi
+                        suffix_parts = []
+                        if total > 0:
+                            suffix_parts.append(f"{total} poste{'s' if total>1 else ''}")
+                        if vacants > 0:
+                            suffix_parts.append(f"{vacants} vacant{'s' if vacants>1 else ''}")
+                        suffix = " · ".join(suffix_parts)
+
+                        if candidats:
+                            # Poste pourvu : vert keppel
+                            noms_str = "\\n".join(f"✓ {n}" for n in candidats[:3])
+                            if len(candidats) > 3:
+                                noms_str += f"\\n+ {len(candidats)-3} autre(s)"
+                            full_label = f"{label}\\n{noms_str}"
+                            if suffix:
+                                full_label += f"\\n[{suffix}]"
+                            dot.node(node_id, label=full_label,
+                                     shape="box", style="filled,rounded",
+                                     fillcolor=c["keppel"], color=c["brunswick"],
+                                     fontcolor="white", penwidth="2")
+                        elif mobile and vacants > 0:
+                            # Poste mobile vacant : rose/pink avec bordure
+                            full_label = label
+                            if suffix:
+                                full_label += f"\\n[{suffix}]"
+                            full_label += "\\n⬜ Vacant"
+                            dot.node(node_id, label=full_label,
+                                     shape="box", style="filled,rounded",
+                                     fillcolor="white", color=c["pink"],
+                                     fontcolor=c["amarante"], penwidth="2.5")
+                        elif mobile:
+                            # Mobile mais pas de vacants déclarés
+                            full_label = label
+                            if suffix:
+                                full_label += f"\\n[{suffix}]"
+                            dot.node(node_id, label=full_label,
+                                     shape="box", style="filled,rounded",
+                                     fillcolor=c["gray"], color=c["teal"],
+                                     fontcolor=c["darktext"], penwidth="1.5")
+                        else:
+                            # Non mobile : gris discret
+                            full_label = label
+                            if suffix:
+                                full_label += f"\\n[{suffix}]"
+                            dot.node(node_id, label=full_label,
+                                     shape="box", style="filled,rounded",
+                                     fillcolor=c["gray"], color="#AAAAAA",
+                                     fontcolor="#555555")
+
+                for (src, dst) in org["edges"]:
+                    dot.edge(src, dst)
+
+                return dot
+
+            # ── Interface Streamlit ───────────────────────────────────────────
+            st.markdown(f"""
+            <div style='background:linear-gradient(135deg,{_C["brunswick"]},{_C["teal"]});
+                        padding:16px 22px;border-radius:12px;margin-bottom:18px;'>
+                <h3 style='color:white;margin:0;font-size:1.25rem;'>
+                    🏛️ Organigrammes CAP 2025 — Dynamiques & Nominatifs
+                </h3>
+                <p style='color:rgba(255,255,255,.88);margin:5px 0 0 0;font-size:.9rem;'>
+                    Organigrammes générés depuis vos données Google Sheets · 
+                    Colorisation automatique selon les <strong>Vœux Retenus</strong>
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Légende
+            st.markdown(f"""
+            <div style='display:flex;gap:12px;flex-wrap:wrap;margin:0 0 16px 0;font-size:.83rem;'>
+                <span style='background:{_C["lightblue"]};color:{_C["darktext"]};
+                      padding:3px 12px;border-radius:4px;border:2px solid {_C["teal"]};'>
+                    🔵 Directeur(ice)
+                </span>
+                <span style='background:{_C["keppel"]};color:white;
+                      padding:3px 12px;border-radius:4px;'>
+                    ✅ Poste pourvu (Vœu Retenu)
+                </span>
+                <span style='background:white;color:{_C["amarante"]};
+                      padding:3px 12px;border-radius:4px;border:2px solid {_C["pink"]};'>
+                    ⬜ Poste vacant (mobilité ouverte)
+                </span>
+                <span style='background:{_C["gray"]};color:#555;
+                      padding:3px 12px;border-radius:4px;border:1px solid #ccc;'>
+                    ◻ Poste non-mobile ou sans vacance
+                </span>
+                <span style='background:{_C["darkgray"]};color:{_C["darktext"]};
+                      padding:3px 12px;border-radius:4px;'>
+                    ⬛ Groupe / Pôle
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Calcul des candidats
+            _candidats_map = _build_candidats_map(collaborateurs_df)
+            _nb_retenus = sum(len(v) for v in _candidats_map.values())
+
+            # KPIs globaux
+            _total_postes_mob = int(postes_df[postes_df["Mobilité interne"].str.lower() == "oui"]["Nombre total de postes"].sum()) if not postes_df.empty else 0
+            _total_vacants    = postes_df["Nombre de postes vacants"].fillna(0).astype(float).sum() if not postes_df.empty else 0
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric("👥 Candidats positionnés (Vœux Retenu)", _nb_retenus)
+            m2.metric("🎯 Postes ouverts à la mobilité", _total_postes_mob)
+            m3.metric("⬜ Postes déclarés vacants", int(_total_vacants))
+
+            st.divider()
+
+            # Sélecteur de direction
+            _dir_choices = list(_ORGS.keys())
+            _dir_sel = st.selectbox("📂 Choisir une Direction / Entité",
+                                    _dir_choices,
+                                    key="org_gv_dir")
+
+            _org_data = _ORGS[_dir_sel]
+
+            st.markdown(f"""
+            <p style='color:{_C["brunswick"]};font-size:.95rem;font-style:italic;margin:4px 0 12px 0;'>
+                {_org_data['subtitle']}
+            </p>""", unsafe_allow_html=True)
+
+            # Génération et affichage
+            with st.spinner("Génération de l'organigramme…"):
+                _dot = _build_dot(_dir_sel, _org_data, _candidats_map, postes_df, _C)
+                st.graphviz_chart(_dot.source, use_container_width=True)
+
+            # Tableau récapitulatif
+            st.divider()
+            st.markdown("#### 📋 Récapitulatif des postes")
+            _recap_rows = []
+            for nid, nd in _org_data["nodes"].items():
+                if nd.get("type") in ("top", "poste") and nd.get("poste"):
+                    pk = nd["poste"]
+                    mobile, total, vacants = _get_poste_info(pk, postes_df)
+                    cands = _find_candidats(_candidats_map, pk)
+                    statut = "✅ Pourvu" if cands else ("⬜ Vacant" if (mobile and vacants>0) else "— Non-mobile")
+                    _recap_rows.append({
+                        "Poste": nd["label"].replace("\\n", " ").replace("\n", " "),
+                        "Mobilité": "Oui" if mobile else "Non",
+                        "Total postes": total if total > 0 else "—",
+                        "Vacants": vacants if vacants > 0 else "—",
+                        "Candidat(s) retenu(s)": ", ".join(cands) if cands else "—",
+                        "Statut": statut,
+                    })
+            if _recap_rows:
+                _df_recap = pd.DataFrame(_recap_rows)
+                st.dataframe(
+                    _df_recap,
+                    hide_index=True,
+                    column_config={
+                        "Poste": st.column_config.TextColumn("Poste", width="large"),
+                        "Candidat(s) retenu(s)": st.column_config.TextColumn("Candidat(s)", width="medium"),
+                        "Statut": st.column_config.TextColumn("Statut", width="small"),
+                    },
+                    use_container_width=True,
+                )
+
+            # Export PDF
+            st.divider()
+            st.markdown("#### 📥 Export PDF")
+            _col_pdf1, _col_pdf2 = st.columns([2, 1])
+            with _col_pdf1:
+                _dir_pdf = st.selectbox("Direction à exporter",
+                                        ["Toutes les directions"] + _dir_choices,
+                                        key="org_gv_export_dir")
+            with _col_pdf2:
+                st.write("")
+                st.write("")
+                if st.button("🖨️ Générer PDF", type="primary", key="org_gv_pdf_btn",
+                             use_container_width=True):
+                    with st.spinner("Génération en cours…"):
+                        try:
+                            import io as _io
+                            from PyPDF2 import PdfMerger as _PdfMerger
+                            _merger = _PdfMerger()
+                            _dirs_to_export = (
+                                _dir_choices if _dir_pdf == "Toutes les directions"
+                                else [_dir_pdf]
+                            )
+                            _pdf_bytes_list = []
+                            for _dk in _dirs_to_export:
+                                _d = _build_dot(_dk, _ORGS[_dk], _candidats_map, postes_df, _C)
+                                _pdf_bytes_list.append(_d.pipe(format="pdf"))
+                            # Merge simple si plusieurs pages
+                            if len(_pdf_bytes_list) == 1:
+                                _final_pdf = _pdf_bytes_list[0]
+                            else:
+                                _merger2 = _PdfMerger()
+                                for _pb in _pdf_bytes_list:
+                                    _merger2.append(_io.BytesIO(_pb))
+                                _out_buf = _io.BytesIO()
+                                _merger2.write(_out_buf)
+                                _final_pdf = _out_buf.getvalue()
+
+                            st.success("✅ PDF prêt !")
+                            st.download_button(
+                                "📥 Télécharger l'organigramme PDF",
+                                data=_final_pdf,
+                                file_name=f"Organigrammes_CAP25_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                                mime="application/pdf",
+                                type="primary",
+                                use_container_width=True,
+                                key="org_gv_dl_btn",
+                            )
+                        except ImportError:
+                            # Fallback sans merge : exporter juste la direction sélectionnée
+                            try:
+                                _dk2 = _dir_pdf if _dir_pdf != "Toutes les directions" else _dir_choices[0]
+                                _d2 = _build_dot(_dk2, _ORGS[_dk2], _candidats_map, postes_df, _C)
+                                _final_pdf2 = _d2.pipe(format="pdf")
+                                st.success("✅ PDF prêt (direction unique) !")
+                                st.download_button(
+                                    "📥 Télécharger l'organigramme PDF",
+                                    data=_final_pdf2,
+                                    file_name=f"Organigramme_{_dk2[:20]}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                                    mime="application/pdf",
+                                    type="primary",
+                                    use_container_width=True,
+                                    key="org_gv_dl_btn2",
+                                )
+                            except Exception as _e3:
+                                st.error(f"Erreur export : {_e3}")
+                        except Exception as _e2:
+                            st.error(f"Erreur génération PDF : {_e2}")
+
+
 
 
 # ========================================
@@ -4500,6 +5174,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
