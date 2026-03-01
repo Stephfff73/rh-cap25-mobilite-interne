@@ -3114,12 +3114,12 @@ elif page == "🏛️ Organigramme Cap25":
     
     # Onglets pour différentes vues
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "🚀 Organigrammes dynamiques",
+        "📌 Organigrammes Annotés",
         "📊 Vue d'ensemble",
         "🔄 Flux de mobilité",
         "📈 Comparaison détaillée",
-        "👥 Mouvements individuels",
-        "📌 Organigrammes Annotés",
-        "🚀 Organigrammes dynamiques"
+        "👥 Mouvements individuels"
     ])
     
     # ========================================
@@ -3570,7 +3570,7 @@ elif page == "🏛️ Organigramme Cap25":
     # ========================================
     # TAB 5 : ORGANIGRAMMES ANNOTÉS
     # ========================================
-    with tab5:
+    with tab2:
         if not _HAS_PDF_ANNOTE:
             st.error("⚠️ Les librairies `pypdfium2` et `Pillow` sont requises. Ajoutez-les à requirements.txt.")
         else:
@@ -3862,9 +3862,9 @@ elif page == "🏛️ Organigramme Cap25":
                             hide_index=True, use_container_width=True
                         )
     # ========================================
-    # TAB 6 : ORGANIGRAMMES DYNAMIQUES GRAPHVIZ
+    # TAB 6 ---> 1 : ORGANIGRAMMES DYNAMIQUES GRAPHVIZ
     # ========================================
-    with tab6:
+    with tab1:
         try:
             import graphviz as _gv
             _HAS_GV = True
@@ -4263,103 +4263,162 @@ elif page == "🏛️ Organigramme Cap25":
                 return []
 
             # ── Génération du graphe DOT ──────────────────────────────────────
+            # ── Helpers HTML label ────────────────────────────────────────────
+            def _esc(s):
+                """Escape HTML special chars pour labels Graphviz."""
+                return (str(s)
+                        .replace("&", "&amp;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;")
+                        .replace('"', "&quot;")
+                        .replace("\n", "<BR/>")
+                        .replace("\\n", "<BR/>"))
+
+            def _html_top(title, c):
+                """Nœud Directeur(ice) — fond bleu clair, bandeau teal."""
+                t = _esc(title)
+                return (
+                    f'<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" '
+                    f'CELLPADDING="0" COLOR="{c["teal"]}" BGCOLOR="{c["teal"]}" STYLE="ROUNDED">'
+                    f'<TR><TD BGCOLOR="{c["teal"]}" WIDTH="220" ALIGN="CENTER" CELLPADDING="3">'
+                    f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="8"><B>{t}</B></FONT>'
+                    f'</TD></TR>'
+                    f'<TR><TD BGCOLOR="{c["lightblue"]}" ALIGN="CENTER" CELLPADDING="7">'
+                    f'<FONT COLOR="{c["darktext"]}" FACE="Helvetica" POINT-SIZE="11"><B>{t}</B></FONT>'
+                    f'</TD></TR>'
+                    f'</TABLE>>'
+                )
+
+            def _html_group(title, c):
+                """Nœud Pôle / Département — fond gris perle, coins droits."""
+                t = _esc(title)
+                return (
+                    f'<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" '
+                    f'CELLPADDING="8" COLOR="#AAAAAA" BGCOLOR="#DEDEDE">'
+                    f'<TR><TD WIDTH="200" ALIGN="CENTER">'
+                    f'<FONT COLOR="#444444" FACE="Helvetica-Bold" POINT-SIZE="10"><B>{t}</B></FONT>'
+                    f'</TD></TR>'
+                    f'</TABLE>>'
+                )
+
+            def _html_poste(title, candidats, mobile, total, vacants, c):
+                """Nœud poste opérationnel — rendu selon statut."""
+                t = _esc(title)
+                has_cands   = bool(candidats)
+                is_vacant   = mobile and vacants > 0 and not has_cands
+
+                # Couleurs selon statut
+                if has_cands:
+                    hdr_bg, hdr_fg, brd = c["keppel"], "white", c["brunswick"]
+                    cand_bg              = c["brunswick"]
+                elif is_vacant:
+                    hdr_bg, hdr_fg, brd = "#FFF0F5", c["amarante"], c["pink"]
+                    cand_bg              = c["pink"]
+                elif mobile:
+                    hdr_bg, hdr_fg, brd = c["gray"], c["teal"], c["teal"]
+                    cand_bg              = c["teal"]
+                else:
+                    hdr_bg, hdr_fg, brd = "#F0F0F0", "#666666", "#BBBBBB"
+                    cand_bg              = "#BBBBBB"
+
+                # Comptage postes
+                count_parts = []
+                if total > 0:
+                    count_parts.append(f"{total} poste{'s' if total > 1 else ''}")
+                if vacants > 0 and has_cands:
+                    count_parts.append(f"{vacants} vacant{'s' if vacants > 1 else ''}")
+                count_str = " · ".join(count_parts)
+
+                html = (
+                    f'<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" '
+                    f'CELLPADDING="0" COLOR="{brd}" BGCOLOR="{hdr_bg}" STYLE="ROUNDED">'
+                )
+                # Ligne titre
+                html += (
+                    f'<TR><TD BGCOLOR="{hdr_bg}" WIDTH="200" ALIGN="CENTER" CELLPADDING="8">'
+                    f'<FONT COLOR="{hdr_fg}" FACE="Helvetica" POINT-SIZE="10"><B>{t}</B></FONT>'
+                    f'</TD></TR>'
+                )
+                # Séparateur
+                html += f'<TR><TD BGCOLOR="{brd}" HEIGHT="1" CELLPADDING="0"></TD></TR>'
+
+                # Lignes candidats
+                if has_cands:
+                    for nom in candidats[:4]:
+                        n = _esc(nom)
+                        html += (
+                            f'<TR><TD BGCOLOR="{cand_bg}" ALIGN="CENTER" CELLPADDING="5">'
+                            f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="9">✓ {n}</FONT>'
+                            f'</TD></TR>'
+                        )
+                    if len(candidats) > 4:
+                        more = len(candidats) - 4
+                        html += (
+                            f'<TR><TD BGCOLOR="{cand_bg}" ALIGN="CENTER" CELLPADDING="4">'
+                            f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="8">'
+                            f'<I>+ {more} autre(s)</I></FONT></TD></TR>'
+                        )
+                elif is_vacant:
+                    html += (
+                        f'<TR><TD BGCOLOR="{c["pink"]}" ALIGN="CENTER" CELLPADDING="5">'
+                        f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="9">'
+                        f'<B>⬜ POSTE VACANT</B></FONT></TD></TR>'
+                    )
+
+                # Pied de nœud : comptage
+                if count_str:
+                    html += (
+                        f'<TR><TD BGCOLOR="#F8F8F8" ALIGN="CENTER" CELLPADDING="4">'
+                        f'<FONT COLOR="#888888" FACE="Helvetica" POINT-SIZE="8">'
+                        f'<I>[{_esc(count_str)}]</I></FONT></TD></TR>'
+                    )
+
+                html += '</TABLE>>'
+                return html
+
             def _build_dot(direction_key, org, candidats_map, postes_df, c):
                 dot = _gv.Digraph(
                     comment=direction_key,
                     graph_attr={
-                        "rankdir":  "TB",
-                        "bgcolor":  "white",
-                        "fontname": "Helvetica",
-                        "splines":  "ortho",
-                        "nodesep":  "0.5",
-                        "ranksep":  "0.7",
-                        "pad":      "0.4",
+                        "rankdir":   "TB",
+                        "bgcolor":   "white",
+                        "fontname":  "Helvetica",
+                        "splines":   "ortho",
+                        "nodesep":   "0.55",
+                        "ranksep":   "0.85",
+                        "pad":       "0.5",
+                        "dpi":       "120",
+                        "overlap":   "false",
                     },
                     node_attr={
-                        "fontname": "Helvetica",
-                        "fontsize": "11",
-                        "margin":   "0.18,0.12",
-                        "penwidth": "1.5",
+                        "shape":    "none",   # HTML labels gèrent leur propre forme
+                        "margin":   "0",
+                        "penwidth": "0",
                     },
                     edge_attr={
-                        "color":     "#666666",
-                        "arrowsize": "0.7",
-                        "penwidth":  "1.2",
+                        "color":     "#90A4AE",
+                        "arrowsize": "0.65",
+                        "penwidth":  "1.4",
+                        "arrowhead": "open",
                     },
                 )
 
                 for node_id, nd in org["nodes"].items():
-                    label     = nd["label"]
+                    title     = nd["label"]
                     poste_key = nd.get("poste")
                     ntype     = nd.get("type", "poste")
 
                     if ntype == "top":
-                        # Nœud directeur : bleu clair comme dans le PDF
-                        dot.node(node_id, label=label,
-                                 shape="box", style="filled,rounded",
-                                 fillcolor=c["lightblue"], color=c["teal"],
-                                 fontcolor=c["darktext"], fontsize="12", penwidth="2")
+                        dot.node(node_id, label=_html_top(title, c))
 
                     elif ntype == "group":
-                        # Pôle / département : gris foncé, coins droits
-                        dot.node(node_id, label=label,
-                                 shape="box", style="filled",
-                                 fillcolor=c["darkgray"], color="#888888",
-                                 fontcolor=c["darktext"], fontsize="11")
+                        dot.node(node_id, label=_html_group(title, c))
 
                     else:
-                        # Poste opérationnel
                         mobile, total, vacants = _get_poste_info(poste_key, postes_df)
                         candidats = _find_candidats(candidats_map, poste_key)
-
-                        # Construction du label enrichi
-                        suffix_parts = []
-                        if total > 0:
-                            suffix_parts.append(f"{total} poste{'s' if total>1 else ''}")
-                        if vacants > 0:
-                            suffix_parts.append(f"{vacants} vacant{'s' if vacants>1 else ''}")
-                        suffix = " · ".join(suffix_parts)
-
-                        if candidats:
-                            # Poste pourvu : vert keppel
-                            noms_str = "\\n".join(f"✓ {n}" for n in candidats[:3])
-                            if len(candidats) > 3:
-                                noms_str += f"\\n+ {len(candidats)-3} autre(s)"
-                            full_label = f"{label}\\n{noms_str}"
-                            if suffix:
-                                full_label += f"\\n[{suffix}]"
-                            dot.node(node_id, label=full_label,
-                                     shape="box", style="filled,rounded",
-                                     fillcolor=c["keppel"], color=c["brunswick"],
-                                     fontcolor="white", penwidth="2")
-                        elif mobile and vacants > 0:
-                            # Poste mobile vacant : rose/pink avec bordure
-                            full_label = label
-                            if suffix:
-                                full_label += f"\\n[{suffix}]"
-                            full_label += "\\n⬜ Vacant"
-                            dot.node(node_id, label=full_label,
-                                     shape="box", style="filled,rounded",
-                                     fillcolor="white", color=c["pink"],
-                                     fontcolor=c["amarante"], penwidth="2.5")
-                        elif mobile:
-                            # Mobile mais pas de vacants déclarés
-                            full_label = label
-                            if suffix:
-                                full_label += f"\\n[{suffix}]"
-                            dot.node(node_id, label=full_label,
-                                     shape="box", style="filled,rounded",
-                                     fillcolor=c["gray"], color=c["teal"],
-                                     fontcolor=c["darktext"], penwidth="1.5")
-                        else:
-                            # Non mobile : gris discret
-                            full_label = label
-                            if suffix:
-                                full_label += f"\\n[{suffix}]"
-                            dot.node(node_id, label=full_label,
-                                     shape="box", style="filled,rounded",
-                                     fillcolor=c["gray"], color="#AAAAAA",
-                                     fontcolor="#555555")
+                        dot.node(node_id,
+                                 label=_html_poste(title, candidats, mobile, total, vacants, c))
 
                 for (src, dst) in org["edges"]:
                     dot.edge(src, dst)
@@ -4471,73 +4530,119 @@ elif page == "🏛️ Organigramme Cap25":
                     use_container_width=True,
                 )
 
-            # Export PDF
+            # Export SVG / DOT source (sans dépendance binaire `dot`)
             st.divider()
-            st.markdown("#### 📥 Export PDF")
-            _col_pdf1, _col_pdf2 = st.columns([2, 1])
-            with _col_pdf1:
-                _dir_pdf = st.selectbox("Direction à exporter",
-                                        ["Toutes les directions"] + _dir_choices,
-                                        key="org_gv_export_dir")
-            with _col_pdf2:
+            st.markdown("#### 📥 Export")
+
+            with st.expander("ℹ️  **Note sur l'export PDF**", expanded=False):
+                st.markdown("""
+                L'export PDF natif nécessite que le binaire système **Graphviz** (`dot`)  
+                soit installé sur le serveur (ajoutez `graphviz` dans votre `packages.txt`).  
+                En attendant, deux alternatives sont disponibles ci-dessous :
+                - **Export SVG** → image vectorielle haute qualité, imprimable en PDF depuis le navigateur  
+                - **Export source DOT** → ouvrable dans Graphviz Desktop, draw.io, ou n'importe quel viewer Graphviz
+                """)
+
+            _col_exp1, _col_exp2, _col_exp3 = st.columns([2, 1, 1])
+            with _col_exp1:
+                _dir_pdf = st.selectbox(
+                    "Direction à exporter",
+                    ["Toutes les directions"] + _dir_choices,
+                    key="org_gv_export_dir",
+                )
+
+            _dirs_to_export = (
+                _dir_choices if _dir_pdf == "Toutes les directions" else [_dir_pdf]
+            )
+
+            # ── Bouton Export SVG ──────────────────────────────────────────────
+            with _col_exp2:
                 st.write("")
                 st.write("")
-                if st.button("🖨️ Générer PDF", type="primary", key="org_gv_pdf_btn",
-                             use_container_width=True):
-                    with st.spinner("Génération en cours…"):
+                if st.button("🖼️ Exporter SVG", type="primary",
+                             key="org_gv_svg_btn", use_container_width=True):
+                    with st.spinner("Génération SVG…"):
                         try:
-                            import io as _io
-                            from PyPDF2 import PdfMerger as _PdfMerger
-                            _merger = _PdfMerger()
-                            _dirs_to_export = (
-                                _dir_choices if _dir_pdf == "Toutes les directions"
-                                else [_dir_pdf]
-                            )
-                            _pdf_bytes_list = []
+                            import os as _os, subprocess as _sp, io as _io
+
+                            # Ajouter les chemins courants de graphviz au PATH
+                            _gv_paths = [
+                                "/usr/bin", "/usr/local/bin",
+                                "/opt/homebrew/bin",
+                                "/opt/local/bin",
+                                "/usr/share/graphviz/bin",
+                            ]
+                            _env = _os.environ.copy()
+                            _env["PATH"] = ":".join(_gv_paths) + ":" + _env.get("PATH", "")
+
+                            _svg_pages = []
                             for _dk in _dirs_to_export:
                                 _d = _build_dot(_dk, _ORGS[_dk], _candidats_map, postes_df, _C)
-                                _pdf_bytes_list.append(_d.pipe(format="pdf"))
-                            # Merge simple si plusieurs pages
-                            if len(_pdf_bytes_list) == 1:
-                                _final_pdf = _pdf_bytes_list[0]
-                            else:
-                                _merger2 = _PdfMerger()
-                                for _pb in _pdf_bytes_list:
-                                    _merger2.append(_io.BytesIO(_pb))
-                                _out_buf = _io.BytesIO()
-                                _merger2.write(_out_buf)
-                                _final_pdf = _out_buf.getvalue()
+                                # Essayer pipe SVG (nécessite le binaire dot)
+                                try:
+                                    _svg = _d.pipe(format="svg", engine="dot",
+                                                   env={"PATH": _env["PATH"]})
+                                    _svg_pages.append((_dk, _svg))
+                                except Exception:
+                                    # Fallback : stocker la source DOT
+                                    _svg_pages.append((_dk, None))
 
-                            st.success("✅ PDF prêt !")
+                            # Assembler un HTML multi-organigrammes
+                            _html_parts = [
+                                "<html><head><meta charset='utf-8'>"
+                                "<style>body{font-family:Helvetica,sans-serif;margin:24px;}"
+                                "h2{color:#00594E;}hr{border-color:#269A87;}</style></head><body>",
+                                f"<h1 style='color:#00594E'>Organigrammes CAP 2025</h1>",
+                                f"<p style='color:#666'>Généré le {datetime.now().strftime('%d/%m/%Y à %H:%M')}</p>",
+                            ]
+                            _has_svg = False
+                            for _dk, _svg in _svg_pages:
+                                _html_parts.append(f"<hr/><h2>{_dk}</h2>")
+                                if _svg:
+                                    _has_svg = True
+                                    _html_parts.append(_svg.decode("utf-8") if isinstance(_svg, bytes) else _svg)
+                                else:
+                                    # Fallback : afficher source DOT
+                                    _dot_src = _build_dot(_dk, _ORGS[_dk], _candidats_map, postes_df, _C).source
+                                    _html_parts.append(
+                                        f"<pre style='background:#f4f4f4;padding:12px;border-radius:6px;"
+                                        f"font-size:11px;overflow-x:auto'>{_dot_src}</pre>"
+                                    )
+                            _html_parts.append("</body></html>")
+                            _final_html = "\n".join(_html_parts).encode("utf-8")
+
+                            _label = "📄 Télécharger HTML (imprimable → PDF)" if _has_svg else "📄 Télécharger HTML (source DOT)"
+                            st.success("✅ Export prêt ! Ouvrez le fichier dans votre navigateur, puis Fichier → Imprimer → Enregistrer en PDF.")
                             st.download_button(
-                                "📥 Télécharger l'organigramme PDF",
-                                data=_final_pdf,
-                                file_name=f"Organigrammes_CAP25_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                                mime="application/pdf",
+                                _label,
+                                data=_final_html,
+                                file_name=f"Organigrammes_CAP25_{datetime.now().strftime('%Y%m%d_%H%M')}.html",
+                                mime="text/html",
                                 type="primary",
                                 use_container_width=True,
-                                key="org_gv_dl_btn",
+                                key="org_gv_html_dl",
                             )
-                        except ImportError:
-                            # Fallback sans merge : exporter juste la direction sélectionnée
-                            try:
-                                _dk2 = _dir_pdf if _dir_pdf != "Toutes les directions" else _dir_choices[0]
-                                _d2 = _build_dot(_dk2, _ORGS[_dk2], _candidats_map, postes_df, _C)
-                                _final_pdf2 = _d2.pipe(format="pdf")
-                                st.success("✅ PDF prêt (direction unique) !")
-                                st.download_button(
-                                    "📥 Télécharger l'organigramme PDF",
-                                    data=_final_pdf2,
-                                    file_name=f"Organigramme_{_dk2[:20]}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                                    mime="application/pdf",
-                                    type="primary",
-                                    use_container_width=True,
-                                    key="org_gv_dl_btn2",
-                                )
-                            except Exception as _e3:
-                                st.error(f"Erreur export : {_e3}")
-                        except Exception as _e2:
-                            st.error(f"Erreur génération PDF : {_e2}")
+                        except Exception as _ex:
+                            st.error(f"Erreur export SVG : {_ex}")
+
+            # ── Bouton Export source DOT ──────────────────────────────────────
+            with _col_exp3:
+                st.write("")
+                st.write("")
+                if st.button("📋 Source DOT", key="org_gv_dot_btn",
+                             use_container_width=True):
+                    _dot_sources = []
+                    for _dk in _dirs_to_export:
+                        _d = _build_dot(_dk, _ORGS[_dk], _candidats_map, postes_df, _C)
+                        _dot_sources.append(f"/* === {_dk} === */\n{_d.source}")
+                    _dot_full = "\n\n".join(_dot_sources).encode("utf-8")
+                    st.download_button(
+                        "📥 Télécharger .gv (Graphviz)",
+                        data=_dot_full,
+                        file_name=f"Organigrammes_CAP25_{datetime.now().strftime('%Y%m%d_%H%M')}.gv",
+                        mime="text/plain",
+                        key="org_gv_dot_dl",
+                    )
 
 
 
@@ -5182,9 +5287,3 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
-
-
-
-
-
-
