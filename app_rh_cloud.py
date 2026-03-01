@@ -3119,14 +3119,14 @@ elif page == "🏛️ Organigramme Cap25":
         "📊 Vue d'ensemble",
         "🔄 Flux de mobilité",
         "📈 Comparaison détaillée",
-        "👥 Mouvements individuels"
+        "👥 Mouvements individuels",
     ])
     
     # ========================================
     # TAB 1 : VUE D'ENSEMBLE
     # ========================================
     
-    with tab1:
+    with tab3:
         st.subheader("📊 Vue d'ensemble de la transition")
         
         # KPIs de transition
@@ -3213,7 +3213,7 @@ elif page == "🏛️ Organigramme Cap25":
     # TAB 2 : FLUX DE MOBILITÉ
     # ========================================
     
-    with tab2:
+    with tab4:
         st.subheader("🔄 Visualisation des flux de mobilité")
         
         st.info("💡 Ce diagramme Sankey montre les mouvements des collaborateurs de leur poste actuel vers leur poste CAP 2025 (Vœux Retenu)")
@@ -3282,7 +3282,7 @@ elif page == "🏛️ Organigramme Cap25":
     # TAB 3 : COMPARAISON DÉTAILLÉE
     # ========================================
     
-    with tab3:
+    with tab5:
         st.subheader("📈 Comparaison détaillée par Direction")
         
         # Sélection de la direction à analyser
@@ -3453,7 +3453,7 @@ elif page == "🏛️ Organigramme Cap25":
     # TAB 4 : MOUVEMENTS INDIVIDUELS
     # ========================================
     
-    with tab4:
+    with tab6:
         st.subheader("👥 Analyse des mouvements individuels")
         
         # Filtres
@@ -5287,3 +5287,4 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
