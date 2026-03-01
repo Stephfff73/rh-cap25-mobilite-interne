@@ -3864,7 +3864,7 @@ elif page == "🏛️ Organigramme Cap25":
     # ========================================
     # TAB 6 ---> 1 : ORGANIGRAMMES DYNAMIQUES GRAPHVIZ
     # ========================================
-   with tab6:
+   with tab1:
         try:
             import graphviz as _gv
             _HAS_GV = True
@@ -5187,6 +5187,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
