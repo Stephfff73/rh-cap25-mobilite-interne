@@ -3864,7 +3864,7 @@ elif page == "🏛️ Organigramme Cap25":
     # ========================================
     # TAB 6 ---> 1 : ORGANIGRAMMES DYNAMIQUES GRAPHVIZ
     # ========================================
-    with tab1:
+   with tab6:
         try:
             import graphviz as _gv
             _HAS_GV = True
@@ -4263,174 +4263,103 @@ elif page == "🏛️ Organigramme Cap25":
                 return []
 
             # ── Génération du graphe DOT ──────────────────────────────────────
-            # ── Helpers HTML label ────────────────────────────────────────────
-            def _esc(s):
-                """Escape HTML special chars pour labels Graphviz."""
-                return (str(s)
-                        .replace("&", "&amp;")
-                        .replace("<", "&lt;")
-                        .replace(">", "&gt;")
-                        .replace('"', "&quot;")
-                        .replace("\n", "<BR/>")
-                        .replace("\\n", "<BR/>"))
-
-            def _html_top(title, c):
-                """Nœud Directeur(ice) — grande carte premium."""
-                t = _esc(title)
-                return (
-                    f'<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" '
-                    f'CELLPADDING="0" BGCOLOR="{c["brunswick"]}" STYLE="ROUNDED">'
-                    # Bandeau titre principal
-                    f'<TR><TD BGCOLOR="{c["brunswick"]}" WIDTH="260" ALIGN="CENTER" CELLPADDING="12">'
-                    f'<FONT COLOR="white" FACE="Helvetica-Bold" POINT-SIZE="13"><B>{t}</B></FONT>'
-                    f'</TD></TR>'
-                    # Bande décorative teal en bas
-                    f'<TR><TD BGCOLOR="{c["teal"]}" HEIGHT="5" CELLPADDING="0"></TD></TR>'
-                    f'</TABLE>>'
-                )
-
-            def _html_group(title, c):
-                """Nœud Pôle / Département — carte structurelle sobre."""
-                t = _esc(title)
-                return (
-                    f'<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" '
-                    f'CELLPADDING="0" COLOR="{c["teal"]}" BGCOLOR="white" STYLE="ROUNDED">'
-                    f'<TR><TD BGCOLOR="{c["teal"]}" WIDTH="240" ALIGN="CENTER" CELLPADDING="3">'
-                    f'<FONT COLOR="white" FACE="Helvetica-Bold" POINT-SIZE="8"><B>PÔLE / DÉPARTEMENT</B></FONT>'
-                    f'</TD></TR>'
-                    f'<TR><TD BGCOLOR="white" ALIGN="CENTER" CELLPADDING="10">'
-                    f'<FONT COLOR="{c["brunswick"]}" FACE="Helvetica-Bold" POINT-SIZE="11"><B>{t}</B></FONT>'
-                    f'</TD></TR>'
-                    f'</TABLE>>'
-                )
-
-            def _html_poste(title, candidats, mobile, total, vacants, c):
-                """Nœud poste opérationnel — carte riche selon statut."""
-                t = _esc(title)
-                has_cands = bool(candidats)
-                is_vacant = mobile and vacants > 0 and not has_cands
-                is_mobile_open = mobile and not has_cands and not is_vacant
-
-                # Palette selon statut
-                if has_cands:
-                    hdr_bg, hdr_fg = c["keppel"], "white"
-                    cand_bg = c["brunswick"]
-                    brd = c["brunswick"]
-                    status_tag = None
-                elif is_vacant:
-                    hdr_bg, hdr_fg = "#FFF3F7", c["bordeaux"]
-                    cand_bg = c["pink"]
-                    brd = c["pink"]
-                    status_tag = ("POSTE VACANT", c["pink"], "white")
-                elif is_mobile_open:
-                    hdr_bg, hdr_fg = "#E8F6F4", c["teal"]
-                    cand_bg = c["teal"]
-                    brd = c["teal"]
-                    status_tag = ("OUVERT À LA MOBILITÉ", c["teal"], "white")
-                else:
-                    hdr_bg, hdr_fg = "#F5F5F5", "#5A5A6A"
-                    cand_bg = "#9E9E9E"
-                    brd = "#CCCCCC"
-                    status_tag = None
-
-                count_parts = []
-                if total > 0:
-                    count_parts.append(f"{total} poste{'s' if total > 1 else ''}")
-                if vacants > 0:
-                    count_parts.append(f"{vacants} vacant{'s' if vacants > 1 else ''}")
-                count_str = " · ".join(count_parts)
-
-                html = (
-                    f'<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" '
-                    f'CELLPADDING="0" COLOR="{brd}" BGCOLOR="{hdr_bg}" STYLE="ROUNDED">'
-                )
-                # Titre poste
-                html += (
-                    f'<TR><TD BGCOLOR="{hdr_bg}" WIDTH="240" ALIGN="CENTER" CELLPADDING="10">'
-                    f'<FONT COLOR="{hdr_fg}" FACE="Helvetica-Bold" POINT-SIZE="10"><B>{t}</B></FONT>'
-                    f'</TD></TR>'
-                )
-                # Ligne séparateur couleur
-                html += f'<TR><TD BGCOLOR="{brd}" HEIGHT="2" CELLPADDING="0"></TD></TR>'
-
-                # Candidats retenus
-                if has_cands:
-                    for nom in candidats[:5]:
-                        n = _esc(nom)
-                        html += (
-                            f'<TR><TD BGCOLOR="{cand_bg}" ALIGN="LEFT" CELLPADDING="6">'
-                            f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="9"> ✓  {n}</FONT>'
-                            f'</TD></TR>'
-                        )
-                    if len(candidats) > 5:
-                        more = len(candidats) - 5
-                        html += (
-                            f'<TR><TD BGCOLOR="{cand_bg}" ALIGN="CENTER" CELLPADDING="4">'
-                            f'<FONT COLOR="white" FACE="Helvetica" POINT-SIZE="8">'
-                            f'<I>+ {more} autre(s)</I></FONT></TD></TR>'
-                        )
-                elif status_tag:
-                    tag_lbl, tag_bg, tag_fg = status_tag
-                    html += (
-                        f'<TR><TD BGCOLOR="{tag_bg}" ALIGN="CENTER" CELLPADDING="5">'
-                        f'<FONT COLOR="{tag_fg}" FACE="Helvetica-Bold" POINT-SIZE="8">'
-                        f'<B>◉ {_esc(tag_lbl)}</B></FONT></TD></TR>'
-                    )
-
-                # Pied : quota
-                if count_str:
-                    html += (
-                        f'<TR><TD BGCOLOR="#F0F0F0" ALIGN="CENTER" CELLPADDING="4">'
-                        f'<FONT COLOR="#777777" FACE="Helvetica" POINT-SIZE="8">'
-                        f'<I>{_esc(count_str)}</I></FONT></TD></TR>'
-                    )
-                html += '</TABLE>>'
-                return html
-
             def _build_dot(direction_key, org, candidats_map, postes_df, c):
                 dot = _gv.Digraph(
                     comment=direction_key,
                     graph_attr={
-                        "rankdir":   "TB",
-                        "bgcolor":   "white",
-                        "fontname":  "Helvetica",
-                        "splines":   "polyline",
-                        "nodesep":   "0.7",
-                        "ranksep":   "1.0",
-                        "pad":       "0.8",
-                        "dpi":       "150",
-                        "overlap":   "false",
-                        "concentrate": "false",
+                        "rankdir":  "TB",
+                        "bgcolor":  "white",
+                        "fontname": "Helvetica",
+                        "splines":  "ortho",
+                        "nodesep":  "0.5",
+                        "ranksep":  "0.7",
+                        "pad":      "0.4",
                     },
                     node_attr={
-                        "shape":    "none",
-                        "margin":   "0",
-                        "penwidth": "0",
+                        "fontname": "Helvetica",
+                        "fontsize": "11",
+                        "margin":   "0.18,0.12",
+                        "penwidth": "1.5",
                     },
                     edge_attr={
-                        "color":     "#B0BEC5",
+                        "color":     "#666666",
                         "arrowsize": "0.7",
-                        "penwidth":  "1.6",
-                        "arrowhead": "open",
+                        "penwidth":  "1.2",
                     },
                 )
 
                 for node_id, nd in org["nodes"].items():
-                    title     = nd["label"]
+                    label     = nd["label"]
                     poste_key = nd.get("poste")
                     ntype     = nd.get("type", "poste")
 
                     if ntype == "top":
-                        dot.node(node_id, label=_html_top(title, c))
+                        # Nœud directeur : bleu clair comme dans le PDF
+                        dot.node(node_id, label=label,
+                                 shape="box", style="filled,rounded",
+                                 fillcolor=c["lightblue"], color=c["teal"],
+                                 fontcolor=c["darktext"], fontsize="12", penwidth="2")
 
                     elif ntype == "group":
-                        dot.node(node_id, label=_html_group(title, c))
+                        # Pôle / département : gris foncé, coins droits
+                        dot.node(node_id, label=label,
+                                 shape="box", style="filled",
+                                 fillcolor=c["darkgray"], color="#888888",
+                                 fontcolor=c["darktext"], fontsize="11")
 
                     else:
+                        # Poste opérationnel
                         mobile, total, vacants = _get_poste_info(poste_key, postes_df)
                         candidats = _find_candidats(candidats_map, poste_key)
-                        dot.node(node_id,
-                                 label=_html_poste(title, candidats, mobile, total, vacants, c))
+
+                        # Construction du label enrichi
+                        suffix_parts = []
+                        if total > 0:
+                            suffix_parts.append(f"{total} poste{'s' if total>1 else ''}")
+                        if vacants > 0:
+                            suffix_parts.append(f"{vacants} vacant{'s' if vacants>1 else ''}")
+                        suffix = " · ".join(suffix_parts)
+
+                        if candidats:
+                            # Poste pourvu : vert keppel
+                            noms_str = "\\n".join(f"✓ {n}" for n in candidats[:3])
+                            if len(candidats) > 3:
+                                noms_str += f"\\n+ {len(candidats)-3} autre(s)"
+                            full_label = f"{label}\\n{noms_str}"
+                            if suffix:
+                                full_label += f"\\n[{suffix}]"
+                            dot.node(node_id, label=full_label,
+                                     shape="box", style="filled,rounded",
+                                     fillcolor=c["keppel"], color=c["brunswick"],
+                                     fontcolor="white", penwidth="2")
+                        elif mobile and vacants > 0:
+                            # Poste mobile vacant : rose/pink avec bordure
+                            full_label = label
+                            if suffix:
+                                full_label += f"\\n[{suffix}]"
+                            full_label += "\\n⬜ Vacant"
+                            dot.node(node_id, label=full_label,
+                                     shape="box", style="filled,rounded",
+                                     fillcolor="white", color=c["pink"],
+                                     fontcolor=c["amarante"], penwidth="2.5")
+                        elif mobile:
+                            # Mobile mais pas de vacants déclarés
+                            full_label = label
+                            if suffix:
+                                full_label += f"\\n[{suffix}]"
+                            dot.node(node_id, label=full_label,
+                                     shape="box", style="filled,rounded",
+                                     fillcolor=c["gray"], color=c["teal"],
+                                     fontcolor=c["darktext"], penwidth="1.5")
+                        else:
+                            # Non mobile : gris discret
+                            full_label = label
+                            if suffix:
+                                full_label += f"\\n[{suffix}]"
+                            dot.node(node_id, label=full_label,
+                                     shape="box", style="filled,rounded",
+                                     fillcolor=c["gray"], color="#AAAAAA",
+                                     fontcolor="#555555")
 
                 for (src, dst) in org["edges"]:
                     dot.edge(src, dst)
@@ -4506,217 +4435,10 @@ elif page == "🏛️ Organigramme Cap25":
                 {_org_data['subtitle']}
             </p>""", unsafe_allow_html=True)
 
-            # Génération et affichage interactif (vanilla JS, flex layout)
+            # Génération et affichage
             with st.spinner("Génération de l'organigramme…"):
                 _dot = _build_dot(_dir_sel, _org_data, _candidats_map, postes_df, _C)
-                try:
-                    import re as _re
-                    _svg_raw = _dot.pipe(format="svg").decode("utf-8")
-                    # Ajouter un id au SVG — NE PAS toucher width/height/viewBox
-                    _svg_clean = _re.sub(r'<svg\b', '<svg id="the-svg"', _svg_raw, count=1)
-
-                    _viewer_html = """<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { height: 100%; }
-  body {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    font-family: Helvetica, Arial, sans-serif;
-  }
-  #toolbar {
-    flex: 0 0 auto;
-    display: flex; align-items: center; gap: 6px;
-    background: linear-gradient(90deg, #00594E 0%, #269A87 100%);
-    padding: 8px 14px;
-    border-bottom: 3px solid #00AF98;
-    user-select: none;
-  }
-  .tb-btn {
-    background: rgba(255,255,255,0.15); color: #fff;
-    border: 1.5px solid rgba(255,255,255,0.35);
-    border-radius: 7px; padding: 5px 14px;
-    cursor: pointer; font-size: 12px; font-weight: 700;
-    letter-spacing: .3px; white-space: nowrap; outline: none;
-    transition: background .12s, border-color .12s;
-  }
-  .tb-btn:hover  { background: rgba(255,255,255,0.30); border-color: #fff; }
-  .tb-btn:active { background: rgba(255,255,255,0.45); }
-  .tb-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.25);
-            margin: 0 3px; flex-shrink: 0; }
-  #zoom-pct { color: #fff; font-size: 12px; font-weight: 700;
-              min-width: 46px; text-align: center; }
-  #hint { margin-left: auto; color: rgba(255,255,255,.72);
-          font-size: 11px; white-space: nowrap; }
-  #vp {
-    flex: 1 1 0;
-    overflow: hidden;
-    position: relative;
-    cursor: grab;
-    background-color: #fff;
-    background-image: radial-gradient(circle, #CBD8E5 1px, transparent 1px);
-    background-size: 22px 22px;
-  }
-  #vp.grabbing { cursor: grabbing; }
-  #scene {
-    position: absolute;
-    top: 0; left: 0;
-    transform-origin: 0 0;
-  }
-  #the-svg { display: block; }
-</style>
-</head>
-<body>
-<div id="toolbar">
-  <button class="tb-btn" id="btn-zi">+ Zoom+</button>
-  <button class="tb-btn" id="btn-zo">- Zoom-</button>
-  <div class="tb-sep"></div>
-  <button class="tb-btn" id="btn-fit">Tout afficher</button>
-  <button class="tb-btn" id="btn-100">100%</button>
-  <div class="tb-sep"></div>
-  <span id="zoom-pct">...</span>
-  <span id="hint">Molette = zoom  |  Glisser = deplacer</span>
-</div>
-<div id="vp">
-  <div id="scene">SVG_PLACEHOLDER</div>
-</div>
-<script>
-(function() {
-  var vp    = document.getElementById('vp');
-  var scene = document.getElementById('scene');
-  var label = document.getElementById('zoom-pct');
-  var svg   = document.getElementById('the-svg');
-  var tx = 0, ty = 0, scale = 1;
-  var SVG_W = 0, SVG_H = 0;
-  var MIN_S = 0.02, MAX_S = 15;
-
-  function apply() {
-    scene.style.transform = 'translate('+tx+'px,'+ty+'px) scale('+scale+')';
-    label.textContent = Math.round(scale*100)+'%';
-  }
-
-  function fit() {
-    if (!SVG_W) return;
-    var vpW = vp.clientWidth;
-    var vpH = vp.clientHeight;
-    if (!vpW || !vpH) return;
-    scale = Math.min(vpW / SVG_W, vpH / SVG_H) * 0.93;
-    scale = Math.max(MIN_S, Math.min(MAX_S, scale));
-    tx = (vpW - SVG_W * scale) / 2;
-    ty = (vpH - SVG_H * scale) / 2;
-    apply();
-  }
-
-  function readAndFit() {
-    var r = svg.getBoundingClientRect();
-    if (r.width > 10) {
-      SVG_W = r.width;
-      SVG_H = r.height;
-      scene.style.width  = SVG_W + 'px';
-      scene.style.height = SVG_H + 'px';
-      fit();
-    } else {
-      requestAnimationFrame(readAndFit);
-    }
-  }
-
-  if (document.readyState === 'complete') {
-    requestAnimationFrame(readAndFit);
-  } else {
-    window.addEventListener('load', function() { requestAnimationFrame(readAndFit); });
-  }
-  window.addEventListener('resize', fit);
-
-  function zoomAt(cx, cy, factor) {
-    var ns = Math.max(MIN_S, Math.min(MAX_S, scale * factor));
-    var r  = ns / scale;
-    tx = cx - r * (cx - tx);
-    ty = cy - r * (cy - ty);
-    scale = ns;
-    apply();
-  }
-
-  function midX() { return vp.clientWidth  / 2; }
-  function midY() { return vp.clientHeight / 2; }
-
-  document.getElementById('btn-zi').onclick  = function() { zoomAt(midX(), midY(), 1.35); };
-  document.getElementById('btn-zo').onclick  = function() { zoomAt(midX(), midY(), 1/1.35); };
-  document.getElementById('btn-fit').onclick = fit;
-  document.getElementById('btn-100').onclick = function() {
-    scale = 1;
-    tx = (vp.clientWidth  - SVG_W) / 2;
-    ty = (vp.clientHeight - SVG_H) / 2;
-    apply();
-  };
-
-  vp.addEventListener('wheel', function(e) {
-    e.preventDefault();
-    var b = vp.getBoundingClientRect();
-    zoomAt(e.clientX - b.left, e.clientY - b.top, e.deltaY < 0 ? 1.12 : 1/1.12);
-  }, { passive: false });
-
-  var drag = false, mx0 = 0, my0 = 0, tx0 = 0, ty0 = 0;
-  vp.addEventListener('mousedown', function(e) {
-    if (e.button !== 0) return;
-    drag = true; mx0 = e.clientX; my0 = e.clientY; tx0 = tx; ty0 = ty;
-    vp.classList.add('grabbing'); e.preventDefault();
-  });
-  window.addEventListener('mousemove', function(e) {
-    if (!drag) return;
-    tx = tx0 + (e.clientX - mx0);
-    ty = ty0 + (e.clientY - my0);
-    apply();
-  });
-  window.addEventListener('mouseup', function() { drag = false; vp.classList.remove('grabbing'); });
-
-  var pts = {}, lastD = null, pCx = 0, pCy = 0, ttx0 = 0, tty0 = 0, tpx0 = 0, tpy0 = 0;
-  vp.addEventListener('touchstart', function(e) {
-    [].forEach.call(e.changedTouches, function(t) { pts[t.identifier] = t; });
-    var ids = Object.keys(pts);
-    if (ids.length === 1) {
-      var t = pts[ids[0]]; tpx0 = t.clientX; tpy0 = t.clientY; ttx0 = tx; tty0 = ty;
-    }
-    if (ids.length === 2) {
-      var t1 = pts[ids[0]], t2 = pts[ids[1]];
-      lastD = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
-      var b = vp.getBoundingClientRect();
-      pCx = (t1.clientX+t2.clientX)/2 - b.left;
-      pCy = (t1.clientY+t2.clientY)/2 - b.top;
-    }
-    e.preventDefault();
-  }, { passive: false });
-  vp.addEventListener('touchmove', function(e) {
-    [].forEach.call(e.changedTouches, function(t) { pts[t.identifier] = t; });
-    var ids = Object.keys(pts);
-    if (ids.length === 1) {
-      var t = pts[ids[0]]; tx = ttx0+(t.clientX-tpx0); ty = tty0+(t.clientY-tpy0); apply();
-    } else if (ids.length === 2) {
-      var t1=pts[ids[0]], t2=pts[ids[1]];
-      var d = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
-      if (lastD) zoomAt(pCx, pCy, d/lastD); lastD = d;
-    }
-    e.preventDefault();
-  }, { passive: false });
-  vp.addEventListener('touchend', function(e) {
-    [].forEach.call(e.changedTouches, function(t) { delete pts[t.identifier]; });
-    lastD = null;
-  });
-})();
-</script>
-</body>
-</html>"""
-                    _viewer_html = _viewer_html.replace("SVG_PLACEHOLDER", _svg_clean)
-                    import streamlit.components.v1 as _components
-                    _components.html(_viewer_html, height=800, scrolling=False)
-
-                except Exception as _svg_err:
-                    st.graphviz_chart(_dot.source, use_container_width=True)
-                    st.caption(f"ℹ️ Vue interactive indisponible : {_svg_err}")
+                st.graphviz_chart(_dot.source, use_container_width=True)
 
             # Tableau récapitulatif
             st.divider()
@@ -4748,8 +4470,6 @@ elif page == "🏛️ Organigramme Cap25":
                     },
                     use_container_width=True,
                 )
-
-
 
             # ── Export PDF ────────────────────────────────────────────────────
             st.divider()
@@ -5467,6 +5187,7 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
 
