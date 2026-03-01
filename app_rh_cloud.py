@@ -4506,117 +4506,236 @@ elif page == "🏛️ Organigramme Cap25":
                 {_org_data['subtitle']}
             </p>""", unsafe_allow_html=True)
 
-            # Génération et affichage interactif
+            # Génération et affichage interactif (vanilla JS, aucune dépendance CDN)
             with st.spinner("Génération de l'organigramme…"):
                 _dot = _build_dot(_dir_sel, _org_data, _candidats_map, postes_df, _C)
                 try:
-                    import os as _os
                     _svg_raw = _dot.pipe(format="svg").decode("utf-8")
-                    # Injecter pan/zoom interactif via svg-pan-zoom
-                    _viewer_html = f"""
-<!DOCTYPE html>
+
+                    # Nettoyer le SVG : retirer width/height fixes pour qu'il soit fluide
+                    import re as _re
+                    _svg_clean = _re.sub(r'<svg\b', '<svg id="the-svg"', _svg_raw, count=1)
+                    _svg_clean = _re.sub(r'\bwidth="[^"]*"', 'width="100%"', _svg_clean, count=1)
+                    _svg_clean = _re.sub(r'\bheight="[^"]*"', 'height="100%"', _svg_clean, count=1)
+
+                    _viewer_html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ background: #F7F9FB; font-family: Helvetica, Arial, sans-serif; overflow: hidden; }}
+  *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  html, body {{ width: 100%; height: 100%; overflow: hidden;
+                font-family: Helvetica, Arial, sans-serif; background: #F7F9FB; }}
+
   #toolbar {{
-    display: flex; align-items: center; gap: 8px;
-    background: linear-gradient(90deg, #00594E, #269A87);
-    padding: 8px 16px; border-bottom: 2px solid #00AF98;
-    flex-wrap: wrap;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+    height: 48px;
+    display: flex; align-items: center; gap: 6px;
+    background: linear-gradient(90deg, #00594E 0%, #269A87 100%);
+    padding: 0 14px;
+    border-bottom: 3px solid #00AF98;
+    user-select: none;
   }}
   .tb-btn {{
-    background: rgba(255,255,255,0.18); color: white; border: 1.5px solid rgba(255,255,255,0.4);
-    border-radius: 6px; padding: 5px 14px; cursor: pointer; font-size: 13px; font-weight: 600;
-    transition: all 0.15s; white-space: nowrap;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.35);
+    border-radius: 7px;
+    padding: 5px 13px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    transition: background .12s, border-color .12s;
+    white-space: nowrap;
+    outline: none;
   }}
-  .tb-btn:hover {{ background: rgba(255,255,255,0.32); border-color: white; }}
-  .tb-sep {{ width: 1px; height: 24px; background: rgba(255,255,255,0.3); margin: 0 4px; }}
-  #zoom-label {{
-    color: rgba(255,255,255,0.9); font-size: 12px; min-width: 52px; text-align: center;
+  .tb-btn:hover  {{ background: rgba(255,255,255,0.30); border-color: #fff; }}
+  .tb-btn:active {{ background: rgba(255,255,255,0.45); }}
+  .tb-sep {{ width: 1px; height: 22px; background: rgba(255,255,255,0.25); margin: 0 3px; flex-shrink:0; }}
+  #zoom-pct {{ color: rgba(255,255,255,.95); font-size: 12px; font-weight:700;
+               min-width: 46px; text-align: center; }}
+  #hint {{ margin-left: auto; color: rgba(255,255,255,.7); font-size: 11px; white-space: nowrap; }}
+
+  #vp {{
+    position: fixed; top: 48px; left: 0; right: 0; bottom: 0;
+    overflow: hidden;
+    cursor: grab;
+    background-color: #fff;
+    background-image: radial-gradient(circle, #CBD8E5 1px, transparent 1px);
+    background-size: 22px 22px;
   }}
-  #hint {{
-    color: rgba(255,255,255,0.75); font-size: 11px; margin-left: auto;
+  #vp.grabbing {{ cursor: grabbing; }}
+
+  #scene {{
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: 0 0;
+    /* transform set by JS */
   }}
-  #svg-container {{
-    width: 100%; height: calc(100vh - 52px); overflow: hidden; cursor: grab;
-    background: white;
-    background-image: radial-gradient(circle, #d0dde8 1px, transparent 1px);
-    background-size: 24px 24px;
-  }}
-  #svg-container:active {{ cursor: grabbing; }}
-  #svg-container svg {{
-    width: 100%; height: 100%;
-    display: block;
-  }}
+  #scene svg {{ display: block; }}
 </style>
 </head>
 <body>
+
 <div id="toolbar">
-  <button class="tb-btn" onclick="pz.zoomIn()">＋ Zoom in</button>
-  <button class="tb-btn" onclick="pz.zoomOut()">－ Zoom out</button>
+  <button class="tb-btn" id="btn-zi">＋&nbsp;Zoom+</button>
+  <button class="tb-btn" id="btn-zo">－&nbsp;Zoom−</button>
   <div class="tb-sep"></div>
-  <button class="tb-btn" onclick="pz.resetZoom(); pz.resetPan();">⊡ Réinitialiser</button>
-  <button class="tb-btn" onclick="fitScreen()">⊞ Plein écran</button>
+  <button class="tb-btn" id="btn-fit">⊞&nbsp;Ajuster</button>
+  <button class="tb-btn" id="btn-rst">⊙&nbsp;Réinit.</button>
   <div class="tb-sep"></div>
-  <span id="zoom-label">100%</span>
-  <span id="hint">🖱 Molette = zoom · Glisser = déplacer</span>
+  <span id="zoom-pct">—</span>
+  <span id="hint">🖱&nbsp;Molette = zoom &nbsp;·&nbsp; Glisser = déplacer</span>
 </div>
-<div id="svg-container">
-{_svg_raw}
+
+<div id="vp">
+  <div id="scene">
+    {_svg_clean}
+  </div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/svg.pan-zoom/3.6.1/svg-pan-zoom.min.js"></script>
+
 <script>
-  var svgEl = document.querySelector('#svg-container svg');
-  // Make SVG fill the container
-  svgEl.removeAttribute('width');
-  svgEl.removeAttribute('height');
-  svgEl.style.width  = '100%';
-  svgEl.style.height = '100%';
+(function() {{
+  var vp    = document.getElementById('vp');
+  var scene = document.getElementById('scene');
+  var label = document.getElementById('zoom-pct');
 
-  var pz = svgPanZoom(svgEl, {{
-    zoomEnabled: true,
-    controlIconsEnabled: false,
-    fit: true,
-    center: true,
-    minZoom: 0.05,
-    maxZoom: 8,
-    zoomScaleSensitivity: 0.3,
-    onZoom: function(scale) {{
-      document.getElementById('zoom-label').innerText = Math.round(scale * 100) + '%';
-    }}
-  }});
+  var tx = 0, ty = 0, scale = 1;
+  var MIN_SCALE = 0.04, MAX_SCALE = 10;
 
-  function fitScreen() {{
-    pz.resetZoom(); pz.resetPan(); pz.fit(); pz.center();
+  /* ── apply transform ─────────────────────────────── */
+  function apply() {{
+    scene.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
+    label.textContent = Math.round(scale * 100) + '%';
   }}
 
-  // Touch support
-  var lastDist = null;
-  svgEl.addEventListener('touchmove', function(e) {{
-    if (e.touches.length === 2) {{
-      var d = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      if (lastDist) pz.zoomBy(d / lastDist);
-      lastDist = d;
-      e.preventDefault();
+  /* ── initial fit ─────────────────────────────────── */
+  function fit() {{
+    var svg = scene.querySelector('svg');
+    if (!svg) return;
+    var sw = svg.getBoundingClientRect().width  || svg.viewBox.baseVal.width  || 800;
+    var sh = svg.getBoundingClientRect().height || svg.viewBox.baseVal.height || 600;
+    /* use viewBox if rendered size is 0 (hidden) */
+    if (!sw) {{ var vb = svg.viewBox.baseVal; sw = vb ? vb.width  : 800; sh = vb ? vb.height : 600; }}
+    var vpW = vp.clientWidth, vpH = vp.clientHeight;
+    scale = Math.min(vpW / sw, vpH / sh) * 0.92;
+    scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+    tx = (vpW - sw * scale) / 2;
+    ty = (vpH - sh * scale) / 2;
+    apply();
+  }}
+
+  /* give the SVG a tick to render before fitting */
+  setTimeout(fit, 80);
+  window.addEventListener('resize', fit);
+
+  /* ── zoom around a point ─────────────────────────── */
+  function zoomAt(cx, cy, factor) {{
+    var newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
+    var ratio    = newScale / scale;
+    tx = cx - ratio * (cx - tx);
+    ty = cy - ratio * (cy - ty);
+    scale = newScale;
+    apply();
+  }}
+
+  /* ── toolbar buttons ─────────────────────────────── */
+  var vpCx = function() {{ return vp.clientWidth  / 2; }};
+  var vpCy = function() {{ return vp.clientHeight / 2; }};
+
+  document.getElementById('btn-zi').onclick  = function() {{ zoomAt(vpCx(), vpCy(), 1.30); }};
+  document.getElementById('btn-zo').onclick  = function() {{ zoomAt(vpCx(), vpCy(), 1/1.30); }};
+  document.getElementById('btn-fit').onclick = fit;
+  document.getElementById('btn-rst').onclick = function() {{ scale=1; tx=0; ty=0; apply(); }};
+
+  /* ── mouse wheel zoom ────────────────────────────── */
+  vp.addEventListener('wheel', function(e) {{
+    e.preventDefault();
+    var rect   = vp.getBoundingClientRect();
+    var cx     = e.clientX - rect.left;
+    var cy     = e.clientY - rect.top;
+    var factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    zoomAt(cx, cy, factor);
+  }}, {{ passive: false }});
+
+  /* ── mouse drag ──────────────────────────────────── */
+  var dragging = false, startX = 0, startY = 0, startTx = 0, startTy = 0;
+
+  vp.addEventListener('mousedown', function(e) {{
+    if (e.button !== 0) return;
+    dragging = true;
+    startX = e.clientX; startY = e.clientY;
+    startTx = tx; startTy = ty;
+    vp.classList.add('grabbing');
+    e.preventDefault();
+  }});
+  window.addEventListener('mousemove', function(e) {{
+    if (!dragging) return;
+    tx = startTx + (e.clientX - startX);
+    ty = startTy + (e.clientY - startY);
+    apply();
+  }});
+  window.addEventListener('mouseup', function() {{
+    dragging = false;
+    vp.classList.remove('grabbing');
+  }});
+
+  /* ── touch pinch + drag ──────────────────────────── */
+  var touches = {{}};
+  var lastPinchDist = null, pinchCx = 0, pinchCy = 0;
+  var touchStartTx = 0, touchStartTy = 0, touchStartX = 0, touchStartY = 0;
+
+  vp.addEventListener('touchstart', function(e) {{
+    Array.from(e.changedTouches).forEach(function(t) {{ touches[t.identifier] = t; }});
+    var ids = Object.keys(touches);
+    if (ids.length === 1) {{
+      var t = touches[ids[0]];
+      touchStartX = t.clientX; touchStartY = t.clientY;
+      touchStartTx = tx; touchStartTy = ty;
     }}
-  }}, {{passive: false}});
-  svgEl.addEventListener('touchend', function() {{ lastDist = null; }});
+    if (ids.length === 2) {{
+      var t1 = touches[ids[0]], t2 = touches[ids[1]];
+      lastPinchDist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
+      var rect = vp.getBoundingClientRect();
+      pinchCx = ((t1.clientX+t2.clientX)/2) - rect.left;
+      pinchCy = ((t1.clientY+t2.clientY)/2) - rect.top;
+    }}
+    e.preventDefault();
+  }}, {{ passive:false }});
+
+  vp.addEventListener('touchmove', function(e) {{
+    Array.from(e.changedTouches).forEach(function(t) {{ touches[t.identifier] = t; }});
+    var ids = Object.keys(touches);
+    if (ids.length === 1) {{
+      var t = touches[ids[0]];
+      tx = touchStartTx + (t.clientX - touchStartX);
+      ty = touchStartTy + (t.clientY - touchStartY);
+      apply();
+    }} else if (ids.length === 2) {{
+      var t1 = touches[ids[0]], t2 = touches[ids[1]];
+      var dist = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
+      if (lastPinchDist) zoomAt(pinchCx, pinchCy, dist / lastPinchDist);
+      lastPinchDist = dist;
+    }}
+    e.preventDefault();
+  }}, {{ passive:false }});
+
+  vp.addEventListener('touchend', function(e) {{
+    Array.from(e.changedTouches).forEach(function(t) {{ delete touches[t.identifier]; }});
+    lastPinchDist = null;
+  }});
+
+}})();
 </script>
 </body>
-</html>
-"""
+</html>"""
                     import streamlit.components.v1 as _components
-                    _components.html(_viewer_html, height=680, scrolling=False)
+                    _components.html(_viewer_html, height=700, scrolling=False)
+
                 except Exception as _svg_err:
-                    # Fallback si dot non disponible
                     st.graphviz_chart(_dot.source, use_container_width=True)
-                    st.caption(f"ℹ️ Vue interactive indisponible ({_svg_err}). Installez graphviz dans packages.txt.")
+                    st.caption(f"ℹ️ Vue interactive indisponible : {_svg_err}")
 
             # Tableau récapitulatif
             st.divider()
