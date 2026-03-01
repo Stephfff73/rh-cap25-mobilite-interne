@@ -4506,19 +4506,24 @@ elif page == "🏛️ Organigramme Cap25":
                 {_org_data['subtitle']}
             </p>""", unsafe_allow_html=True)
 
- # --- NOUVEL AFFICHAGE : Conteneur avec défilement (Scroll) ---
+
+            
+            # ÉTAPE CRUCIALE : On définit _dot ici (ne pas supprimer cette ligne !)
+            _dot = _build_dot(_dir_sel, _org_data, _candidats_map, postes_df, _C)
+
+            # --- NOUVEL AFFICHAGE : Conteneur avec défilement (Scroll) ---
             with st.spinner("Rendu de l'organigramme..."):
                 try:
-                    # Export du graphique en format SVG (vectoriel net)
+                    # Export du graphique en format SVG
                     _svg_raw = _dot.pipe(format='svg').decode('utf-8')
                     
-                    # Nettoyage pour injection HTML propre
+                    # Nettoyage pour injection HTML
                     if '<?xml' in _svg_raw:
                         _svg_raw = _svg_raw[_svg_raw.find('<svg'):]
                     
-                    # Création du conteneur avec scroll horizontal et vertical
+                    # Conteneur HTML avec Scroll
                     html_container = f"""
-                    <div style="width: 100%; height: 800px; overflow: auto; border: 1px solid #d1d5db; border-radius: 12px; background-color: white; padding: 20px; box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.05);">
+                    <div style="width: 100%; height: 800px; overflow: auto; border: 1px solid #d1d5db; border-radius: 12px; background-color: white; padding: 20px;">
                         <div style="min-width: fit-content;">
                             {_svg_raw}
                         </div>
@@ -4527,9 +4532,9 @@ elif page == "🏛️ Organigramme Cap25":
                     st.markdown(html_container, unsafe_allow_html=True)
                     
                 except Exception as e:
-                    # Solution de secours si le rendu SVG échoue
+                    # Si le rendu SVG échoue, on utilise la méthode standard
                     st.graphviz_chart(_dot.source, use_container_width=True)
-                    st.warning(f"Affichage standard utilisé (Erreur : {e})")
+                    st.warning(f"Affichage standard utilisé suite à une erreur technique.")
 
             # Tableau récapitulatif
             st.divider()
@@ -5278,4 +5283,5 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
