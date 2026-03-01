@@ -4506,225 +4506,213 @@ elif page == "🏛️ Organigramme Cap25":
                 {_org_data['subtitle']}
             </p>""", unsafe_allow_html=True)
 
-            # Génération et affichage interactif (vanilla JS, aucune dépendance CDN)
+            # Génération et affichage interactif (vanilla JS, flex layout)
             with st.spinner("Génération de l'organigramme…"):
                 _dot = _build_dot(_dir_sel, _org_data, _candidats_map, postes_df, _C)
                 try:
                     import re as _re
                     _svg_raw = _dot.pipe(format="svg").decode("utf-8")
-
-                    # ── Extraire les dimensions réelles du SVG ──────────────────
-                    # Graphviz écrit toujours width="...pt" height="...pt" (points)
-                    # 1 pt = 1.3333 px (96 dpi / 72 pt)
-                    _PT2PX = 96.0 / 72.0
-                    def _pt(val):
-                        val = val.strip()
-                        if val.endswith('pt'):
-                            return float(val[:-2]) * _PT2PX
-                        return float(val)
-
-                    _w_match = _re.search(r'<svg\b[^>]*\bwidth="([^"]+)"',  _svg_raw)
-                    _h_match = _re.search(r'<svg\b[^>]*\bheight="([^"]+)"', _svg_raw)
-                    _vb_match = _re.search(r'<svg\b[^>]*\bviewBox="([^"]+)"', _svg_raw)
-
-                    if _w_match and _h_match:
-                        _svg_w = int(_pt(_w_match.group(1))) + 40
-                        _svg_h = int(_pt(_h_match.group(1))) + 40
-                    elif _vb_match:
-                        _vb = [float(x) for x in _vb_match.group(1).split()]
-                        _svg_w = int(_vb[2]) + 40
-                        _svg_h = int(_vb[3]) + 40
-                    else:
-                        _svg_w, _svg_h = 1600, 900
-
-                    # Ajouter id au SVG et laisser ses dimensions naturelles
+                    # Ajouter un id au SVG — NE PAS toucher width/height/viewBox
                     _svg_clean = _re.sub(r'<svg\b', '<svg id="the-svg"', _svg_raw, count=1)
 
-                    _viewer_html = f"""<!DOCTYPE html>
+                    _viewer_html = """<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-  *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  html, body {{ width: 100%; height: 100%; overflow: hidden;
-                font-family: Helvetica, Arial, sans-serif; background: #F7F9FB; }}
-
-  #toolbar {{
-    position: fixed; top: 0; left: 0; right: 0; z-index: 999;
-    height: 46px;
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { height: 100%; }
+  body {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+  #toolbar {
+    flex: 0 0 auto;
     display: flex; align-items: center; gap: 6px;
     background: linear-gradient(90deg, #00594E 0%, #269A87 100%);
-    padding: 0 14px;
+    padding: 8px 14px;
     border-bottom: 3px solid #00AF98;
     user-select: none;
-  }}
-  .tb-btn {{
+  }
+  .tb-btn {
     background: rgba(255,255,255,0.15); color: #fff;
     border: 1.5px solid rgba(255,255,255,0.35);
-    border-radius: 7px; padding: 5px 13px;
+    border-radius: 7px; padding: 5px 14px;
     cursor: pointer; font-size: 12px; font-weight: 700;
     letter-spacing: .3px; white-space: nowrap; outline: none;
     transition: background .12s, border-color .12s;
-  }}
-  .tb-btn:hover  {{ background: rgba(255,255,255,0.30); border-color: #fff; }}
-  .tb-btn:active {{ background: rgba(255,255,255,0.45); }}
-  .tb-sep {{ width: 1px; height: 20px; background: rgba(255,255,255,0.25); margin: 0 3px; flex-shrink:0; }}
-  #zoom-pct {{ color: #fff; font-size: 12px; font-weight:700; min-width: 46px; text-align:center; }}
-  #hint {{ margin-left: auto; color: rgba(255,255,255,.7); font-size: 11px; white-space: nowrap; }}
-
-  #vp {{
-    position: fixed; top: 46px; left: 0; right: 0; bottom: 0;
-    overflow: hidden; cursor: grab;
+  }
+  .tb-btn:hover  { background: rgba(255,255,255,0.30); border-color: #fff; }
+  .tb-btn:active { background: rgba(255,255,255,0.45); }
+  .tb-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.25);
+            margin: 0 3px; flex-shrink: 0; }
+  #zoom-pct { color: #fff; font-size: 12px; font-weight: 700;
+              min-width: 46px; text-align: center; }
+  #hint { margin-left: auto; color: rgba(255,255,255,.72);
+          font-size: 11px; white-space: nowrap; }
+  #vp {
+    flex: 1 1 0;
+    overflow: hidden;
+    position: relative;
+    cursor: grab;
     background-color: #fff;
     background-image: radial-gradient(circle, #CBD8E5 1px, transparent 1px);
     background-size: 22px 22px;
-  }}
-  #vp.grabbing {{ cursor: grabbing; }}
-
-  /* Le scene a exactement la taille du SVG — pas de recadrage */
-  #scene {{
+  }
+  #vp.grabbing { cursor: grabbing; }
+  #scene {
     position: absolute;
     top: 0; left: 0;
-    width: {_svg_w}px;
-    height: {_svg_h}px;
     transform-origin: 0 0;
-  }}
-  #the-svg {{
-    display: block;
-    width: {_svg_w}px;
-    height: {_svg_h}px;
-  }}
+  }
+  #the-svg { display: block; }
 </style>
 </head>
 <body>
-
 <div id="toolbar">
-  <button class="tb-btn" id="btn-zi">＋&nbsp;Zoom+</button>
-  <button class="tb-btn" id="btn-zo">－&nbsp;Zoom−</button>
+  <button class="tb-btn" id="btn-zi">+ Zoom+</button>
+  <button class="tb-btn" id="btn-zo">- Zoom-</button>
   <div class="tb-sep"></div>
-  <button class="tb-btn" id="btn-fit">⊞&nbsp;Tout afficher</button>
-  <button class="tb-btn" id="btn-rst">⊙&nbsp;Réinit.</button>
+  <button class="tb-btn" id="btn-fit">Tout afficher</button>
+  <button class="tb-btn" id="btn-100">100%</button>
   <div class="tb-sep"></div>
-  <span id="zoom-pct">—</span>
-  <span id="hint">🖱&nbsp;Molette = zoom &nbsp;·&nbsp; Glisser = déplacer</span>
+  <span id="zoom-pct">...</span>
+  <span id="hint">Molette = zoom  |  Glisser = deplacer</span>
 </div>
-
 <div id="vp">
-  <div id="scene">
-    {_svg_clean}
-  </div>
+  <div id="scene">SVG_PLACEHOLDER</div>
 </div>
-
 <script>
-(function() {{
+(function() {
   var vp    = document.getElementById('vp');
   var scene = document.getElementById('scene');
   var label = document.getElementById('zoom-pct');
-
-  // Dimensions réelles du SVG, passées depuis Python
-  var SVG_W = {_svg_w};
-  var SVG_H = {_svg_h};
-
+  var svg   = document.getElementById('the-svg');
   var tx = 0, ty = 0, scale = 1;
-  var MIN_SCALE = 0.03, MAX_SCALE = 12;
+  var SVG_W = 0, SVG_H = 0;
+  var MIN_S = 0.02, MAX_S = 15;
 
-  function apply() {{
-    scene.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
-    label.textContent = Math.round(scale * 100) + '%';
-  }}
+  function apply() {
+    scene.style.transform = 'translate('+tx+'px,'+ty+'px) scale('+scale+')';
+    label.textContent = Math.round(scale*100)+'%';
+  }
 
-  function fit() {{
-    var vpW = vp.clientWidth  || window.innerWidth;
-    var vpH = vp.clientHeight || (window.innerHeight - 46);
-    // Calcule le scale pour que TOUT le SVG soit visible avec 4% de marge
-    scale = Math.min(vpW / SVG_W, vpH / SVG_H) * 0.96;
-    scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
-    // Centre dans le viewport
+  function fit() {
+    if (!SVG_W) return;
+    var vpW = vp.clientWidth;
+    var vpH = vp.clientHeight;
+    if (!vpW || !vpH) return;
+    scale = Math.min(vpW / SVG_W, vpH / SVG_H) * 0.93;
+    scale = Math.max(MIN_S, Math.min(MAX_S, scale));
     tx = (vpW - SVG_W * scale) / 2;
     ty = (vpH - SVG_H * scale) / 2;
     apply();
-  }}
+  }
 
-  // Ajustement initial après le rendu du DOM
-  setTimeout(fit, 60);
+  function readAndFit() {
+    var r = svg.getBoundingClientRect();
+    if (r.width > 10) {
+      SVG_W = r.width;
+      SVG_H = r.height;
+      scene.style.width  = SVG_W + 'px';
+      scene.style.height = SVG_H + 'px';
+      fit();
+    } else {
+      requestAnimationFrame(readAndFit);
+    }
+  }
+
+  if (document.readyState === 'complete') {
+    requestAnimationFrame(readAndFit);
+  } else {
+    window.addEventListener('load', function() { requestAnimationFrame(readAndFit); });
+  }
   window.addEventListener('resize', fit);
 
-  function zoomAt(cx, cy, factor) {{
-    var newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
-    var r = newScale / scale;
+  function zoomAt(cx, cy, factor) {
+    var ns = Math.max(MIN_S, Math.min(MAX_S, scale * factor));
+    var r  = ns / scale;
     tx = cx - r * (cx - tx);
     ty = cy - r * (cy - ty);
-    scale = newScale;
+    scale = ns;
     apply();
-  }}
+  }
 
-  document.getElementById('btn-zi').onclick  = function() {{ zoomAt(vp.clientWidth/2, vp.clientHeight/2, 1.35); }};
-  document.getElementById('btn-zo').onclick  = function() {{ zoomAt(vp.clientWidth/2, vp.clientHeight/2, 1/1.35); }};
+  function midX() { return vp.clientWidth  / 2; }
+  function midY() { return vp.clientHeight / 2; }
+
+  document.getElementById('btn-zi').onclick  = function() { zoomAt(midX(), midY(), 1.35); };
+  document.getElementById('btn-zo').onclick  = function() { zoomAt(midX(), midY(), 1/1.35); };
   document.getElementById('btn-fit').onclick = fit;
-  document.getElementById('btn-rst').onclick = function() {{ scale=1; tx=0; ty=0; apply(); }};
-
-  // Molette souris
-  vp.addEventListener('wheel', function(e) {{
-    e.preventDefault();
-    var r    = vp.getBoundingClientRect();
-    var factor = e.deltaY < 0 ? 1.13 : 1/1.13;
-    zoomAt(e.clientX - r.left, e.clientY - r.top, factor);
-  }}, {{ passive: false }});
-
-  // Drag souris
-  var dragging = false, mx0 = 0, my0 = 0, tx0 = 0, ty0 = 0;
-  vp.addEventListener('mousedown', function(e) {{
-    if (e.button !== 0) return;
-    dragging = true; mx0 = e.clientX; my0 = e.clientY; tx0 = tx; ty0 = ty;
-    vp.classList.add('grabbing'); e.preventDefault();
-  }});
-  window.addEventListener('mousemove', function(e) {{
-    if (!dragging) return;
-    tx = tx0 + e.clientX - mx0;
-    ty = ty0 + e.clientY - my0;
+  document.getElementById('btn-100').onclick = function() {
+    scale = 1;
+    tx = (vp.clientWidth  - SVG_W) / 2;
+    ty = (vp.clientHeight - SVG_H) / 2;
     apply();
-  }});
-  window.addEventListener('mouseup', function() {{ dragging=false; vp.classList.remove('grabbing'); }});
+  };
 
-  // Touch pinch + drag
-  var pts = {{}}, lastD = null, pCx = 0, pCy = 0, ttx0 = 0, tty0 = 0, tpx0 = 0, tpy0 = 0;
-  vp.addEventListener('touchstart', function(e) {{
-    [].forEach.call(e.changedTouches, function(t) {{ pts[t.identifier]=t; }});
+  vp.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var b = vp.getBoundingClientRect();
+    zoomAt(e.clientX - b.left, e.clientY - b.top, e.deltaY < 0 ? 1.12 : 1/1.12);
+  }, { passive: false });
+
+  var drag = false, mx0 = 0, my0 = 0, tx0 = 0, ty0 = 0;
+  vp.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    drag = true; mx0 = e.clientX; my0 = e.clientY; tx0 = tx; ty0 = ty;
+    vp.classList.add('grabbing'); e.preventDefault();
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!drag) return;
+    tx = tx0 + (e.clientX - mx0);
+    ty = ty0 + (e.clientY - my0);
+    apply();
+  });
+  window.addEventListener('mouseup', function() { drag = false; vp.classList.remove('grabbing'); });
+
+  var pts = {}, lastD = null, pCx = 0, pCy = 0, ttx0 = 0, tty0 = 0, tpx0 = 0, tpy0 = 0;
+  vp.addEventListener('touchstart', function(e) {
+    [].forEach.call(e.changedTouches, function(t) { pts[t.identifier] = t; });
     var ids = Object.keys(pts);
-    if (ids.length===1) {{
-      var t=pts[ids[0]]; tpx0=t.clientX; tpy0=t.clientY; ttx0=tx; tty0=ty;
-    }}
-    if (ids.length===2) {{
-      var t1=pts[ids[0]], t2=pts[ids[1]];
-      lastD=Math.hypot(t1.clientX-t2.clientX,t1.clientY-t2.clientY);
-      var r=vp.getBoundingClientRect();
-      pCx=((t1.clientX+t2.clientX)/2)-r.left;
-      pCy=((t1.clientY+t2.clientY)/2)-r.top;
-    }}
+    if (ids.length === 1) {
+      var t = pts[ids[0]]; tpx0 = t.clientX; tpy0 = t.clientY; ttx0 = tx; tty0 = ty;
+    }
+    if (ids.length === 2) {
+      var t1 = pts[ids[0]], t2 = pts[ids[1]];
+      lastD = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
+      var b = vp.getBoundingClientRect();
+      pCx = (t1.clientX+t2.clientX)/2 - b.left;
+      pCy = (t1.clientY+t2.clientY)/2 - b.top;
+    }
     e.preventDefault();
-  }}, {{passive:false}});
-  vp.addEventListener('touchmove', function(e) {{
-    [].forEach.call(e.changedTouches, function(t) {{ pts[t.identifier]=t; }});
-    var ids=Object.keys(pts);
-    if (ids.length===1) {{
-      var t=pts[ids[0]]; tx=ttx0+(t.clientX-tpx0); ty=tty0+(t.clientY-tpy0); apply();
-    }} else if (ids.length===2) {{
+  }, { passive: false });
+  vp.addEventListener('touchmove', function(e) {
+    [].forEach.call(e.changedTouches, function(t) { pts[t.identifier] = t; });
+    var ids = Object.keys(pts);
+    if (ids.length === 1) {
+      var t = pts[ids[0]]; tx = ttx0+(t.clientX-tpx0); ty = tty0+(t.clientY-tpy0); apply();
+    } else if (ids.length === 2) {
       var t1=pts[ids[0]], t2=pts[ids[1]];
-      var d=Math.hypot(t1.clientX-t2.clientX,t1.clientY-t2.clientY);
-      if (lastD) zoomAt(pCx, pCy, d/lastD); lastD=d;
-    }}
+      var d = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
+      if (lastD) zoomAt(pCx, pCy, d/lastD); lastD = d;
+    }
     e.preventDefault();
-  }}, {{passive:false}});
-  vp.addEventListener('touchend', function(e) {{
-    [].forEach.call(e.changedTouches, function(t) {{ delete pts[t.identifier]; }});
-    lastD=null;
-  }});
-}})();
+  }, { passive: false });
+  vp.addEventListener('touchend', function(e) {
+    [].forEach.call(e.changedTouches, function(t) { delete pts[t.identifier]; });
+    lastD = null;
+  });
+})();
 </script>
 </body>
 </html>"""
+                    _viewer_html = _viewer_html.replace("SVG_PLACEHOLDER", _svg_clean)
                     import streamlit.components.v1 as _components
-                    _components.html(_viewer_html, height=700, scrolling=False)
+                    _components.html(_viewer_html, height=800, scrolling=False)
 
                 except Exception as _svg_err:
                     st.graphviz_chart(_dot.source, use_container_width=True)
