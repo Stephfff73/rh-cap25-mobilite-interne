@@ -4506,35 +4506,217 @@ elif page == "🏛️ Organigramme Cap25":
                 {_org_data['subtitle']}
             </p>""", unsafe_allow_html=True)
 
-
-            
-            # ÉTAPE CRUCIALE : On définit _dot ici (ne pas supprimer cette ligne !)
-            _dot = _build_dot(_dir_sel, _org_data, _candidats_map, postes_df, _C)
-
-            # --- NOUVEL AFFICHAGE : Conteneur avec défilement (Scroll) ---
-            with st.spinner("Rendu de l'organigramme..."):
+            # Génération et affichage interactif (vanilla JS, flex layout)
+            with st.spinner("Génération de l'organigramme…"):
+                _dot = _build_dot(_dir_sel, _org_data, _candidats_map, postes_df, _C)
                 try:
-                    # Export du graphique en format SVG
-                    _svg_raw = _dot.pipe(format='svg').decode('utf-8')
-                    
-                    # Nettoyage pour injection HTML
-                    if '<?xml' in _svg_raw:
-                        _svg_raw = _svg_raw[_svg_raw.find('<svg'):]
-                    
-                    # Conteneur HTML avec Scroll
-                    html_container = f"""
-                    <div style="width: 100%; height: 800px; overflow: auto; border: 1px solid #d1d5db; border-radius: 12px; background-color: white; padding: 20px;">
-                        <div style="min-width: fit-content;">
-                            {_svg_raw}
-                        </div>
-                    </div>
-                    """
-                    st.markdown(html_container, unsafe_allow_html=True)
-                    
-                except Exception as e:
-                    # Si le rendu SVG échoue, on utilise la méthode standard
+                    import re as _re
+                    _svg_raw = _dot.pipe(format="svg").decode("utf-8")
+                    # Ajouter un id au SVG — NE PAS toucher width/height/viewBox
+                    _svg_clean = _re.sub(r'<svg\b', '<svg id="the-svg"', _svg_raw, count=1)
+
+                    _viewer_html = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { height: 100%; }
+  body {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+  #toolbar {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 6px;
+    background: linear-gradient(90deg, #00594E 0%, #269A87 100%);
+    padding: 8px 14px;
+    border-bottom: 3px solid #00AF98;
+    user-select: none;
+  }
+  .tb-btn {
+    background: rgba(255,255,255,0.15); color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.35);
+    border-radius: 7px; padding: 5px 14px;
+    cursor: pointer; font-size: 12px; font-weight: 700;
+    letter-spacing: .3px; white-space: nowrap; outline: none;
+    transition: background .12s, border-color .12s;
+  }
+  .tb-btn:hover  { background: rgba(255,255,255,0.30); border-color: #fff; }
+  .tb-btn:active { background: rgba(255,255,255,0.45); }
+  .tb-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.25);
+            margin: 0 3px; flex-shrink: 0; }
+  #zoom-pct { color: #fff; font-size: 12px; font-weight: 700;
+              min-width: 46px; text-align: center; }
+  #hint { margin-left: auto; color: rgba(255,255,255,.72);
+          font-size: 11px; white-space: nowrap; }
+  #vp {
+    flex: 1 1 0;
+    overflow: hidden;
+    position: relative;
+    cursor: grab;
+    background-color: #fff;
+    background-image: radial-gradient(circle, #CBD8E5 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  #vp.grabbing { cursor: grabbing; }
+  #scene {
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: 0 0;
+  }
+  #the-svg { display: block; }
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <button class="tb-btn" id="btn-zi">+ Zoom+</button>
+  <button class="tb-btn" id="btn-zo">- Zoom-</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-fit">Tout afficher</button>
+  <button class="tb-btn" id="btn-100">100%</button>
+  <div class="tb-sep"></div>
+  <span id="zoom-pct">...</span>
+  <span id="hint">Molette = zoom  |  Glisser = deplacer</span>
+</div>
+<div id="vp">
+  <div id="scene">SVG_PLACEHOLDER</div>
+</div>
+<script>
+(function() {
+  var vp    = document.getElementById('vp');
+  var scene = document.getElementById('scene');
+  var label = document.getElementById('zoom-pct');
+  var svg   = document.getElementById('the-svg');
+  var tx = 0, ty = 0, scale = 1;
+  var SVG_W = 0, SVG_H = 0;
+  var MIN_S = 0.02, MAX_S = 15;
+
+  function apply() {
+    scene.style.transform = 'translate('+tx+'px,'+ty+'px) scale('+scale+')';
+    label.textContent = Math.round(scale*100)+'%';
+  }
+
+  function fit() {
+    if (!SVG_W) return;
+    var vpW = vp.clientWidth;
+    var vpH = vp.clientHeight;
+    if (!vpW || !vpH) return;
+    scale = Math.min(vpW / SVG_W, vpH / SVG_H) * 0.93;
+    scale = Math.max(MIN_S, Math.min(MAX_S, scale));
+    tx = (vpW - SVG_W * scale) / 2;
+    ty = (vpH - SVG_H * scale) / 2;
+    apply();
+  }
+
+  function readAndFit() {
+    var r = svg.getBoundingClientRect();
+    if (r.width > 10) {
+      SVG_W = r.width;
+      SVG_H = r.height;
+      scene.style.width  = SVG_W + 'px';
+      scene.style.height = SVG_H + 'px';
+      fit();
+    } else {
+      requestAnimationFrame(readAndFit);
+    }
+  }
+
+  if (document.readyState === 'complete') {
+    requestAnimationFrame(readAndFit);
+  } else {
+    window.addEventListener('load', function() { requestAnimationFrame(readAndFit); });
+  }
+  window.addEventListener('resize', fit);
+
+  function zoomAt(cx, cy, factor) {
+    var ns = Math.max(MIN_S, Math.min(MAX_S, scale * factor));
+    var r  = ns / scale;
+    tx = cx - r * (cx - tx);
+    ty = cy - r * (cy - ty);
+    scale = ns;
+    apply();
+  }
+
+  function midX() { return vp.clientWidth  / 2; }
+  function midY() { return vp.clientHeight / 2; }
+
+  document.getElementById('btn-zi').onclick  = function() { zoomAt(midX(), midY(), 1.35); };
+  document.getElementById('btn-zo').onclick  = function() { zoomAt(midX(), midY(), 1/1.35); };
+  document.getElementById('btn-fit').onclick = fit;
+  document.getElementById('btn-100').onclick = function() {
+    scale = 1;
+    tx = (vp.clientWidth  - SVG_W) / 2;
+    ty = (vp.clientHeight - SVG_H) / 2;
+    apply();
+  };
+
+  vp.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    var b = vp.getBoundingClientRect();
+    zoomAt(e.clientX - b.left, e.clientY - b.top, e.deltaY < 0 ? 1.12 : 1/1.12);
+  }, { passive: false });
+
+  var drag = false, mx0 = 0, my0 = 0, tx0 = 0, ty0 = 0;
+  vp.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    drag = true; mx0 = e.clientX; my0 = e.clientY; tx0 = tx; ty0 = ty;
+    vp.classList.add('grabbing'); e.preventDefault();
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!drag) return;
+    tx = tx0 + (e.clientX - mx0);
+    ty = ty0 + (e.clientY - my0);
+    apply();
+  });
+  window.addEventListener('mouseup', function() { drag = false; vp.classList.remove('grabbing'); });
+
+  var pts = {}, lastD = null, pCx = 0, pCy = 0, ttx0 = 0, tty0 = 0, tpx0 = 0, tpy0 = 0;
+  vp.addEventListener('touchstart', function(e) {
+    [].forEach.call(e.changedTouches, function(t) { pts[t.identifier] = t; });
+    var ids = Object.keys(pts);
+    if (ids.length === 1) {
+      var t = pts[ids[0]]; tpx0 = t.clientX; tpy0 = t.clientY; ttx0 = tx; tty0 = ty;
+    }
+    if (ids.length === 2) {
+      var t1 = pts[ids[0]], t2 = pts[ids[1]];
+      lastD = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
+      var b = vp.getBoundingClientRect();
+      pCx = (t1.clientX+t2.clientX)/2 - b.left;
+      pCy = (t1.clientY+t2.clientY)/2 - b.top;
+    }
+    e.preventDefault();
+  }, { passive: false });
+  vp.addEventListener('touchmove', function(e) {
+    [].forEach.call(e.changedTouches, function(t) { pts[t.identifier] = t; });
+    var ids = Object.keys(pts);
+    if (ids.length === 1) {
+      var t = pts[ids[0]]; tx = ttx0+(t.clientX-tpx0); ty = tty0+(t.clientY-tpy0); apply();
+    } else if (ids.length === 2) {
+      var t1=pts[ids[0]], t2=pts[ids[1]];
+      var d = Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY);
+      if (lastD) zoomAt(pCx, pCy, d/lastD); lastD = d;
+    }
+    e.preventDefault();
+  }, { passive: false });
+  vp.addEventListener('touchend', function(e) {
+    [].forEach.call(e.changedTouches, function(t) { delete pts[t.identifier]; });
+    lastD = null;
+  });
+})();
+</script>
+</body>
+</html>"""
+                    _viewer_html = _viewer_html.replace("SVG_PLACEHOLDER", _svg_clean)
+                    import streamlit.components.v1 as _components
+                    _components.html(_viewer_html, height=800, scrolling=False)
+
+                except Exception as _svg_err:
                     st.graphviz_chart(_dot.source, use_container_width=True)
-                    st.warning(f"Affichage standard utilisé suite à une erreur technique.")
+                    st.caption(f"ℹ️ Vue interactive indisponible : {_svg_err}")
 
             # Tableau récapitulatif
             st.divider()
@@ -4566,6 +4748,8 @@ elif page == "🏛️ Organigramme Cap25":
                     },
                     use_container_width=True,
                 )
+
+
 
             # ── Export PDF ────────────────────────────────────────────────────
             st.divider()
@@ -5283,5 +5467,6 @@ st.markdown("""
 col_f_left, col_f_logo, col_f_right = st.columns([2, 1, 2])
 with col_f_logo:
     st.image("Logo- in'li.png", width=120)
+
 
 
